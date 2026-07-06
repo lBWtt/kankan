@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 虚拟环境（体积大、机器相关）
+.venv/
+venv/
+env/
+
+# 环境密钥（真配置绝不入库；只留 .env.example）
+.env
+.env.*
+!.env.example
+
+# 本地存储的用户上传媒体（运行时数据，不入库）
+uploads/
+
+# 本地数据库文件（生产用 Postgres 容器，不在此）
+*.db
+*.sqlite3
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
