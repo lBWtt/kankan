@@ -27,6 +27,8 @@ class MeResponse(BaseModel):
     interests: List[Domain] = []
     role: Optional[UserRole] = None
     created_at: datetime
+    following_count: int = 0  # 我关注的人数（关注功能，服务端填）
+    follower_count: int = 0   # 我的粉丝数
 
 
 class MeUpdate(BaseModel):
@@ -85,3 +87,6 @@ class UserPublic(UserBrief):
 
     bio: Optional[str] = None
     published_project_count: int = 0
+    following_count: int = 0
+    follower_count: int = 0
+    is_followed_by_me: bool = False  # 登录时=当前用户是否已关注 ta；游客=false

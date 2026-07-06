@@ -11,15 +11,16 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
-from app.api.deps import ERRORS_PUBLIC
+from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_required
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
 from app.core.utils import parse_datetime_cursor
 from app.models import Project, User
-from app.schemas.common import Page
+from app.schemas.common import OkResponse, Page
 from app.schemas.project import ProjectCard
-from app.schemas.user import UserPublic
+from app.schemas.user import UserBrief, UserPublic
+from app.services import social
 from app.services.projects import card_from_project
 
 router = APIRouter(prefix="/users", tags=["用户主页"], responses=ERRORS_PUBLIC)
@@ -33,17 +34,71 @@ def _get_public_user(db: Session, user_id: uuid.UUID) -> User:
 
 
 @router.get("/{user_id}", response_model=UserPublic, summary="用户公开主页（游客可用）")
-def get_user(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """只暴露公开字段（昵称/头像/简介/角色/已发布作品数），手机号邮箱等绝不外泄。"""
+def get_user(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    viewer: Optional[User] = Depends(auth_optional),
+):
+    """只暴露公开字段（昵称/头像/简介/角色/作品数/关注粉丝数），手机号邮箱等绝不外泄。
+    登录时附带 is_followed_by_me（当前用户是否已关注 ta）。"""
     u = _get_public_user(db, user_id)
     count = db.scalar(
         select(func.count()).select_from(Project).where(
             Project.author_user_id == u.id, Project.status == "published", Project.deleted_at.is_(None)
         )
     ) or 0
+    followed = (
+        viewer is not None and social.is_following(db, viewer.id, u.id)
+    )
     return UserPublic(
         id=u.id, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role,
         bio=u.bio, published_project_count=count,
+        following_count=social.following_count(db, u.id),
+        follower_count=social.follower_count(db, u.id),
+        is_followed_by_me=followed,
+    )
+
+
+@router.post("/{user_id}/follow", response_model=OkResponse, status_code=201,
+             responses=ERRORS_AUTHED, summary="关注用户（需登录）")
+def follow_user(user_id: uuid.UUID, user: User = Depends(auth_required), db: Session = Depends(get_db)):
+    """已关注幂等 201；关注自己 409 CANNOT_FOLLOW_SELF；目标不存在 404。"""
+    social.follow(db, user, user_id)
+    return OkResponse()
+
+
+@router.delete("/{user_id}/follow", status_code=204, responses=ERRORS_AUTHED, summary="取消关注（需登录）")
+def unfollow_user(user_id: uuid.UUID, user: User = Depends(auth_required), db: Session = Depends(get_db)):
+    social.unfollow(db, user, user_id)
+
+
+@router.get("/{user_id}/followers", response_model=Page[UserBrief], summary="TA 的粉丝（游客可用）")
+def user_followers(
+    user_id: uuid.UUID,
+    cursor: Optional[str] = None,
+    page_size: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    _get_public_user(db, user_id)
+    users, next_cursor, has_more = social.list_followers(db, user_id, cursor, page_size)
+    return Page[UserBrief](
+        items=[UserBrief.model_validate(x, from_attributes=True) for x in users],
+        next_cursor=next_cursor, has_more=has_more,
+    )
+
+
+@router.get("/{user_id}/following", response_model=Page[UserBrief], summary="TA 关注的人（游客可用）")
+def user_following(
+    user_id: uuid.UUID,
+    cursor: Optional[str] = None,
+    page_size: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    _get_public_user(db, user_id)
+    users, next_cursor, has_more = social.list_following(db, user_id, cursor, page_size)
+    return Page[UserBrief](
+        items=[UserBrief.model_validate(x, from_attributes=True) for x in users],
+        next_cursor=next_cursor, has_more=has_more,
     )
 
 

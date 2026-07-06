@@ -124,3 +124,23 @@ class ProjectReaction(CreatedAtMixin, Base):
         UniqueConstraint("user_id", "project_id", "reaction_type", name="uq_reactions_user_project_type"),
         Index("ix_project_reactions_project_id", "project_id"),
     )
+
+
+class UserFollow(CreatedAtMixin, Base):
+    """关注关系：follower 关注 followee。同一对只能关注一次；不能关注自己（服务层校验）。
+    外键带 ON DELETE CASCADE：用户注销时其关注/被关注关系随删。"""
+
+    __tablename__ = "user_follows"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    follower_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    followee_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("follower_user_id", "followee_user_id", name="uq_user_follows_pair"),
+        Index("ix_user_follows_followee", "followee_user_id"),
+    )

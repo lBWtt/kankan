@@ -17,6 +17,7 @@ from app.models.interaction import (
     ProjectReaction,
     SimilarProjectLink,
     TryItem,
+    UserFollow,
 )
 from app.models.share import Share
 from app.models.report import Report
@@ -40,6 +41,7 @@ __all__ = [
     "ClueSubscription",
     "SimilarProjectLink",
     "ProjectReaction",
+    "UserFollow",
     "Share",
     "Report",
     "Notification",

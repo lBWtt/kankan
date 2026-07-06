@@ -21,6 +21,7 @@ from app.core.utils import parse_datetime_cursor
 from app.models import Favorite, Project, PushPreference, TryItem, User
 from app.schemas.common import OkResponse, Page
 from app.schemas.project import ProjectCard
+from app.services import social
 from app.services.projects import card_from_project, cards_from_projects_with_stats, list_linked_projects
 from app.schemas.user import (
     InterestsWrite,
@@ -33,9 +34,16 @@ from app.schemas.user import (
 router = APIRouter(prefix="/me", tags=["我的"], dependencies=[Depends(auth_required)], responses=ERRORS_AUTHED)
 
 
+def _me_with_counts(db: Session, user: User) -> MeResponse:
+    me = MeResponse.model_validate(user)
+    me.following_count = social.following_count(db, user.id)
+    me.follower_count = social.follower_count(db, user.id)
+    return me
+
+
 @router.get("", response_model=MeResponse, summary="我的资料")
-def get_me(user: User = Depends(auth_required)):
-    return MeResponse.model_validate(user)
+def get_me(user: User = Depends(auth_required), db: Session = Depends(get_db)):
+    return _me_with_counts(db, user)
 
 
 @router.patch("", response_model=MeResponse, summary="修改资料（语言/昵称/兴趣等）")
@@ -52,7 +60,7 @@ def update_me(body: MeUpdate, user: User = Depends(auth_required), db: Session =
         else:
             setattr(user, field, value)
     db.commit()
-    return MeResponse.model_validate(user)
+    return _me_with_counts(db, user)
 
 
 @router.post("/interests", response_model=OkResponse, summary="onboarding 写入兴趣领域")
