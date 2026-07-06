@@ -167,14 +167,17 @@ def _get_or_create_tag(db: Session, name: str) -> ProjectTag:
 
 def attach_tags(db: Session, project_id: uuid.UUID, names: List) -> None:
     """标签落表：字典表去重 + 关系表（候选 approve 与用户发布共用）。
-    标签名称标准化：统一转小写、去除多余空格，避免大小写差异导致的重复。"""
+    标签标准化：去除多余空格；**存储保留原始大小写**（"Midjourney" 不被压成 "midjourney"），
+    仅在项目内**用小写做去重比较**（"AI编程"/"ai编程" 视为同一个，不重复挂）。"""
     seen = set()
     for raw in names:
-        # 标签标准化：去空格 + 转小写（避免 "AI编程" 和 "ai编程" 重复）
-        name = str(raw).strip().lower()[:50]
-        if not name or name in seen:
+        name = str(raw).strip()[:50]  # 存原文，保留大小写（前端展示不降级）
+        if not name:
             continue
-        seen.add(name)
+        key = name.lower()  # 去重用小写 key
+        if key in seen:
+            continue
+        seen.add(key)
         tag = _get_or_create_tag(db, name)
         db.add(ProjectTagRelation(project_id=project_id, tag_id=tag.id))
 
