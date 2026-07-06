@@ -17,6 +17,18 @@ from app.models.base import Base, CreatedAtMixin, uuid_pk
 
 
 class AnalyticsEvent(CreatedAtMixin, Base):
+    """埋点事件表。
+    
+    设计说明：
+    - 高频写入表，建议生产环境使用 PostgreSQL 表分区（按月或按周）
+    - 数据保留策略建议：超过 90 天的数据定期归档或清理
+    - 迁移脚本 0001 未包含分区定义，需在 Alembic 迁移中补充：
+      ```sql
+      CREATE TABLE analytics_events_2026_01 PARTITION OF analytics_events
+        FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
+      ```
+    - 分区键推荐使用 created_at（时间范围分区）
+    """
     __tablename__ = "analytics_events"
 
     id: Mapped[uuid.UUID] = uuid_pk()

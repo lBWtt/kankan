@@ -15,7 +15,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import api_v1_router
 from app.core.config import settings, validate_production_settings
+from app.core.db import engine
 from app.core.errors import AppError, app_error_handler, validation_error_handler
+from app.core.redis import redis_client
 from app.services.maintenance import start_scheduler
 
 logger = logging.getLogger("app.main")
@@ -26,6 +28,10 @@ async def lifespan(_: FastAPI):
     # 生产配置自检：致命问题（默认密钥/无短信商）直接拒绝启动，警告写日志
     for warning in validate_production_settings():
         logger.warning("生产配置警告：%s", warning)
+    # CORS 配置自检：生产环境不应使用默认 localhost origins
+    cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
+    if not cors_origins and settings.app_env == "prod":
+        logger.warning("生产环境未配置 CORS_ALLOW_ORIGINS，使用默认 localhost origins 可能不安全")
     # 定时任务随服务启动：榜单每小时刷新 + 每日 00:10 全量校准与媒体回收
     tasks = start_scheduler()
     yield
@@ -76,5 +82,34 @@ app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads"
 
 @app.get("/health", tags=["运维"])
 def health():
-    """健康检查：返回 200 即服务存活。不查数据库——数据库挂了应由监控发现，不应让心跳跟着挂。"""
+    """健康检查：返回 200 即服务存活。"""
     return {"status": "ok"}
+
+
+@app.get("/health/detailed", tags=["运维"])
+def health_detailed():
+    """详细健康检查：验证数据库和 Redis 连接状态。
+    用于监控发现依赖服务故障，而非心跳。"""
+    db_ok = True
+    redis_ok = True
+    try:
+        # 测试数据库连接
+        with engine.connect() as conn:
+            conn.execute("SELECT 1")
+    except Exception as e:
+        logger.error("数据库连接异常：%s", e)
+        db_ok = False
+
+    try:
+        # 测试 Redis 连接
+        redis_client.ping()
+    except Exception as e:
+        logger.error("Redis 连接异常：%s", e)
+        redis_ok = False
+
+    status = "ok" if db_ok and redis_ok else "degraded"
+    return {
+        "status": status,
+        "database": "ok" if db_ok else "error",
+        "redis": "ok" if redis_ok else "error",
+    }

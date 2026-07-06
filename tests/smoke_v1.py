@@ -165,8 +165,17 @@ def main():
     check("收藏第二个项目 = 201", r.status_code == 201)
 
     r = c.get("/api/v1/me/favorites", headers=actor_auth)
-    ids = [x["id"] for x in r.json()["items"]]
+    fav_items = r.json()["items"]
+    ids = [x["id"] for x in fav_items]
     check("我的收藏：2 条且后收藏的在前", ids == [p2, p1], str(ids))
+    # 新增：收藏卡片 author/counts 字段断言
+    fav_card = fav_items[0]
+    check("收藏卡片包含 author 字段", "author" in fav_card, str(fav_card))
+    # P2 是外部抓取项目，author 合法为 null
+    check("收藏卡片 author 为 null 或 UserBrief 形状",
+          fav_card["author"] is None or isinstance(fav_card["author"], dict), str(fav_card.get("author")))
+    check("收藏卡片包含 counts 字段（ProjectCounts 形状）", "counts" in fav_card and isinstance(fav_card["counts"], dict), str(fav_card.get("counts")))
+    check("收藏卡片 counts 结构完整", fav_card["counts"] is not None and "favorites" in fav_card["counts"] and "reactions" in fav_card["counts"], str(fav_card.get("counts")))
     r = c.get("/api/v1/me/favorites", headers=actor_auth, params={"page_size": 1})
     j = r.json()
     check("收藏分页：第1页 1 条且 has_more", len(j["items"]) == 1 and j["has_more"] and j["next_cursor"])

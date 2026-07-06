@@ -166,10 +166,12 @@ def _get_or_create_tag(db: Session, name: str) -> ProjectTag:
 
 
 def attach_tags(db: Session, project_id: uuid.UUID, names: List) -> None:
-    """标签落表：字典表去重 + 关系表（候选 approve 与用户发布共用）。"""
+    """标签落表：字典表去重 + 关系表（候选 approve 与用户发布共用）。
+    标签名称标准化：统一转小写、去除多余空格，避免大小写差异导致的重复。"""
     seen = set()
     for raw in names:
-        name = str(raw).strip()[:50]
+        # 标签标准化：去空格 + 转小写（避免 "AI编程" 和 "ai编程" 重复）
+        name = str(raw).strip().lower()[:50]
         if not name or name in seen:
             continue
         seen.add(name)

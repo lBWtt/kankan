@@ -125,15 +125,23 @@ class ViewerState(BaseModel):
 
 
 class ProjectCard(BaseModel):
-    """列表卡片；旧字段保持，新版前端字段补充为可选或可推导。"""
+    """列表卡片；旧字段保持，新版前端字段补充为可选或可推导。
+    
+    字段语义说明（card_from_project 组装逻辑）：
+    - subtitle：实际取值为 tagline，为兼容旧版前端保留
+    - intro：fallback 优先级：intro > description > summary，取第一个非空值
+    - flag：仅当 ai_badge != "none" 时有值，否则为 null
+    - author：列表端点填充 UserBrief，详情端点填充完整作者信息
+    - counts：列表端点填充真实计数，详情端点填充完整计数
+    """
 
     id: uuid.UUID
     title: str
     tagline: str
-    subtitle: Optional[str] = None
-    intro: Optional[str] = None
+    subtitle: Optional[str] = Field(None, description="兼容字段，实际值与 tagline 相同")
+    intro: Optional[str] = Field(None, description="简介，fallback: intro > description > summary")
     vertical: Optional[str] = None
-    flag: Optional[str] = None
+    flag: Optional[str] = Field(None, description="AI 标记展示值，仅当 ai_badge != 'none' 时非空")
     takeaway_count: int = 0
     repo_stars: Optional[str] = None
     cover_media_url: Optional[str] = None
@@ -141,8 +149,8 @@ class ProjectCard(BaseModel):
     domains: List[Domain]
     tools: List[str]
     ai_badge: AiBadge
-    author: Optional[UserBrief] = None
-    counts: Optional[ProjectCounts] = None
+    author: Optional[UserBrief] = Field(None, description="作者信息，列表端点填充")
+    counts: Optional[ProjectCounts] = Field(None, description="互动计数，列表端点填充真实值")
     viewer: Optional[ViewerState] = None
     published_at: Optional[datetime] = None
 

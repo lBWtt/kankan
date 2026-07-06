@@ -17,10 +17,11 @@ from app.api.deps import ERRORS_AUTHED, auth_required
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
+from app.core.utils import parse_datetime_cursor
 from app.models import Favorite, Project, PushPreference, TryItem, User
 from app.schemas.common import OkResponse, Page
 from app.schemas.project import ProjectCard
-from app.services.projects import card_from_project, list_linked_projects
+from app.services.projects import card_from_project, cards_from_projects_with_stats, list_linked_projects
 from app.schemas.user import (
     InterestsWrite,
     MeResponse,
@@ -103,8 +104,10 @@ def my_favorites(
     db: Session = Depends(get_db),
 ):
     """按收藏时间倒序；被下架/删除的项目自动隐藏。"""
-    rows, next_cursor, has_more = list_linked_projects(db, Favorite, user, cursor, page_size)
-    return Page[ProjectCard](items=[card_from_project(p) for p in rows], next_cursor=next_cursor, has_more=has_more)
+    rows, next_cursor, has_more = list_linked_projects(db, Favorite, user, cursor, page_size, load_author=True)
+    # 使用批量组装函数，填充 author 和 counts
+    items = cards_from_projects_with_stats(db, rows)
+    return Page[ProjectCard](items=items, next_cursor=next_cursor, has_more=has_more)
 
 
 @router.get("/try", response_model=Page[ProjectCard], summary="我的想试（收藏 Tab 第二栏）")
@@ -114,8 +117,10 @@ def my_try_items(
     user: User = Depends(auth_required),
     db: Session = Depends(get_db),
 ):
-    rows, next_cursor, has_more = list_linked_projects(db, TryItem, user, cursor, page_size)
-    return Page[ProjectCard](items=[card_from_project(p) for p in rows], next_cursor=next_cursor, has_more=has_more)
+    rows, next_cursor, has_more = list_linked_projects(db, TryItem, user, cursor, page_size, load_author=True)
+    # 使用批量组装函数，填充 author 和 counts
+    items = cards_from_projects_with_stats(db, rows)
+    return Page[ProjectCard](items=items, next_cursor=next_cursor, has_more=has_more)
 
 
 @router.get("/projects", response_model=Page[ProjectCard], summary="我的发布（含非 published 状态）")
@@ -132,12 +137,7 @@ def my_projects(
         .order_by(Project.created_at.desc(), Project.id.desc())
     )
     if cursor:
-        dt_s, id_s = decode_cursor(cursor, 2)
-        try:
-            c_dt = datetime.fromisoformat(dt_s)
-            c_id = uuidlib.UUID(id_s)
-        except ValueError:
-            raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
+        c_dt, c_id = parse_datetime_cursor(cursor)
         stmt = stmt.where(tuple_(Project.created_at, Project.id) < (c_dt, c_id))
 
     rows = db.scalars(stmt.limit(page_size + 1)).all()

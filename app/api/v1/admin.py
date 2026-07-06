@@ -16,6 +16,7 @@ from app.api.deps import ERRORS_AUTHED, admin_required
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
+from app.core.utils import parse_datetime_cursor, safe_like_pattern
 from app.models import (
     AdminAction,
     AnalyticsEvent,
@@ -105,15 +106,12 @@ def list_candidates(
     if language:
         stmt = stmt.where(CandidateContent.language == language.value)
     if q:
-        stmt = stmt.where(CandidateContent.title.ilike(f"%{q}%"))
+        # 使用 safe_like_pattern 转义特殊字符 % 和 _，防止模式注入
+        stmt = stmt.where(CandidateContent.title.ilike(safe_like_pattern(q)))
 
     stmt = stmt.order_by(CandidateContent.created_at.desc(), CandidateContent.id.desc())
     if cursor:
-        dt_s, id_s = decode_cursor(cursor, 2)
-        try:
-            c_dt, c_id = datetime.fromisoformat(dt_s), uuid.UUID(id_s)
-        except ValueError:
-            raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
+        c_dt, c_id = parse_datetime_cursor(cursor)
         stmt = stmt.where(tuple_(CandidateContent.created_at, CandidateContent.id) < (c_dt, c_id))
 
     rows = db.scalars(stmt.limit(page_size + 1)).all()
@@ -209,13 +207,10 @@ def admin_list_projects(
     if source_type:
         stmt = stmt.where(Project.source_type == source_type.value)
     if q:
-        stmt = stmt.where(Project.title.ilike(f"%{q}%"))
+        # 使用 safe_like_pattern 转义特殊字符 % 和 _，防止模式注入
+        stmt = stmt.where(Project.title.ilike(safe_like_pattern(q)))
     if cursor:
-        dt_s, id_s = decode_cursor(cursor, 2)
-        try:
-            c_dt, c_id = datetime.fromisoformat(dt_s), uuid.UUID(id_s)
-        except ValueError:
-            raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
+        c_dt, c_id = parse_datetime_cursor(cursor)
         stmt = stmt.where(tuple_(Project.created_at, Project.id) < (c_dt, c_id))
 
     rows = db.execute(stmt.limit(page_size + 1)).all()
@@ -303,16 +298,19 @@ def demand_board(
         select(Project, agg.c.cnt, agg.c.last_at)
         .join(agg, agg.c.pid == Project.id)
         .where(Project.source_type.in_(sources), Project.deleted_at.is_(None))
-        .order_by(agg.c.cnt.desc(), Project.id.desc())
+        # 排序：需求数降序，最后需求时间降序（第二排序键确保稳定性），项目 ID 降序（第三排序键）
+        .order_by(agg.c.cnt.desc(), agg.c.last_at.desc(), Project.id.desc())
     )
     if domain:
         stmt = stmt.where(Project.domains.any(domain.value))
     if cursor:
+        # 需求看板游标：(需求数, 项目id)
         cnt_s, id_s = decode_cursor(cursor, 2)
         try:
             c_cnt, c_id = int(cnt_s), uuid.UUID(id_s)
         except ValueError:
             raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
+        # 注意：需求看板游标只包含 cnt 和 id，排序稳定性依赖 last_at 和 id 的组合
         stmt = stmt.where(tuple_(agg.c.cnt, Project.id) < (c_cnt, c_id))
 
     rows = db.execute(stmt.limit(page_size + 1)).all()
@@ -350,11 +348,7 @@ def admin_list_reports(
     if status:
         stmt = stmt.where(Report.status == status.value)
     if cursor:
-        dt_s, id_s = decode_cursor(cursor, 2)
-        try:
-            c_dt, c_id = datetime.fromisoformat(dt_s), uuid.UUID(id_s)
-        except ValueError:
-            raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
+        c_dt, c_id = parse_datetime_cursor(cursor)
         stmt = stmt.where(tuple_(Report.created_at, Report.id) < (c_dt, c_id))
 
     rows = db.execute(stmt.limit(page_size + 1)).all()
@@ -497,11 +491,7 @@ def admin_actions(
     if target_type:
         stmt = stmt.where(AdminAction.target_type == target_type)
     if cursor:
-        dt_s, id_s = decode_cursor(cursor, 2)
-        try:
-            c_dt, c_id = datetime.fromisoformat(dt_s), uuid.UUID(id_s)
-        except ValueError:
-            raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
+        c_dt, c_id = parse_datetime_cursor(cursor)
         stmt = stmt.where(tuple_(AdminAction.created_at, AdminAction.id) < (c_dt, c_id))
 
     rows = db.scalars(stmt.limit(page_size + 1)).all()

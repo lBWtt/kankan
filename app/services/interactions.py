@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.utils import log_business
 from app.models import HowToInterest, Notification, Project, ProjectReaction, User
 
 
@@ -28,32 +29,40 @@ def get_published_project(db: Session, project_id: uuid.UUID) -> Project:
 # ---------- 收藏 / 想试 / 线索订阅（结构相同：user+project 唯一） ----------
 
 
-def add_user_link(db: Session, model: Type, user: User, project_id: uuid.UUID) -> None:
-    """幂等新增：已存在则什么都不做（重复收藏不报 409，契约约定）。
+def add_user_link(db: Session, model: Type, user: User, project_id: uuid.UUID) -> uuid.UUID:
+    """幂等新增：已存在则返回已有记录 ID；新增成功返回新记录 ID。
     并发下两个请求同时通过 exists 检查也安全：唯一约束兜底，撞约束的那个 rollback 当幂等成功。"""
     get_published_project(db, project_id)
     exists = db.scalar(select(model.id).where(model.user_id == user.id, model.project_id == project_id).limit(1))
     if exists:
-        return
-    db.add(model(user_id=user.id, project_id=project_id))
+        return exists
+    row = model(user_id=user.id, project_id=project_id)
+    db.add(row)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()  # 并发下另一请求已插入，幂等视为成功，不抛 500
+        return db.scalar(select(model.id).where(model.user_id == user.id, model.project_id == project_id).limit(1))
+    log_business("add_link", user.id, model=model.__name__, project_id=project_id)
+    return row.id
 
 
-def remove_user_link(db: Session, model: Type, user: User, project_id: uuid.UUID) -> None:
-    """幂等删除：不存在也返回成功（204），客户端重试不报错。"""
+def remove_user_link(db: Session, model: Type, user: User, project_id: uuid.UUID) -> bool:
+    """幂等删除：返回是否实际删除了记录（True=删除，False=不存在）。"""
     row = db.scalar(select(model).where(model.user_id == user.id, model.project_id == project_id).limit(1))
     if row is not None:
         db.delete(row)
         db.commit()
+        log_business("remove_link", user.id, model=model.__name__, project_id=project_id)
+        return True
+    return False
 
 
 # ---------- 创意反馈（user+project+type 唯一，可取消 toggle） ----------
 
 
-def add_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: str) -> None:
+def add_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: str) -> uuid.UUID:
+    """幂等新增创意反馈：返回记录 ID。"""
     get_published_project(db, project_id)
     exists = db.scalar(
         select(ProjectReaction.id)
@@ -65,15 +74,28 @@ def add_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: 
         .limit(1)
     )
     if exists:
-        return
-    db.add(ProjectReaction(user_id=user.id, project_id=project_id, reaction_type=reaction_type))
+        return exists
+    row = ProjectReaction(user_id=user.id, project_id=project_id, reaction_type=reaction_type)
+    db.add(row)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()  # 并发下另一请求已插入同类反应，幂等成功
+        return db.scalar(
+            select(ProjectReaction.id)
+            .where(
+                ProjectReaction.user_id == user.id,
+                ProjectReaction.project_id == project_id,
+                ProjectReaction.reaction_type == reaction_type,
+            )
+            .limit(1)
+        )
+    log_business("add_reaction", user.id, reaction_type=reaction_type, project_id=project_id)
+    return row.id
 
 
-def remove_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: str) -> None:
+def remove_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: str) -> bool:
+    """幂等删除创意反馈：返回是否实际删除了记录。"""
     row = db.scalar(
         select(ProjectReaction)
         .where(
@@ -86,6 +108,9 @@ def remove_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_typ
     if row is not None:
         db.delete(row)
         db.commit()
+        log_business("remove_reaction", user.id, reaction_type=reaction_type, project_id=project_id)
+        return True
+    return False
 
 
 # ---------- 想看怎么做（主信号，§5.1） ----------
@@ -119,13 +144,12 @@ def add_how_to_interest(
     if exists:
         return how_to_interest_count(db, project_id)
 
-    db.add(
-        HowToInterest(
-            user_id=user.id if user else None,
-            anon_client_id=None if user else anon_client_id,
-            project_id=project_id,
-        )
+    row = HowToInterest(
+        user_id=user.id if user else None,
+        anon_client_id=None if user else anon_client_id,
+        project_id=project_id,
     )
+    db.add(row)
     try:
         db.flush()  # INSERT 在此触发；并发撞部分唯一索引会在这里抛
     except IntegrityError:
@@ -134,6 +158,7 @@ def add_how_to_interest(
     count = how_to_interest_count(db, project_id)
     _route_demand(db, project, user, count)
     db.commit()
+    log_business("add_how_to_interest", user.id if user else None, project_id=project_id, count=count)
     return count
 
 

@@ -15,6 +15,7 @@ from app.api.deps import ERRORS_PUBLIC
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
+from app.core.utils import parse_datetime_cursor
 from app.models import Project, User
 from app.schemas.common import Page
 from app.schemas.project import ProjectCard
@@ -65,11 +66,7 @@ def user_projects(
         .order_by(Project.published_at.desc(), Project.id.desc())
     )
     if cursor:
-        dt_s, id_s = decode_cursor(cursor, 2)
-        try:
-            c_dt, c_id = datetime.fromisoformat(dt_s), uuid.UUID(id_s)
-        except ValueError:
-            raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
+        c_dt, c_id = parse_datetime_cursor(cursor)
         stmt = stmt.where(tuple_(Project.published_at, Project.id) < (c_dt, c_id))
 
     rows = db.scalars(stmt.limit(page_size + 1)).all()

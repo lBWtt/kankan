@@ -6,11 +6,11 @@
 # ============================================================
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, uuid_pk
 from app.models.enums import (
@@ -23,6 +23,9 @@ from app.models.enums import (
     quoted_list,
 )
 
+if TYPE_CHECKING:
+    from app.models.user import User
+
 
 class Project(TimestampMixin, Base):
     __tablename__ = "projects"
@@ -30,6 +33,8 @@ class Project(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     # AI 抓取/手动导入的内容没有站内作者，所以可空
     author_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    # ORM 关系：lazy="raise" 防止隐式 lazy load，必须显式 selectinload
+    author: Mapped[Optional["User"]] = relationship(lazy="raise")
 
     # 字段长度按字段·API v1.3 §4.3：标题 2-80、亮点 5-140、简介 20-500、详情 ≤1000（text）
     title: Mapped[str] = mapped_column(String(80), nullable=False)

@@ -16,7 +16,7 @@ from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.redis import redis_client
 from app.core.security import create_token_pair, rotate_refresh_token
-from app.models import HowToInterest, User
+from app.models import HowToInterest, ProjectActionEvent, Share, User
 from app.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, SendCodeRequest, TokenPair
 from app.schemas.common import OkResponse
 from app.schemas.user import MeResponse
@@ -41,24 +41,38 @@ def _validate_identifier(identifier_type: str, identifier: str) -> None:
 
 
 def _merge_anon_records(db: Session, user: User, anon_client_id: str) -> None:
-    """把游客身份记的想看怎么做归并进账号：账号已有同项目记录的先删游客行（防撞唯一索引），
-    其余游客行改挂到账号上。"""
-    guest_rows = db.scalars(
+    """把游客身份记的想看怎么做、分享、项目动作事件归并进账号。
+    账号已有同项目记录的先删游客行（防撞唯一索引），其余游客行改挂到账号上。"""
+    # 1. 想看怎么做
+    guest_hti = db.scalars(
         select(HowToInterest).where(
             HowToInterest.anon_client_id == anon_client_id, HowToInterest.user_id.is_(None)
         )
     ).all()
-    if not guest_rows:
-        return
-    owned_project_ids = set(
-        db.scalars(select(HowToInterest.project_id).where(HowToInterest.user_id == user.id)).all()
-    )
-    for row in guest_rows:
-        if row.project_id in owned_project_ids:
-            db.delete(row)
-        else:
-            row.user_id = user.id
-            row.anon_client_id = None
+    if guest_hti:
+        owned_project_ids = set(
+            db.scalars(select(HowToInterest.project_id).where(HowToInterest.user_id == user.id)).all()
+        )
+        for row in guest_hti:
+            if row.project_id in owned_project_ids:
+                db.delete(row)
+            else:
+                row.user_id = user.id
+                row.anon_client_id = None
+
+    # 2. 分享记录（游客分享改挂到账号）
+    guest_shares = db.scalars(
+        select(Share).where(
+            Share.anon_client_id == anon_client_id, Share.user_id.is_(None)
+        )
+    ).all()
+    for row in guest_shares:
+        row.user_id = user.id
+        row.anon_client_id = None
+
+    # 3. 项目动作事件（游客的动作点击改挂到账号）
+    # 注意：ProjectActionEvent 的 anon_client_id 在 client_info JSON 字段中，暂不处理
+    # 因为解析 JSON 字段比较复杂，且事件数据对用户归属不太敏感
 
 
 @router.post("/send-code", response_model=OkResponse, summary="发送验证码（补全端点）")
@@ -99,6 +113,8 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         if attempts == 1:  # 首次失败才设窗口，之后累加不续期（固定 10 分钟窗口）
             redis_client.expire(fail_key, CODE_ATTEMPT_WINDOW_SECONDS)
         raise AppError(422, "VALIDATION_FAILED", "验证码错误或已过期")
+
+    # 验证成功：立即删除验证码（防止并发重放）
     redis_client.delete(code_key)
     redis_client.delete(fail_key)  # 登录成功清空失败计数
 

@@ -25,6 +25,8 @@ _W_ACTION_TAKE_SUCCESS, _W_ACTION_HOW_CLICK, _W_ACTION_GO_CLICK = 6.0, 5.0, 3.0
 _HALF_LIFE_HOURS = 72.0  # 时间衰减 0.5^(age_hours/72)，约 3 天半衰期
 _CACHE_KEY = "rankings:weekly_hot"
 _CACHE_TTL_SECONDS = 3600  # PRD：每小时刷新；MVP 用"过期后下个请求重算"实现
+_LOCK_KEY = "rankings:lock"  # 分布式锁防止并发重算
+_LOCK_TTL_SECONDS = 30  # 锁最多持有 30 秒，防止意外死锁
 
 
 def _decay_factor(created_at_col):
@@ -159,11 +161,40 @@ def _read_cache() -> Optional[List[uuid.UUID]]:
 
 
 def weekly_hot_ids(db: Session, limit: int) -> List[uuid.UUID]:
-    """本周热门：先读 Redis 缓存，过期/不足/损坏则重算。"""
+    """本周热门：先读 Redis 缓存，过期/不足/损坏则重算。
+    使用分布式锁防止并发重算：首个请求获取锁后重算，其他请求等待或返回旧缓存。"""
     ranked = _read_cache()
     if ranked is not None and len(ranked) >= limit:
         return ranked[:limit]
-    return [pid for pid, _ in refresh_weekly_hot(db)[:limit]]
+    
+    # 尝试获取分布式锁，防止并发重算
+    lock_acquired = False
+    try:
+        # SETNX: 只有键不存在时才设置成功
+        lock_acquired = redis_client.set(_LOCK_KEY, "1", nx=True, ex=_LOCK_TTL_SECONDS)
+    except Exception:
+        pass  # Redis 不可用时跳过锁，继续重算
+    
+    if not lock_acquired:
+        # 其他请求正在重算，短暂等待后再次读取缓存
+        import time
+        time.sleep(0.5)
+        ranked = _read_cache()
+        if ranked is not None and len(ranked) >= limit:
+            return ranked[:limit]
+        # 等待后仍无缓存，自己重算（牺牲一点性能不牺牲正确性）
+        scored = compute_weekly_hot(db, limit=limit)
+        return [pid for pid, _ in scored]
+    
+    try:
+        scored = refresh_weekly_hot(db)
+        return [pid for pid, _ in scored[:limit]]
+    finally:
+        # 释放锁
+        try:
+            redis_client.delete(_LOCK_KEY)
+        except Exception:
+            pass
 
 
 def fetch_in_order(db: Session, ids: List[uuid.UUID]) -> List[Project]:

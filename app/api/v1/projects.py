@@ -28,6 +28,7 @@ from app.services.interactions import how_to_interest_count
 from app.services.publishing import create_user_project, soft_delete_project, update_user_project
 from app.services.projects import (
     card_from_project,
+    cards_from_projects_with_stats,
     clue_related_projects,
     detail_from_project,
     get_visible_project,
@@ -63,8 +64,11 @@ def list_projects(
         cursor=cursor,
         page_size=page_size,
         page=page,
+        load_author=True,  # 预加载作者，避免 N+1
     )
-    return Page[ProjectCard](items=[card_from_project(p) for p in rows], next_cursor=next_cursor, has_more=has_more)
+    # 使用批量组装函数，填充 author 和 counts
+    items = cards_from_projects_with_stats(db, rows)
+    return Page[ProjectCard](items=items, next_cursor=next_cursor, has_more=has_more)
 
 
 @router.post(
@@ -140,7 +144,10 @@ def similar_projects(
 ):
     """source_project_id=当前项目 且 status=published 的"我做了类似的"作品。"""
     get_visible_project(db, project_id, user)
-    return SimilarProjectsResponse(items=[card_from_project(p) for p in similar_published(db, project_id)])
+    similar = similar_published(db, project_id)
+    # 使用批量组装函数，填充 author 和 counts（一致性，复用批量函数防 N+1）
+    items = cards_from_projects_with_stats(db, similar)
+    return SimilarProjectsResponse(items=items)
 
 
 @router.get(
@@ -171,7 +178,7 @@ def implementation_clue(
         original_author_url=p.original_author_url,
         tools=p.tools or [],
         ai_implementation_hint=p.ai_implementation_hint,
-        related_projects=[card_from_project(r) for r in clue_related_projects(db, p)],
+        related_projects=cards_from_projects_with_stats(db, clue_related_projects(db, p)),  # 填充 author/counts
         how_to_interest_count=how_to_interest_count(db, p.id),
         is_subscribed=is_subscribed,
     )
