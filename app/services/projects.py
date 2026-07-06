@@ -326,17 +326,27 @@ def user_brief_from_user(u: Optional[User]) -> Optional[UserBrief]:
 
 def cards_from_projects_with_stats(db: Session, projects: List[Project]) -> List[ProjectCard]:
     """批量组装项目卡片，填充 author 和 counts，避免 N+1 查询。
-    projects 必须已通过 selectinload(Project.author) 加载了 author 关系。"""
+    不依赖 Project.author 关系的预加载，自己批量查询 author_user_id 对应的用户。
+    """
     if not projects:
         return []
 
     project_ids = [p.id for p in projects]
     counts_map = counts_for_projects(db, project_ids)
 
+    # 批量查询 author（不依赖 lazy='raise' 的关系，自己查 user 表）
+    author_ids = [p.author_user_id for p in projects if p.author_user_id is not None]
+    author_map: dict[uuid.UUID, User] = {}
+    if author_ids:
+        authors = db.scalars(select(User).where(User.id.in_(author_ids))).all()
+        author_map = {u.id: u for u in authors}
+
     cards: List[ProjectCard] = []
     for p in projects:
-        # author 通过 eager load 已加载，直接使用
-        author = user_brief_from_user(p.author)
+        # 从批量查询结果取 author，不访问 p.author 关系（避免 lazy='raise' 报错）
+        author = None
+        if p.author_user_id and p.author_user_id in author_map:
+            author = user_brief_from_user(author_map[p.author_user_id])
         counts = counts_map.get(p.id, ProjectCounts())
         cards.append(card_from_project(p, author=author, counts=counts))
     return cards
