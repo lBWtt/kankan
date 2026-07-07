@@ -119,7 +119,9 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
     stored = redis_client.get(code_key)
     dev_ok = dev_login_enabled() and body.code == DEV_UNIVERSAL_CODE
-    if not dev_ok and (stored is None or stored != body.code):
+    # compare_digest：常量时间比较，杜绝逐位试探的时序侧信道（配合 5 次锁是双保险）
+    code_ok = stored is not None and secrets.compare_digest(str(stored), body.code)
+    if not dev_ok and not code_ok:
         attempts = redis_client.incr(fail_key)
         if attempts == 1:  # 首次失败才设窗口，之后累加不续期（固定 10 分钟窗口）
             redis_client.expire(fail_key, CODE_ATTEMPT_WINDOW_SECONDS)

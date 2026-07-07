@@ -29,6 +29,10 @@ def rate_limit(key: str, limit: int, window: int) -> None:
         if current == 1:
             redis_client.expire(key, window)
         if current > limit:
+            # 兜底：若 incr 与 expire 之间曾崩溃/Redis 重启，键会无 TTL——计数器只增不减，
+            # 该身份被永久 429。这里发现无 TTL 就补上（本次仍拒，窗口过后自动恢复）。
+            if redis_client.ttl(key) == -1:
+                redis_client.expire(key, window)
             raise AppError(429, "RATE_LIMITED", "请求过于频繁，请稍后再试")
     except AppError:
         raise

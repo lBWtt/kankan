@@ -35,7 +35,16 @@ class AuthState {
 
 class AuthNotifier extends Notifier<AuthState> {
   @override
-  AuthState build() => _restore();
+  AuthState build() {
+    final restored = _restore();
+    // 会话死亡（refresh 被后端拒绝）→ dio 已清令牌，这里把 UI 登录态与持久化用户一并清掉，
+    // 否则界面仍显示已登录、但所有写操作静默 401。钩子经 microtask 触发，不在 build 期执行。
+    ref.read(tokenStoreProvider).onSessionExpired = () {
+      ref.read(prefsProvider).remove(PrefsKeys.authUser);
+      state = const AuthState();
+    };
+    return restored;
+  }
 
   /// 启动恢复登录态：tokenStore 已从 prefs 载回令牌；再读持久化的用户 JSON。
   /// 有令牌但无用户 JSON（异常残留）→ 清令牌保持一致，回游客态。

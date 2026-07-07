@@ -154,8 +154,11 @@ def main():
     with engine.begin() as conn:  # 把第二个改成 3 天前上传的
         conn.execute(sql("UPDATE project_media SET created_at = now() - interval '3 days' WHERE id = :m"),
                      {"m": old_id})
-    old_path = os.path.join("F:/ccpjv2/backend", settings.upload_dir, old_url.split("/uploads/")[1])
-    fresh_path = os.path.join("F:/ccpjv2/backend", settings.upload_dir, fresh_url.split("/uploads/")[1])
+    # 从本文件位置推导 backend 根目录（原来写死 F:/ccpjv2/backend，仓库搬家/换机即失效）。
+    # 前提：uvicorn 与本测试从同一个 backend/ 目录跑（upload_dir 是相对路径）。
+    _backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    old_path = os.path.join(_backend_root, settings.upload_dir, old_url.split("/uploads/")[1])
+    fresh_path = os.path.join(_backend_root, settings.upload_dir, fresh_url.split("/uploads/")[1])
     with SessionLocal() as db:
         purged = purge_staged_media(db)
     check("回收跑通且清掉 ≥1 条", purged >= 1, f"清理 {purged} 条")

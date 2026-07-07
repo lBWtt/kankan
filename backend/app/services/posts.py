@@ -19,6 +19,7 @@ from app.models import (
     Post,
     PostLike,
     PostMedia,
+    Project,
     ProjectMedia,
     User,
 )
@@ -100,6 +101,12 @@ def _posts_to_out(db: Session, posts: List[Post], viewer: Optional[User]) -> Lis
 
 def create_post(db: Session, user: User, content: str, tags: List[str],
                 quote_project_id: Optional[uuid.UUID], media_ids: List[uuid.UUID]) -> PostOut:
+    # 引用项目必须存在且已发布：不校验的话，随意 UUID 会在 flush 撞 FK 违反 → 500；
+    # 引用未发布/已删项目也没意义（详情页点不开）。与评论宿主校验同口径 404。
+    if quote_project_id is not None:
+        qp = db.get(Project, quote_project_id)
+        if qp is None or qp.deleted_at is not None or qp.status != "published":
+            raise AppError(404, "NOT_FOUND", "引用的项目不存在或未发布")
     p = Post(author_user_id=user.id, content=content, tags=tags or [], quote_project_id=quote_project_id)
     db.add(p)
     db.flush()
