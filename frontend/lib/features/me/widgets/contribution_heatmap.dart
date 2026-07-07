@@ -164,13 +164,13 @@ class ContributionHeatmap extends StatelessWidget {
           ? DateTime.fromMillisecondsSinceEpoch(sorted[idx].dateMs)
           : null;
       final hasLabel = dt != null && dt.month != lastMonth;
-      if (hasLabel) lastMonth = dt!.month;
+      if (hasLabel) lastMonth = dt.month;
       // 列宽 11 + 间距 3(最后一列无间距),用 SizedBox 占位对齐
       labels.add(SizedBox(
         width: 11,
         child: hasLabel
             ? Text(
-                '${dt!.month}月',
+                '${dt.month}月',
                 style: TextStyle(
                   fontSize: 8,
                   color: KkColors.t3,

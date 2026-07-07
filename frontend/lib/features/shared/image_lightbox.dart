@@ -25,7 +25,7 @@ void openImageLightbox(
   if (urls.isEmpty) return;
   final clamped = initialIndex.clamp(0, urls.length - 1);
   Navigator.of(context).push(
-    MaterialPageRoute(
+    MaterialPageRoute<void>(
       builder: (_) => _ImageLightbox(
         urls: urls,
         initialIndex: clamped,

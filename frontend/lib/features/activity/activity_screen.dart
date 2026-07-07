@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
@@ -8,7 +7,6 @@ import '../../core/utils/parse_count.dart';
 import '../../core/utils/time_ago.dart';
 import '../../core/widgets/skeletons.dart';
 import '../../core/widgets/kk_back_button.dart';
-import '../../core/widgets/tappable.dart';
 import '../../data/seed/mock_seed.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/post_repository.dart';

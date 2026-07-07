@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/kk_colors.dart';
 import '../../../core/theme/tokens.dart';
-import '../../../core/widgets/tappable.dart';
 import '../../../domain/models/models.dart';
 import '../../../features/detail/widgets/action_row.dart';
 import '../../../features/detail/widgets/io_block_view.dart';
