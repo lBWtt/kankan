@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, tuple_
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,16 @@ from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
 from app.core.utils import parse_datetime_cursor
-from app.models import Favorite, Project, PushPreference, TryItem, User
+from app.models import (
+    Favorite,
+    Post,
+    PostLike,
+    Project,
+    ProjectReaction,
+    PushPreference,
+    TryItem,
+    User,
+)
 from app.schemas.common import OkResponse, Page
 from app.schemas.project import ProjectCard
 from app.services import social
@@ -38,6 +47,31 @@ def _me_with_counts(db: Session, user: User) -> MeResponse:
     me = MeResponse.model_validate(user)
     me.following_count = social.following_count(db, user.id)
     me.follower_count = social.follower_count(db, user.id)
+    me.favorite_count = (
+        db.scalar(select(func.count()).select_from(Favorite).where(Favorite.user_id == user.id)) or 0
+    )
+    # 获赞 = 我的（未删）项目收到的反应数 + 我的（未删）动态收到的点赞数。
+    my_project_ids = select(Project.id).where(
+        Project.author_user_id == user.id, Project.deleted_at.is_(None)
+    )
+    my_post_ids = select(Post.id).where(
+        Post.author_user_id == user.id, Post.deleted_at.is_(None)
+    )
+    reaction_likes = (
+        db.scalar(
+            select(func.count()).select_from(ProjectReaction).where(
+                ProjectReaction.project_id.in_(my_project_ids)
+            )
+        )
+        or 0
+    )
+    post_likes = (
+        db.scalar(
+            select(func.count()).select_from(PostLike).where(PostLike.post_id.in_(my_post_ids))
+        )
+        or 0
+    )
+    me.received_like_count = reaction_likes + post_likes
     return me
 
 

@@ -29,6 +29,8 @@ class MeResponse(BaseModel):
     created_at: datetime
     following_count: int = 0  # 我关注的人数（关注功能，服务端填）
     follower_count: int = 0   # 我的粉丝数
+    favorite_count: int = 0   # 我收藏的项目数（收藏 Tab 计数）
+    received_like_count: int = 0  # 我的内容获赞总数（我的项目反应 + 我的动态点赞）
 
 
 class MeUpdate(BaseModel):
