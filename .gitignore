@@ -1,0 +1,22 @@
+# 根级兜底忽略（backend/ 与 frontend/ 各自还有更细的 .gitignore）
+# ---- 通用 ----
+.DS_Store
+*.log
+.env
+.env.local
+*.local
+
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/uploads/
+
+# ---- Flutter / frontend ----
+.dart_tool/
+.packages
+build/
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
