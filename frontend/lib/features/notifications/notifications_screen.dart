@@ -410,11 +410,11 @@ class _NotifTile extends ConsumerWidget {
     }
   }
 
-  /// 类型色:不用珊瑚橙(HANDOFF §5 只给 take)
+  /// 类型色:珊瑚橙只给 take(HANDOFF §5)；点赞用品牌色 teal。
   Color _typeColor(String type) {
     switch (type) {
       case 'like':
-        return KkColors.coral; // 点赞可用珊瑚橙(情感色,与 take 区分)
+        return KkColors.teal; // 点赞用品牌色，与 take 的珊瑚橙区分
       case 'comment':
         return KkColors.teal;
       case 'follow':

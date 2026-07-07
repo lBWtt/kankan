@@ -562,7 +562,7 @@ class _ShareSheetState extends ConsumerState<ShareSheet> {
 
 // ───────────────────────────────────────────────────────────────────
 // 5 种 Canvas 图案 painter(均用 KkColors.teal 不同透明度)
-// 不用蓝/紫,只用 teal.withOpacity(0.15 / 0.25 / 0.4)
+// 不用蓝/紫,只用 teal.withAlpha(38/64/102)
 // ───────────────────────────────────────────────────────────────────
 
 /// 1. 波浪:三条 sin 曲线,从下到上透明度递增(0.15 / 0.25 / 0.4)
@@ -584,7 +584,7 @@ class _WavesPainter extends CustomPainter {
     ];
     for (final (baseY, opacity) in waves) {
       final paint = Paint()
-        ..color = KkColors.teal.withOpacity(opacity)
+        ..color = KkColors.teal.withAlpha((opacity * 255).round())
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0
         ..strokeCap = StrokeCap.round;
@@ -634,7 +634,7 @@ class _MountainsPainter extends CustomPainter {
   }
 
   void _fillTriangle(Canvas canvas, List<Offset> pts, double opacity) {
-    final paint = Paint()..color = KkColors.teal.withOpacity(opacity);
+    final paint = Paint()..color = KkColors.teal.withAlpha((opacity * 255).round());
     final path = Path()
       ..moveTo(pts[0].dx, pts[0].dy)
       ..lineTo(pts[1].dx, pts[1].dy)
@@ -663,7 +663,7 @@ class _GridPainter extends CustomPainter {
     const cols = 6;
     final dx = w / (cols + 1);
     final dy = h / (rows + 1);
-    final paint = Paint()..color = KkColors.teal.withOpacity(0.25);
+    final paint = Paint()..color = KkColors.teal.withAlpha(64);
     for (var r = 1; r <= rows; r++) {
       for (var c = 1; c <= cols; c++) {
         canvas.drawCircle(Offset(c * dx, r * dy), 2, paint);
@@ -695,7 +695,7 @@ class _CirclesPainter extends CustomPainter {
     for (var i = 0; i < 5; i++) {
       final r = maxR * (i + 1) / 5;
       final paint = Paint()
-        ..color = KkColors.teal.withOpacity(opacities[i])
+        ..color = KkColors.teal.withAlpha((opacities[i] * 255).round())
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5;
       canvas.drawCircle(Offset(cx, cy), r, paint);
@@ -719,7 +719,7 @@ class _InkPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
     final paint = Paint()
-      ..color = KkColors.teal.withOpacity(0.25)
+      ..color = KkColors.teal.withAlpha(64)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
     // 3-4 个圆心,模拟水墨晕染层次
     canvas.drawCircle(Offset(w * 0.3, h * 0.4), 30, paint);

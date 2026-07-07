@@ -256,7 +256,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                     _mediaSection(context, ref, draft.media),
                     _sectionDivider(),
                     // 素材/actions(已加的列表 + "+" 按钮)
-                    _sectionTitle('可拿走的东西', hint: '提示词 / 文件 / 链接'),
+                    _sectionTitle('素材', hint: '提示词 / 文件 / 链接'),
                     _actionsSection(context, ref, draft.actions),
                     _sectionDivider(),
                     // 作者的话

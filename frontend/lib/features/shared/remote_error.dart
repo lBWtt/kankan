@@ -79,7 +79,7 @@ class _RemoteErrorState extends State<RemoteError> {
                 decoration: BoxDecoration(
                   color: KkColors.mint,
                   borderRadius: BorderRadius.circular(KkRadius.pill),
-                  border: Border.all(color: KkColors.teal.withOpacity(0.3)),
+                  border: Border.all(color: KkColors.teal.withAlpha(77)),
                 ),
                 child: _loading
                     ? const SizedBox(

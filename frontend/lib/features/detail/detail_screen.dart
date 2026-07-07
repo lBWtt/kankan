@@ -28,6 +28,7 @@ import 'widgets/media_carousel.dart';
 import 'widgets/repo_card.dart';
 import '../shared/comment_thread.dart';
 import '../shared/share_sheet.dart';
+import '../shared/remote_error.dart';
 
 /// 项目详情页 — HANDOFF §2 可组合渲染的指挥中心。
 ///
@@ -100,7 +101,12 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           bottom: false,
           child: projectAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('加载失败: $e')),
+            error: (e, _) => RemoteError(
+              message: '项目加载失败',
+              onRetry: () async {
+                ref.invalidate(projectByIdProvider(widget.projectId));
+              },
+            ),
             data: (project) {
               if (project == null) {
                 return const Center(child: Text('项目不存在'));
@@ -450,7 +456,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           decoration: BoxDecoration(
             color: KkColors.mint,
             borderRadius: BorderRadius.circular(KkRadius.md),
-            border: Border.all(color: KkColors.teal.withOpacity(0.3)),
+            border: Border.all(color: KkColors.teal.withAlpha(77)),
           ),
           child: Row(
             children: [
