@@ -4,6 +4,7 @@
 # 它对应产品里的什么功能：榜单 Tab 的本周热门/最新/今日精选三类。
 # 如果它出错了，用户会看到什么现象：榜单页空白、排序明显不对，或每次打开都很慢。
 # ============================================================
+import asyncio
 import json
 import secrets
 import uuid
@@ -184,7 +185,7 @@ def weekly_hot_ids(db: Session, limit: int) -> List[uuid.UUID]:
     if not lock_acquired:
         # 其他请求正在重算，短暂等待后再次读取缓存
         import time
-        time.sleep(0.5)
+        time.sleep(0.5)  # sync 端点跑在线程池，不阻塞事件循环
         ranked = _read_cache()
         if ranked is not None and len(ranked) >= limit:
             return ranked[:limit]

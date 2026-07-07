@@ -166,6 +166,8 @@ def add_how_to_interest(
         _route_demand(db, project, user, count)
         db.commit()
     except Exception:
+        # 主信号已 commit，此处的 rollback 仅撤销副作用（通知写入），
+        # 不会回滚已落库的主信号——两个独立事务。
         db.rollback()
         logger.exception("需求路由通知失败（主信号已记录，不影响计数）project_id=%s", project_id)
     log_business("add_how_to_interest", user.id if user else None, project_id=project_id, count=count)
