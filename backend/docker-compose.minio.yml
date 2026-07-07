@@ -1,0 +1,43 @@
+# 本地 MinIO（S3 兼容对象存储）——用于验证后端 s3 存储代码路径，无需任何云账号。
+# 起：docker compose -f docker-compose.minio.yml up -d
+# 停：docker compose -f docker-compose.minio.yml down            （加 -v 连数据一起删）
+# 控制台：http://localhost:9001  （账号 minioadmin / minioadmin）
+# S3 端点：http://localhost:9000
+#
+# createbuckets 一次性容器：等 MinIO 起来后建 kankan-media 桶并设匿名可下载
+#   （对齐后端 storage.py 返回的公开 URL：http://localhost:9000/kankan-media/media/<file>）。
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: kankan_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  createbuckets:
+    image: minio/mc:latest
+    container_name: kankan_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing local/kankan-media;
+      mc anonymous set download local/kankan-media;
+      echo '=== bucket kankan-media 就绪，匿名可下载 ===';
+      "
+
+volumes:
+  miniodata:

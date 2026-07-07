@@ -30,6 +30,9 @@ flutter run                          # 或 flutter build web --release --pwa-str
 ## 上线前 TODO
 
 - 媒体存储切 s3：后端 `.env` 设 `STORAGE_BACKEND=s3` + 填 `S3_*`（代码已就绪，见 `backend/app/services/storage.py`）。
+  **代码路径已用 MinIO 全链路实测通过**（上传 201 + 公开 URL 200 字节一致）；换真实阿里云 OSS 只改 5 个 `S3_*` 值。
+  本地复现/验证：`cd backend && docker compose -f docker-compose.minio.yml up -d && cp .env.minio.example .env`（重启后端）。
+  两个部署坑见 `backend/.env.minio.example` 顶部注释（boto3 需 pip 装、代理需 NO_PROXY 内网端点）。
 - 短信切真实供应商（aliyun）：`.env` 设 `SMS_BACKEND=aliyun` + 阿里云凭证。
 - 迁移 0009 是破坏性的（重建 FK + 触发器），生产低峰期执行 `alembic upgrade head`。
 - 部署：`backend/Dockerfile` + `backend/docker-compose.prod.yml`。
