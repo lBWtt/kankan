@@ -13,6 +13,7 @@ from app.api.v1 import (
     me,
     media,
     notifications,
+    posts,
     project_actions,
     projects,
     rankings,
@@ -31,4 +32,5 @@ api_v1_router.include_router(users.router)
 api_v1_router.include_router(media.router)
 api_v1_router.include_router(events.router)
 api_v1_router.include_router(comments.router)
+api_v1_router.include_router(posts.router)
 api_v1_router.include_router(admin.router)

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.pagination import encode_cursor
 from app.core.utils import parse_datetime_cursor
-from app.models import Comment, CommentLike, Project, User
+from app.models import Comment, CommentLike, Post, Project, User
 from app.schemas.comment import CommentOut
 from app.schemas.user import UserBrief
 
@@ -27,7 +27,10 @@ def _validate_host(db: Session, host_type: str, host_id: uuid.UUID) -> None:
         p = db.get(Project, host_id)
         if p is None or p.deleted_at is not None or p.status != "published":
             raise AppError(404, "NOT_FOUND", "评论的项目不存在或未发布")
-    # host_type == 'post'：posts 表阶段3 才建，暂不校验存在性（阶段3 补上）。
+    else:  # post（阶段3 建表后启用宿主校验）
+        post = db.get(Post, host_id)
+        if post is None or post.deleted_at is not None:
+            raise AppError(404, "NOT_FOUND", "评论的动态不存在或已删除")
 
 
 def _authors_map(db: Session, ids: List[uuid.UUID]) -> Dict[uuid.UUID, UserBrief]:

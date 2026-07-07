@@ -20,6 +20,7 @@ from app.models.interaction import (
     UserFollow,
 )
 from app.models.comment import Comment, CommentLike
+from app.models.post import Post, PostLike, PostMedia
 from app.models.share import Share
 from app.models.report import Report
 from app.models.notification import Notification, PushPreference
@@ -45,6 +46,9 @@ __all__ = [
     "UserFollow",
     "Comment",
     "CommentLike",
+    "Post",
+    "PostMedia",
+    "PostLike",
     "Share",
     "Report",
     "Notification",

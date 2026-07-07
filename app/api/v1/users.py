@@ -18,8 +18,10 @@ from app.core.pagination import decode_cursor, encode_cursor
 from app.core.utils import parse_datetime_cursor
 from app.models import Project, User
 from app.schemas.common import OkResponse, Page
+from app.schemas.post import PostOut
 from app.schemas.project import ProjectCard
 from app.schemas.user import UserBrief, UserPublic
+from app.services import posts as post_svc
 from app.services import social
 from app.services.projects import card_from_project
 
@@ -131,3 +133,16 @@ def user_projects(
         encode_cursor([rows[-1].published_at.isoformat(), str(rows[-1].id)]) if has_more and rows else None
     )
     return Page[ProjectCard](items=[card_from_project(p) for p in rows], next_cursor=next_cursor, has_more=has_more)
+
+
+@router.get("/{user_id}/posts", response_model=Page[PostOut], summary="TA 的动态（游客可用）")
+def user_posts_list(
+    user_id: uuid.UUID,
+    cursor: Optional[str] = None,
+    page_size: int = Query(20, ge=1, le=50),
+    viewer: Optional[User] = Depends(auth_optional),
+    db: Session = Depends(get_db),
+):
+    _get_public_user(db, user_id)
+    items, next_cursor, has_more = post_svc.list_user_posts(db, user_id, viewer, cursor, page_size)
+    return Page[PostOut](items=items, next_cursor=next_cursor, has_more=has_more)
