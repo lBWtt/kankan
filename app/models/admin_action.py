@@ -31,12 +31,9 @@ class AdminAction(CreatedAtMixin, Base):
     __table_args__ = (
         Index("ix_admin_actions_admin_created", "admin_user_id", "created_at"),
         Index("ix_admin_actions_target", "target_type", "target_id"),
-        # H-MDL-6：action 白名单 CHECK（与 schemas/admin.AdminActionItem.action Literal 值一致）
-        CheckConstraint(
-            "action IN ('take_down','restore','soft_delete','restore_soft_deleted','feature','unfeature',"
-            "'park','approve','discard','resolve_report','mark_risk')",
-            name="admin_action_allowed",
-        ),
+        # H-MDL-6：不约束 action —— 它是代码 f-string 生成的动态词表
+        # （`{action}_project` / `{new_status}_candidate` / edit_candidate / push_daily_pick），
+        # 非固定枚举；PR#5 原 CHECK 白名单词表是错的，会 500 掉合法审计写入，已移除。
         # H-MDL-6：target_type 白名单 CHECK
         CheckConstraint(
             "target_type IN ('project','candidate','report','user')",

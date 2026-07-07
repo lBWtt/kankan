@@ -32,33 +32,16 @@ depends_on: Union[str, Sequence[str], None] = None
 # H-MDL-7：在每张表上挂 BEFORE UPDATE 触发器，自动刷新 updated_at。
 # 含 updated_at 的表（TimestampMixin）必须建；只含 created_at 的表建了也无害（created_at 不被触发器改）。
 # 这里按 round3 review 指令，覆盖以下全部表。
+# 只能挂在真正有 updated_at 列的表上：touch_updated_at() 执行 `NEW.updated_at = now()`，
+# 若表无此列，PL/pgSQL 在 UPDATE 时抛 `record "new" has no field "updated_at"`——
+# 会 500 掉这些表的所有 UPDATE（软删/点赞/hot_score 等）。PR#5 原把 26 张表全挂了，是 bug。
+# 有 updated_at 的表 = 用 TimestampMixin 的 5 张（其余只有 created_at）。
 TRIGGER_TABLES = [
     "users",
     "projects",
     "candidate_contents",
-    "project_media",
-    "comments",
-    "posts",
-    "project_actions",
-    "notifications",
     "push_preferences",
     "reports",
-    "admin_actions",
-    "user_follows",
-    "project_tags",
-    "project_tag_relations",
-    "project_action_events",
-    "post_media",
-    "shares",
-    "how_to_interests",
-    "clue_subscriptions",
-    "try_items",
-    "favorites",
-    "project_reactions",
-    "similar_project_links",
-    "comment_likes",
-    "post_likes",
-    "analytics_events",
 ]
 
 
@@ -103,13 +86,10 @@ def upgrade() -> None:
         "reports",
         "reason IN ('copyright','ad_spam','nsfw','low_quality','other')",
     )
-    # H-MDL-6：admin action / target_type 白名单
-    op.create_check_constraint(
-        "admin_action_allowed",
-        "admin_actions",
-        "action IN ('take_down','restore','soft_delete','restore_soft_deleted','feature','unfeature',"
-        "'park','approve','discard','resolve_report','mark_risk')",
-    )
+    # H-MDL-6：admin target_type 白名单。
+    # 注意：不约束 action —— 审计日志的 action 由代码 f-string 生成
+    # （`{action}_project` / `{new_status}_candidate` / edit_candidate / push_daily_pick 等），
+    # 是动态词表而非固定枚举，用 CHECK 白名单会漏项并 500 掉合法写入（PR#5 原列表即错的）。
     op.create_check_constraint(
         "admin_target_type_allowed",
         "admin_actions",
@@ -244,7 +224,6 @@ def downgrade() -> None:
 
     # ---- 1) drop CHECK 约束 ----
     op.drop_constraint("admin_target_type_allowed", "admin_actions", type_="check")
-    op.drop_constraint("admin_action_allowed", "admin_actions", type_="check")
     op.drop_constraint("report_reason_allowed", "reports", type_="check")
     op.drop_constraint("no_self_similar", "similar_project_links", type_="check")
     op.drop_constraint("no_self_follow", "user_follows", type_="check")

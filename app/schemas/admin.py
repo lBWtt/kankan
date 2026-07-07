@@ -254,11 +254,9 @@ class DailyPickPushResponse(BaseModel):
 class AdminActionItem(BaseModel):
     id: uuid.UUID
     admin_user_id: uuid.UUID
-    # H-MDL-6：用 Literal 替代裸 str，与 models/admin_action.CHECK 值一致
-    action: Literal[
-        "take_down", "restore", "soft_delete", "restore_soft_deleted", "feature", "unfeature",
-        "park", "approve", "discard", "resolve_report", "mark_risk",
-    ]
+    # action 是审计日志代码 f-string 生成的动态值（如 take_down_project / edit_candidate /
+    # push_daily_pick），非固定枚举——保持裸 str，否则列表接口读到真实值会 500。
+    action: str
     target_type: Literal["project", "candidate", "report", "user"]
     target_id: Optional[uuid.UUID] = None
     detail: Optional[dict] = None

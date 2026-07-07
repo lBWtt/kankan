@@ -134,8 +134,10 @@ def main():
 
     print("== 4. hot_score 新行为权重 ==")
     with SessionLocal() as db:
-        scores = dict(compute_weekly_hot(db, limit=None))
-        score = float(scores.get(pid, 0))
+        # compute_weekly_hot 返回的 key 是 uuid.UUID，pid 是字符串——按 str 归一化再取，
+        # 否则 dict.get(字符串 pid) 永远 miss 拿到 0（这是测试侧的键类型 bug，非后端问题）。
+        scores = {str(k): v for k, v in compute_weekly_hot(db, limit=None)}
+        score = float(scores.get(str(pid), 0))
     check("hot_score 包含 go click(3) + take success(6) + how_to_interest(5)",
           score > 13.0, f"score={score}")
 
