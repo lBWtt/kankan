@@ -44,14 +44,16 @@ def _check_tool_items(v):
 
 
 class MediaItem(BaseModel):
+    # 前端读 type/poster（见 frontend project_card_dto）。字段直接命名 type/poster，
+    # 构造处显式传 type=m.media_type / poster=m.thumbnail_url（见 services/projects.py）。
+    # 不能用 Field(alias="media_type")：FastAPI 响应默认 by_alias=True 会把输出又变回
+    # media_type/thumbnail_url，等于没改（PR#3 原写法即此坑，已改为裸字段名）。
     id: uuid.UUID
-    type: MediaType = Field(alias="media_type", description="前端读 type；后端模型列名 media_type")
+    type: MediaType
     kind: Optional[MediaType] = Field(None, description="新版前端别名；值与 type 一致")
     url: str
-    poster: Optional[str] = Field(None, alias="thumbnail_url", description="视频封面；前端读 poster")
+    poster: Optional[str] = Field(None, description="视频封面；前端读 poster")
     sort_order: int = 0
-
-    model_config = {"populate_by_name": True}
 
 
 class ProjectActionType(str, Enum):
