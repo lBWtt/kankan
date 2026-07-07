@@ -49,16 +49,26 @@ def unfollow(db: Session, follower: User, followee_id: uuid.UUID) -> None:
 
 
 def follower_count(db: Session, user_id: uuid.UUID) -> int:
-    """粉丝数 = 关注 ta 的人数。"""
+    """粉丝数 = 关注 ta 的人数（排除已注销用户，与 list_followers 口径一致）。
+
+    H-SVC-3：原来 count 不过滤 deleted_at，但列表过滤，导致“显示 100 实际 95”。
+    这里 join User 过滤 deleted_at，保证 count 与列表口径一致。
+    """
     return db.scalar(
-        select(func.count()).select_from(UserFollow).where(UserFollow.followee_user_id == user_id)
+        select(func.count())
+        .select_from(UserFollow)
+        .join(User, User.id == UserFollow.follower_user_id)
+        .where(UserFollow.followee_user_id == user_id, User.deleted_at.is_(None))
     ) or 0
 
 
 def following_count(db: Session, user_id: uuid.UUID) -> int:
-    """关注数 = ta 关注的人数。"""
+    """关注数 = ta 关注的人数（排除已注销用户，与 list_following 口径一致）。"""
     return db.scalar(
-        select(func.count()).select_from(UserFollow).where(UserFollow.follower_user_id == user_id)
+        select(func.count())
+        .select_from(UserFollow)
+        .join(User, User.id == UserFollow.followee_user_id)
+        .where(UserFollow.follower_user_id == user_id, User.deleted_at.is_(None))
     ) or 0
 
 

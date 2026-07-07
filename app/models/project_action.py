@@ -17,13 +17,15 @@ class ProjectAction(CreatedAtMixin, Base):
     __tablename__ = "project_actions"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——项目删除时其动作按钮随删
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     action_type: Mapped[str] = mapped_column(String(20), nullable=False)
     action_sub: Mapped[str] = mapped_column(String(20), nullable=False)
     label: Mapped[str] = mapped_column(String(255), nullable=False)
     sublabel: Mapped[Optional[str]] = mapped_column(String(255))
     content: Mapped[Optional[str]] = mapped_column(Text)
-    file_media_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("project_media.id"))
+    # C-MDL-3：ondelete=SET NULL——媒体被删时动作按钮保留，file_media_id 置空（动作降级为无附件）
+    file_media_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("project_media.id", ondelete="SET NULL"))
     file_name: Mapped[Optional[str]] = mapped_column(String(255))
     file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
     url: Mapped[Optional[str]] = mapped_column(Text)
@@ -44,9 +46,10 @@ class ProjectActionEvent(CreatedAtMixin, Base):
     __tablename__ = "project_action_events"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    action_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("project_actions.id"), nullable=False)
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    # C-MDL-3：ondelete=CASCADE——项目/动作/用户删除时事件流水随删
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    action_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("project_actions.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     anon_client_id: Mapped[Optional[str]] = mapped_column(String(64))
     event_type: Mapped[str] = mapped_column(String(20), nullable=False)
 

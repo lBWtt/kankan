@@ -14,6 +14,7 @@ from typing_extensions import Literal
 
 from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_required
 from app.core.db import get_db
+from app.core.ratelimit import rate_limit
 from app.models import ClueSubscription, User
 from app.schemas.common import Category, Domain, Page
 from app.schemas.project import (
@@ -81,6 +82,8 @@ def create_project(
     """发布准入（PRD §2.3 红线）：tools≥1 或 description 含可复现说明，
     否则 409 PUBLISH_GATE_FAILED（纯单图无方法不予发布）。
     user_original/user_discovery 默认直接发布（status=published）。"""
+    # H-API-6: 用户级频控——每分钟最多 5 个项目，防项目刷量
+    rate_limit(f"projects:create:{user.id}", limit=5, window=60)
     project = create_user_project(db, user, body)
     db.commit()
     return detail_from_project(db, project, user)

@@ -8,4 +8,16 @@ from redis import Redis
 
 from app.core.config import settings
 
-redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
+# socket_connect_timeout/socket_timeout=2s：慢/挂的 Redis 不能让 FastAPI threadpool
+#   （40 线程）被并发认证请求吃光——否则整个服务连同 /health 一起卡死。
+# retry_on_timeout + retry_on_error：瞬时抖动自动重试一次，减少 503。
+# health_check_interval=30s：长连接定期自检，及时发现被中间设备掐断的半死连接。
+redis_client = Redis.from_url(
+    settings.redis_url,
+    decode_responses=True,
+    socket_connect_timeout=2,
+    socket_timeout=2,
+    retry_on_timeout=True,
+    retry_on_error=[ConnectionError, TimeoutError],
+    health_check_interval=30,
+)

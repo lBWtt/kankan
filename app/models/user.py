@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, CheckConstraint, String, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,4 +42,8 @@ class User(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint(f"role IS NULL OR role IN ({quoted_list(USER_ROLE)})", name="role_allowed"),
         CheckConstraint(f"interests <@ ARRAY[{quoted_list(DOMAIN)}]::text[]", name="interests_allowed"),
+        # C-MDL-2：email/phone 至少有一个，杜绝幽灵账号（两者都可空但不可同时为空）
+        CheckConstraint("email IS NOT NULL OR phone IS NOT NULL", name="contact_present"),
+        # H-MDL-8：软删列的部分索引——只索引未软删的活跃用户，提升登录/查询性能
+        Index("ix_users_live", "id", postgresql_where=text("deleted_at IS NULL")),
     )

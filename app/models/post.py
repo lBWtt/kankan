@@ -45,6 +45,8 @@ class Post(CreatedAtMixin, Base):
     __table_args__ = (
         Index("ix_posts_created", "created_at"),
         Index("ix_posts_author", "author_user_id"),
+        # H-MDL-8：软删列的部分索引——发现页只刷未删的动态
+        Index("ix_posts_live_created", "created_at", postgresql_where=text("deleted_at IS NULL")),
     )
 
 

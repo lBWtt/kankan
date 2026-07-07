@@ -5,6 +5,7 @@
 # 如果它出错了，用户会看到什么现象：榜单页空白、排序明显不对，或每次打开都很慢。
 # ============================================================
 import json
+import secrets
 import uuid
 from typing import Dict, List, Optional, Tuple
 
@@ -26,7 +27,7 @@ _HALF_LIFE_HOURS = 72.0  # 时间衰减 0.5^(age_hours/72)，约 3 天半衰期
 _CACHE_KEY = "rankings:weekly_hot"
 _CACHE_TTL_SECONDS = 3600  # PRD：每小时刷新；MVP 用"过期后下个请求重算"实现
 _LOCK_KEY = "rankings:lock"  # 分布式锁防止并发重算
-_LOCK_TTL_SECONDS = 30  # 锁最多持有 30 秒，防止意外死锁
+_LOCK_TTL_SECONDS = 120  # 调大到 120 秒，覆盖最慢重算（防止锁过期后被别人接管产生并发重算）
 
 
 def _decay_factor(created_at_col):
@@ -162,16 +163,21 @@ def _read_cache() -> Optional[List[uuid.UUID]]:
 
 def weekly_hot_ids(db: Session, limit: int) -> List[uuid.UUID]:
     """本周热门：先读 Redis 缓存，过期/不足/损坏则重算。
-    使用分布式锁防止并发重算：首个请求获取锁后重算，其他请求等待或返回旧缓存。"""
+    使用分布式锁防止并发重算：首个请求获取锁后重算，其他请求等待或返回旧缓存。
+
+    安全释放（H-SVC-2）：锁值为随机 token，释放时用 Lua 脚本原子比对 token 后才删。
+    避免锁过期后持有者已释放、另一进程抢到锁后本进程译误删除，导致三进程同时重算。
+    """
     ranked = _read_cache()
     if ranked is not None and len(ranked) >= limit:
         return ranked[:limit]
     
-    # 尝试获取分布式锁，防止并发重算
+    # 尝试获取分布式锁（token 随机，释放时用它安全比对），防止并发重算
+    token = secrets.token_hex(8)
     lock_acquired = False
     try:
-        # SETNX: 只有键不存在时才设置成功
-        lock_acquired = redis_client.set(_LOCK_KEY, "1", nx=True, ex=_LOCK_TTL_SECONDS)
+        # SETNX: 只有键不存在时才设置成功；值为 token，释放时比对它
+        lock_acquired = redis_client.set(_LOCK_KEY, token, nx=True, ex=_LOCK_TTL_SECONDS)
     except Exception:
         pass  # Redis 不可用时跳过锁，继续重算
     
@@ -190,9 +196,12 @@ def weekly_hot_ids(db: Session, limit: int) -> List[uuid.UUID]:
         scored = refresh_weekly_hot(db)
         return [pid for pid, _ in scored[:limit]]
     finally:
-        # 释放锁
+        # 安全释放：Lua 脚本原子 GET+DEL，只有 token 一致才删（锁已过期被别人接管则不删）
         try:
-            redis_client.delete(_LOCK_KEY)
+            redis_client.eval(
+                'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end',
+                1, _LOCK_KEY, token
+            )
         except Exception:
             pass
 

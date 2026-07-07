@@ -19,9 +19,10 @@ class Share(CreatedAtMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     # 游客也能分享，所以 user_id 可空，游客用 anon_client_id（补全决策，对齐 how_to_interests 的做法）
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    # C-MDL-3：ondelete=CASCADE——用户/项目删除时分享记录随删
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     anon_client_id: Mapped[Optional[str]] = mapped_column(String(64))
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     share_channel: Mapped[str] = mapped_column(share_channel_enum, nullable=False)
     share_status: Mapped[str] = mapped_column(share_status_enum, nullable=False)
 

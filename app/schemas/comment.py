@@ -5,6 +5,7 @@
 # ============================================================
 import uuid
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -12,10 +13,18 @@ from pydantic import BaseModel, Field
 from app.schemas.user import UserBrief
 
 
+class CommentHostType(str, Enum):
+    """评论宿主类型：项目详情或动态详情。H-MDL-3：用枚举替代裸 str，
+    非法值在 Pydantic 层就 422，而不是落到 DB CHECK 才 500。"""
+
+    project = "project"
+    post = "post"
+
+
 class CommentCreate(BaseModel):
     """POST /comments：host_type∈{project,post}；parent_comment_id 回复顶级评论时带。"""
 
-    host_type: str = Field(description="project | post")
+    host_type: CommentHostType
     host_id: uuid.UUID
     content: str = Field(min_length=1, max_length=2000)
     parent_comment_id: Optional[uuid.UUID] = None
@@ -26,7 +35,7 @@ class CommentOut(BaseModel):
     replies 是内嵌数组，仅顶级评论带（子回复自身 replies 恒空）。"""
 
     id: uuid.UUID
-    host_type: str
+    host_type: CommentHostType
     host_id: uuid.UUID
     author: Optional[UserBrief] = None
     content: str

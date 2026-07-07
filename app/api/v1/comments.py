@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_required
 from app.core.db import get_db
+from app.core.ratelimit import rate_limit
 from app.models import User
 from app.schemas.comment import CommentCreate, CommentOut
 from app.schemas.common import OkResponse, Page
@@ -37,6 +38,8 @@ def list_comments(
              summary="发评论（需登录）")
 def create_comment(body: CommentCreate, user: User = Depends(auth_required), db: Session = Depends(get_db)):
     """回复顶级评论时带 parent_comment_id；楼中楼仅一层，回复子回复 422。宿主不存在 404。"""
+    # H-API-6: 用户级频控——每分钟最多 20 条评论，防评论刷量
+    rate_limit(f"comments:create:{user.id}", limit=20, window=60)
     return svc.create_comment(db, user, body.host_type, body.host_id, body.content, body.parent_comment_id)
 
 

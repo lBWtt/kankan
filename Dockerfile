@@ -14,6 +14,9 @@ ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
 WORKDIR /srv/app
 
+# 非 root 运行：即使容器被攻破也限定在 app 用户权限内，符合最小权限原则。
+RUN groupadd -r app && useradd -r -g app -d /srv/app -s /usr/sbin/nologin app
+
 COPY requirements.txt .
 RUN pip install -i ${PIP_INDEX_URL} -r requirements.txt
 
@@ -22,12 +25,15 @@ COPY alembic ./alembic
 COPY app ./app
 
 # 上传目录（storage_backend=local 时挂卷持久化；s3 时仅作临时盘）
-RUN mkdir -p uploads
+RUN mkdir -p uploads && chown -R app:app /srv/app
+
+USER app
 
 EXPOSE 8000
 
-# 心跳：依赖标准库，不给镜像加 curl
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# 心跳：依赖标准库，不给镜像加 curl。start-period=60s 给 alembic 升级 + uvicorn 启动留足时间，
+#   避免冷启动期被误判为不健康而触发滚动重启循环。
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status==200 else 1)"
 
 # 先升级表结构再起服务；--workers 1 是有意为之：定时任务随 FastAPI 进程跑，

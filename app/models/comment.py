@@ -46,6 +46,8 @@ class Comment(CreatedAtMixin, Base):
         CheckConstraint("host_type IN ('project','post')", name="ck_comments_host_type"),
         Index("ix_comments_host", "host_type", "host_id"),
         Index("ix_comments_parent", "parent_comment_id"),
+        # H-MDL-8：软删列的部分索引——列表只展示未删评论
+        Index("ix_comments_live_host", "host_type", "host_id", postgresql_where=text("deleted_at IS NULL")),
     )
 
 

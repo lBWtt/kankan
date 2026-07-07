@@ -90,7 +90,26 @@ def check_publish_gate(candidate: CandidateContent) -> None:
 
 
 def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> Project:
-    """§5.3 复制 + 关联：候选 → 正式项目（published，hot_score=0），媒体/标签一并落表，回写 project_id。"""
+    """§5.3 复制 + 关联：候选 → 正式项目（published，hot_score=0），媒体/标签一并落表，回写 project_id。
+
+    并发安全（C-SVC-1）：approve 入口用 SELECT ... FOR UPDATE 重新加载候选行并刷新
+    identity map 的属性。两个并发 approve 同一候选时，B 的 FOR UPDATE 会阻塞到 A
+    提交后再读到 status=approved，由 ensure_approvable 抛 409 CANDIDATE_INVALID_STATE，
+    杜绝“两个 published 项目、candidate.project_id 只指向后提交的、先创建的变孤儿”。
+    锁在 service 内部获取，API 层 admin.py approve 端点无需改动（其 db.commit() 释放锁）。
+    """
+    # 即使 admin 端点已 db.get 过，这里仍要重新 FOR UPDATE：既加行锁，又用 populate_existing
+    # 把 identity map 里的旧属性（如 status=pending_review）刷新成数据库提交后的最新值。
+    locked = db.execute(
+        select(CandidateContent)
+        .where(CandidateContent.id == candidate.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
+    if locked is None:
+        raise AppError(404, "NOT_FOUND", "候选不存在")
+    candidate = locked
+
     ensure_approvable(candidate)
     check_publish_gate(candidate)
 

@@ -7,7 +7,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Index, String
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +18,8 @@ class AdminAction(CreatedAtMixin, Base):
     __tablename__ = "admin_actions"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    admin_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # C-MDL-3：ondelete=RESTRICT 显式声明——审计日志要长期保留，禁止随管理员注销连带删除
+    admin_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     # 动作名：take_down / restore / soft_delete / approve / discard / require_edit / feature / resolve_report ...
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     # 操作对象：project / candidate / report / user（不设外键，因为对象可能在不同表）
@@ -30,4 +31,15 @@ class AdminAction(CreatedAtMixin, Base):
     __table_args__ = (
         Index("ix_admin_actions_admin_created", "admin_user_id", "created_at"),
         Index("ix_admin_actions_target", "target_type", "target_id"),
+        # H-MDL-6：action 白名单 CHECK（与 schemas/admin.AdminActionItem.action Literal 值一致）
+        CheckConstraint(
+            "action IN ('take_down','restore','soft_delete','restore_soft_deleted','feature','unfeature',"
+            "'park','approve','discard','resolve_report','mark_risk')",
+            name="admin_action_allowed",
+        ),
+        # H-MDL-6：target_type 白名单 CHECK
+        CheckConstraint(
+            "target_type IN ('project','candidate','report','user')",
+            name="admin_target_type_allowed",
+        ),
     )

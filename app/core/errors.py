@@ -5,11 +5,15 @@
 # 如果它出错了，用户会看到什么现象：报错提示混乱或前端无法识别错误原因，
 #   比如该弹登录框的地方弹了"系统错误"。
 # ============================================================
+import logging
 from typing import Optional
 
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from redis.exceptions import RedisError
+
+logger = logging.getLogger("app.errors")
 
 
 class AppError(Exception):
@@ -31,6 +35,7 @@ class AppError(Exception):
 # 429 RATE_LIMITED         频控（如验证码发送过频）
 # 500 INTERNAL             服务器内部错误
 # 501 NOT_IMPLEMENTED      契约已定义、实现排期中（本阶段所有业务接口）
+# 503 DEPENDENCY_DOWN      依赖服务（Redis/DB）不可用，请稍后重试
 #
 # ---- 业务错误码 ----
 # 409 PUBLISH_GATE_FAILED      发布准入不满足：tools≥1 或简介含可复现说明（PRD §2.3 红线）
@@ -60,4 +65,26 @@ async def validation_error_handler(request: Request, exc) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={"code": "VALIDATION_FAILED", "message": "参数校验失败", "details": {"errors": safe_errors}},
+    )
+
+
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """兜底：所有未被 AppError / RequestValidationError handler 命中的异常都到这里，
+    统一转成 {code, message, details}——否则 FastAPI 默认返回 {"detail":"Internal Server Error"}
+    会破坏 errors.py 声明的响应契约，前端按 code 分支会直接失效。
+
+    特殊处理 RedisError：依赖服务挂掉应返回 503 DEPENDENCY_DOWN（可重试），而非 500（不可恢复）。
+    注意：本 handler 必须排在 AppError handler 之后注册——FastAPI 按"异常类型精确匹配"派发，
+    AppError 是 Exception 子类，但精确匹配优先，所以 AppError 仍走 app_error_handler。
+    """
+    if isinstance(exc, RedisError):
+        logger.exception("依赖服务异常")
+        return JSONResponse(
+            status_code=503,
+            content={"code": "DEPENDENCY_DOWN", "message": "服务暂不可用，请稍后重试", "details": None},
+        )
+    logger.exception("未捕获异常")
+    return JSONResponse(
+        status_code=500,
+        content={"code": "INTERNAL", "message": "服务器内部错误", "details": None},
     )

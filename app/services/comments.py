@@ -7,7 +7,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import delete, func, select, tuple_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -95,19 +96,38 @@ def delete_comment(db: Session, user: User, comment_id: uuid.UUID) -> None:
 
 
 def set_comment_like(db: Session, user: User, comment_id: uuid.UUID, on: bool) -> None:
+    """点评论点赞 / 取消点赞（幂等）。
+
+    并发安全（C-SVC-2）：计数器从 read-modify-write 改为原子 UPDATE（like_count = like_count + 1），
+    避免并发点赞计数漂移；并发撞唯一约束时捕获 IntegrityError 做幂等，不再 500。
+    取消时用 DELETE ... WHERE 的 rowcount 判断是否真的删了一行，才决定要不要减计数，
+    并用 greatest(0, like_count-1) 兑底防止出现负数（历史漂移场景下也不会走负）。
+    """
     c = db.get(Comment, comment_id)
     if c is None or c.deleted_at is not None:
         raise AppError(404, "NOT_FOUND", "评论不存在")
-    existing = db.scalar(
-        select(CommentLike).where(CommentLike.comment_id == comment_id, CommentLike.user_id == user.id)
-    )
-    if on and existing is None:
-        db.add(CommentLike(comment_id=comment_id, user_id=user.id))
-        c.like_count = (c.like_count or 0) + 1
+    if on:
+        try:
+            db.add(CommentLike(comment_id=comment_id, user_id=user.id))
+            db.flush()  # 触发唯一约束检查
+        except IntegrityError:
+            db.rollback()
+            return  # 幂等：已赞过，不重复计数
+        db.execute(
+            update(Comment).where(Comment.id == comment_id)
+            .values(like_count=Comment.like_count + 1)
+        )
         db.commit()
-    elif not on and existing is not None:
-        db.delete(existing)
-        c.like_count = max(0, (c.like_count or 0) - 1)
+    else:
+        result = db.execute(
+            delete(CommentLike)
+            .where(CommentLike.comment_id == comment_id, CommentLike.user_id == user.id)
+        )
+        if result.rowcount > 0:
+            db.execute(
+                update(Comment).where(Comment.id == comment_id)
+                .values(like_count=func.greatest(0, Comment.like_count - 1))
+            )
         db.commit()
     # 幂等：重复赞/重复取消不报错、不重复计
 

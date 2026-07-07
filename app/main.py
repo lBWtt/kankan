@@ -18,7 +18,12 @@ from sqlalchemy import text
 from app.api.v1 import api_v1_router
 from app.core.config import settings, validate_production_settings
 from app.core.db import engine
-from app.core.errors import AppError, app_error_handler, validation_error_handler
+from app.core.errors import (
+    AppError,
+    app_error_handler,
+    unhandled_exception_handler,
+    validation_error_handler,
+)
 from app.core.redis import redis_client
 from app.services.maintenance import start_scheduler
 
@@ -76,6 +81,8 @@ app.add_middleware(
 
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
+# 兜底：未捕获异常统一转 {code,message,details}，RedisError 单独走 503，避免破坏响应契约
+app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(api_v1_router)
 
