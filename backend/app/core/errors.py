@@ -34,7 +34,6 @@ class AppError(Exception):
 # 422 VALIDATION_FAILED    参数校验失败（FastAPI 自动校验也归一成此结构）
 # 429 RATE_LIMITED         频控（如验证码发送过频）
 # 500 INTERNAL             服务器内部错误
-# 501 NOT_IMPLEMENTED      契约已定义、实现排期中（本阶段所有业务接口）
 # 503 DEPENDENCY_DOWN      依赖服务（Redis/DB）不可用，请稍后重试
 #
 # ---- 业务错误码 ----
@@ -44,10 +43,6 @@ class AppError(Exception):
 # 409 PROJECT_INVALID_STATE    项目状态不允许该管理动作（如对 deleted 执行 take-down）
 # 422 ANON_ID_REQUIRED         游客触发想看怎么做/分享时必须带 anon_client_id
 
-
-def not_implemented() -> AppError:
-    """契约阶段所有业务接口的统一占位：501 + 明确说明。"""
-    return AppError(501, "NOT_IMPLEMENTED", "接口契约已定义，实现排期中（见 docs/API契约_v1.0.md）")
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:

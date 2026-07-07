@@ -29,11 +29,14 @@ def _save_local(temp_path: str, filename: str) -> str:
 
 
 def _save_s3(temp_path: str, filename: str) -> str:
-    """boto3 按需导入：local 后端跑开发环境不需要装它也能起服务。"""
+    """boto3 按需导入：local 后端跑开发环境不需要装它也能起服务。
+    上传失败转成 AppError(500)，避免 boto3 ClientError 泄露为裸 500。"""
     try:
         import boto3
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("storage_backend=s3 需要安装 boto3（pip install boto3）") from exc
+
+    from app.core.errors import AppError
 
     client = boto3.client(
         "s3",
@@ -44,9 +47,16 @@ def _save_s3(temp_path: str, filename: str) -> str:
     )
     ext = filename.rsplit(".", 1)[-1]
     key = f"media/{filename}"
-    client.upload_file(
-        temp_path, settings.s3_bucket, key,
-        ExtraArgs={"ContentType": _S3_CONTENT_TYPES.get(ext, "application/octet-stream")},
-    )
-    os.remove(temp_path)
+    try:
+        client.upload_file(
+            temp_path, settings.s3_bucket, key,
+            ExtraArgs={"ContentType": _S3_CONTENT_TYPES.get(ext, "application/octet-stream")},
+        )
+    except Exception as exc:
+        # boto3 ClientError /网络错误统一转 AppError，给前端结构化报错
+        raise AppError(500, "INTERNAL", "文件上传到对象存储失败") from exc
+    finally:
+        # 无论上传成功或失败，都清理临时文件
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
     return f"{settings.s3_public_base_url.rstrip('/')}/{key}"

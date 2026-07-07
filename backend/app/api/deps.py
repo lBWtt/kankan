@@ -57,13 +57,12 @@ def admin_required(user: User = Depends(auth_required)) -> User:
 
 
 # 路由器级别的错误响应文档（挂在 APIRouter(responses=...) 上，让 /docs 显示错误契约）
+# 注：501 NOT_IMPLEMENTED 已移除——所有业务接口均已实现，不再需要占位错误码。
 ERRORS_AUTHED = {
     401: {"model": ErrorResponse, "description": "未登录（AUTH_REQUIRED）"},
-    403: {"model": ErrorResponse, "description": "无权限（FORBIDDEN)"},
+    403: {"model": ErrorResponse, "description": "无权限（FORBIDDEN）"},
     404: {"model": ErrorResponse, "description": "资源不存在（NOT_FOUND）"},
-    501: {"model": ErrorResponse, "description": "契约已定义，实现排期中（NOT_IMPLEMENTED）"},
 }
 ERRORS_PUBLIC = {
     404: {"model": ErrorResponse, "description": "资源不存在（NOT_FOUND）"},
-    501: {"model": ErrorResponse, "description": "契约已定义，实现排期中（NOT_IMPLEMENTED）"},
 }
