@@ -19,6 +19,7 @@ from app.models.interaction import (
     TryItem,
     UserFollow,
 )
+from app.models.comment import Comment, CommentLike
 from app.models.share import Share
 from app.models.report import Report
 from app.models.notification import Notification, PushPreference
@@ -42,6 +43,8 @@ __all__ = [
     "SimilarProjectLink",
     "ProjectReaction",
     "UserFollow",
+    "Comment",
+    "CommentLike",
     "Share",
     "Report",
     "Notification",
