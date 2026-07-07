@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # ---- AI 抓取管线：候选内容整理用的 Claude API（不配 key 也不影响服务运行，
     #      只是 python -m app.pipeline process 跑不了真实整理）----
     anthropic_api_key: str = ""
+    # claude-opus-4-8（Opus 4.8）是当前在售模型，无需日期后缀即可调用。
+    #（PR#4 曾误改为 claude-opus-4-1-20250805——那是 zai 训练数据过时导致的误判，已还原。）
     anthropic_model: str = "claude-opus-4-8"
 
     # 分享卡回流的 Web 分享页域名（Web 分享页未建，先占位，上线前改环境变量）

@@ -205,6 +205,10 @@ def record_share(
     """clicked=点了分享，completed=分享完成；completed 进 hot_score（×6 权重）。
     流水表不去重（同一人多次分享都算行为）。"""
     svc.get_published_project(db, project_id)
+    # 游客必须带 anon_client_id，否则会写出 user_id/anon_client_id 双空的脏行
+    # （Share 表没有 HowToInterest/ProjectActionEvent 那样的 identity CHECK 约束兜底）。
+    if user is None and not body.anon_client_id:
+        raise AppError(422, "ANON_ID_REQUIRED", "游客记录分享必须携带 anon_client_id")
     db.add(
         Share(
             user_id=user.id if user else None,

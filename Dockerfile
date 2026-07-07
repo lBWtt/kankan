@@ -4,7 +4,9 @@
 # 它对应产品里的什么功能：不对应单一功能，是后端能部署到任何服务器的前提。
 # 如果它出错了，用户会看到什么现象：新版本发不上线；线上回滚也靠它。
 # ============================================================
-FROM python:3.9-slim
+# 用 3.11 而非 3.9：3.9 已于 2025-10 EOL（不再有安全补丁），
+# 且 3.11 性能更好、对 pydantic v2 / SQLAlchemy 2.x / anthropic SDK 支持更稳。
+FROM python:3.11-slim
 
 # 国内构建可换源：docker build --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple .
 ARG PIP_INDEX_URL=https://pypi.org/simple

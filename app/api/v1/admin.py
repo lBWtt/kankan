@@ -9,7 +9,7 @@ from datetime import date, datetime, time as time_cls, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import func, insert, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.api.deps import ERRORS_AUTHED, admin_required
@@ -304,19 +304,24 @@ def demand_board(
     if domain:
         stmt = stmt.where(Project.domains.any(domain.value))
     if cursor:
-        # 需求看板游标：(需求数, 项目id)
-        cnt_s, id_s = decode_cursor(cursor, 2)
+        # 需求看板游标：(需求数, 最后需求时间, 项目id)——必须与 ORDER BY 的三个键完全对齐，
+        # 否则需求数相同的项目会因 last_at 不同而被游标比较漏掉或重复（翻页丢条/重复）。
+        cnt_s, last_at_s, id_s = decode_cursor(cursor, 3)
         try:
-            c_cnt, c_id = int(cnt_s), uuid.UUID(id_s)
+            c_cnt = int(cnt_s)
+            c_last_at = datetime.fromisoformat(last_at_s)
+            c_id = uuid.UUID(id_s)
         except ValueError:
             raise AppError(422, "VALIDATION_FAILED", "cursor 无效")
-        # 注意：需求看板游标只包含 cnt 和 id，排序稳定性依赖 last_at 和 id 的组合
-        stmt = stmt.where(tuple_(agg.c.cnt, Project.id) < (c_cnt, c_id))
+        stmt = stmt.where(tuple_(agg.c.cnt, agg.c.last_at, Project.id) < (c_cnt, c_last_at, c_id))
 
     rows = db.execute(stmt.limit(page_size + 1)).all()
     has_more = len(rows) > page_size
     rows = rows[:page_size]
-    next_cursor = encode_cursor([str(rows[-1][1]), str(rows[-1][0].id)]) if has_more and rows else None
+    next_cursor = (
+        encode_cursor([str(rows[-1][1]), rows[-1][2].isoformat(), str(rows[-1][0].id)])
+        if has_more and rows else None
+    )
     return Page[DemandBoardItem](
         items=[
             DemandBoardItem(
@@ -468,9 +473,17 @@ def push_daily_pick(
     ).all()
     title = body.title_override or "今日精选"
     notif_body = body.body_override or f"今天值得一看：《{project.title}》"
-    for uid in audience:
-        db.add(Notification(user_id=uid, type="daily_pick", title=title, body=notif_body,
-                            project_id=project.id))
+    # 批量插入而非逐条 db.add：用户量上去后逐条 ORM add 会在 session 里堆大量对象，
+    # 既慢又可能 OOM；executemany 一次落库，百万级用户也能在秒级完成。
+    if audience:
+        db.execute(
+            insert(Notification),
+            [
+                {"user_id": uid, "type": "daily_pick", "title": title,
+                 "body": notif_body, "project_id": project.id}
+                for uid in audience
+            ],
+        )
     log_admin_action(db, admin.id, "push_daily_pick", "project", project.id,
                      {"audience_count": len(audience)})
     db.commit()

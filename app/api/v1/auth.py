@@ -91,6 +91,7 @@ def send_code(body: SendCodeRequest):
         send_login_code(body.identifier_type.value, body.identifier, code)
     except AppError:
         redis_client.delete(code_key)  # 没发出去的码不留着，防止状态混乱
+        redis_client.delete(rl_key)    # 发送失败就别锁 60 秒频控，用户可立即重试
         raise
     return OkResponse()
 
@@ -119,16 +120,22 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     redis_client.delete(fail_key)  # 登录成功清空失败计数
 
     field = User.email if body.identifier_type.value == "email" else User.phone
-    user = db.scalar(select(User).where(field == body.identifier, User.deleted_at.is_(None)))
-    is_new_user = user is None
-    if is_new_user:
-        user = User(
-            email=body.identifier if body.identifier_type.value == "email" else None,
-            phone=body.identifier if body.identifier_type.value == "phone" else None,
-            nickname=f"创意客{secrets.randbelow(10000):04d}",
-        )
-        db.add(user)
-        db.flush()
+    # 不带 deleted_at 过滤地查：若该手机号/邮箱属于一个已注销账号，直接恢复（清 deleted_at），
+    # 而不是新建——否则会撞 email/phone 的唯一约束抛 IntegrityError → 500。
+    user = db.scalar(select(User).where(field == body.identifier))
+    if user is not None and user.deleted_at is not None:
+        user.deleted_at = None
+        is_new_user = False
+    else:
+        is_new_user = user is None
+        if is_new_user:
+            user = User(
+                email=body.identifier if body.identifier_type.value == "email" else None,
+                phone=body.identifier if body.identifier_type.value == "phone" else None,
+                nickname=f"创意客{secrets.randbelow(10000):04d}",
+            )
+            db.add(user)
+            db.flush()
 
     if body.anon_client_id:
         _merge_anon_records(db, user, body.anon_client_id)

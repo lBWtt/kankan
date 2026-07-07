@@ -4,6 +4,7 @@
 # 它对应产品里的什么功能：所有接口的入口；/docs 是前后端对齐用的可交互契约文档。
 # 如果它出错了，用户会看到什么现象：整个后端起不来，App 所有联网功能瘫痪。
 # ============================================================
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app.api.v1 import api_v1_router
 from app.core.config import settings, validate_production_settings
@@ -37,6 +39,8 @@ async def lifespan(_: FastAPI):
     yield
     for t in tasks:
         t.cancel()
+    # 等待取消真正完成，避免任务在退出时仍持有 DB 会话/连接造成告警或资源泄漏
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 app = FastAPI(
@@ -93,9 +97,9 @@ def health_detailed():
     db_ok = True
     redis_ok = True
     try:
-        # 测试数据库连接
+        # 测试数据库连接（SQLAlchemy 2.x execute 必须用 text() 包装裸 SQL，否则抛 ObjectNotExecutableError）
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
     except Exception as e:
         logger.error("数据库连接异常：%s", e)
         db_ok = False

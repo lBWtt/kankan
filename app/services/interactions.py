@@ -5,6 +5,7 @@
 # 如果它出错了，用户会看到什么现象：按钮点了没反应或重复计数；最严重的是主信号丢失
 #   或游客被错误要求登录（违反红线）。
 # ============================================================
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Type
@@ -16,6 +17,8 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.utils import log_business
 from app.models import HowToInterest, Notification, Project, ProjectReaction, User
+
+logger = logging.getLogger("app.interactions")
 
 
 def get_published_project(db: Session, project_id: uuid.UUID) -> Project:
@@ -156,8 +159,15 @@ def add_how_to_interest(
         db.rollback()  # 并发下另一请求已记同一需求，幂等成功，返回当前累计数
         return how_to_interest_count(db, project_id)
     count = how_to_interest_count(db, project_id)
-    _route_demand(db, project, user, count)
+    # 主信号先独立落库：它是产品核心，绝不能因下游通知副作用失败而一起回滚丢失。
     db.commit()
+    # 通知作者 / 汇入需求看板是副作用，失败只记日志，不影响已落库的主信号与计数。
+    try:
+        _route_demand(db, project, user, count)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("需求路由通知失败（主信号已记录，不影响计数）project_id=%s", project_id)
     log_business("add_how_to_interest", user.id if user else None, project_id=project_id, count=count)
     return count
 
