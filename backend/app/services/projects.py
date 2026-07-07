@@ -417,8 +417,8 @@ def detail_from_project(db: Session, p: Project, user: Optional[User]) -> Projec
         original_author_url=p.original_author_url,
         media=[
             MediaItem(
-                id=m.id, media_type=m.media_type, kind=m.media_type,
-                url=m.url, thumbnail_url=m.thumbnail_url, sort_order=m.sort_order
+                id=m.id, type=m.media_type, kind=m.media_type,
+                url=m.url, poster=m.thumbnail_url, sort_order=m.sort_order
             )
             for m in media
         ],
