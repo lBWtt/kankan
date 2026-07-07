@@ -1,0 +1,133 @@
+# 看看 Kankan · Flutter 版
+# Phase 2:数据模型(freezed)+ 详情页 + 发布页
+name: kankan_flutter
+description: 看看 — 看 AI 做出的有意思的东西 + 心得。Flutter 原生版。
+publish_to: 'none'
+version: 0.2.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # ── P2-i18n:本地化基础(Material/Cupertino/Widgets 的 zh/en 文案 + 日期/数字格式)──
+  # 用法:app.dart 的 MaterialApp.router 接 localizationsDelegates +
+  # supportedLocales。当前 app 文案由 lib/l10n/kk_strings.dart 手写(免 codegen),
+  # 这个依赖只负责框架层本地化(MaterialLocalizations 的撤销/粘贴等系统文案、
+  # 日期数字格式)。未来切 flutter gen-l10n 时,此依赖同样必需。
+  flutter_localizations:
+    sdk: flutter
+
+  # ── 状态管理:Riverpod 3.x ──
+  flutter_riverpod: ^3.0.0
+  riverpod: ^3.0.0
+
+  # ── 路由:go_router ──
+  go_router: ^14.0.0
+
+  # ── 后端接入:HTTP client(看看 feed 等真数据,--dart-define=USE_REMOTE=true 启用)──
+  dio: ^5.4.0
+
+  # ── 会话持久化:登录令牌(web 刷新不掉登录)。web=localStorage,移动=SharedPreferences ──
+  shared_preferences: ^2.3.0
+
+  # ── 声明式动画 ──
+  flutter_animate: ^4.0.0
+
+  # ── 数据模型:freezed 3.x(不可变数据类 + copyWith + equality)──
+  # F-34:从 2.4.4 升 3.x。2.x 的 analyzer ^6.5||^7.0 与 build_runner 传递的
+  # analyzer >=8 互斥,导致 pub get 失败。3.x 放宽了 analyzer 约束,与 build_runner
+  # / flutter_test 共存。freezed 3.x 的 @freezed / @Default / with _$X 语法与 2.x
+  # 向后兼容,11 个模型文件无需改一行。
+  freezed_annotation: ^3.0.0
+
+  # ── Phase 2 新增:详情页/发布页功能依赖 ──
+  # 视频播放(详情页视频块,HANDOFF §2.1 视频优先真播放)
+  video_player: ^2.9.0
+  # 图片轮播 lightbox(详情页小红书式轮播,HANDOFF §2.1)
+  photo_view: ^0.15.0
+  # 图片/视频选择(发布页传图视频,HANDOFF §4)
+  image_picker: ^1.1.0
+  # 打开外链(go 动作真开浏览器,HANDOFF §2.2)
+  url_launcher: ^6.3.0
+  # 文件保存(take 下载动作,Phase 2 简化版用 url_launcher 兜底,真下载 Phase 5 接)。
+  # path_provider Phase 5 接真持久化时再用(当前 Drift 已移除,见 F-34)。
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # ── Phase 5:真分享(share_plus)── 分享链接/海报图到系统分享面板(可存相册)。
+  # share_plus 10.x 兼容 Flutter >=3.10。Share.share(文本) / Share.shareXFiles(文件)。
+  share_plus: ^10.1.0
+
+  # ── Phase 5:真存相册(gal)── 分享海报 PNG 字节直接存系统相册。
+  # gal 2.x maintained, 比 gallery_saver(unmaintained) 轻, 比 saver_gallery 更稳。
+  # Gal.putImageBytes(bytes, name:) → 请求权限 + 存相册; 失败抛 GalException。
+  gal: ^2.3.0
+
+  # ── Phase 5:真语法高亮(flutter_highlight)── HowAction 工作流代码块按语言着色。
+  # flutter_highlight 0.7.x 依赖 highlight(pure Dart tokenizer)，兼容 Flutter >=1.17。
+  # HighlightView(code, language, theme) 即用；主题 atom-one-dark 与项目暗代码区协调。
+  flutter_highlight: ^0.7.0
+
+  # ── 真二维码(分享海报扫码打开)──
+  # 任务⑧:替换 share_sheet 的 _QrPlaceholderPainter(画得像但编码不了 URL)。
+  # qr_flutter 4.1.0 兼容 Flutter >=3.10.0(本项目 >=3.24.0,OK)。
+  # 若解析/编译不兼容,退 barcode_widget(任务文件兜底)。
+  qr_flutter: ^4.1.0
+
+  # ── Phase 5:真持久化 ──
+  # F-34:Drift/drift_dev/sqlite3_flutter_libs 已移除。
+  # 原因:drift_dev 要求 analyzer >=8.0.0,与 freezed 2.x 的 analyzer ^6.5||^7.0 互斥,
+  # 导致 pub get 失败。占位的 kk_database.dart / recent_search_dao.dart 从未接入运行时
+  # (KkDatabase 是 abstract 类,openKkDatabase() throw UnimplementedError,lib 内 0 引用),
+  # 删除安全。Phase 5+ 接 SDK 落地持久化时,优先用 freezed 3.x + shared_preferences/
+  # isar/sqflite(任一不与 freezed analyzer 冲突的方案),不要再用 drift_dev。
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+  # ── freezed codegen 3.x ──
+  # 用法:flutter pub get && dart run build_runner build -d
+  # 详见 README「本地运行步骤」
+  # F-34:从 2.5.7 升 3.x。2.x 的 analyzer 约束与 drift_dev 互斥(pub get 失败),
+  # 删除 Drift 后 freezed 升 3.x 与 build_runner / flutter_test 共存。
+  freezed: ^3.0.0
+  build_runner: ^2.4.13
+
+flutter:
+  uses-material-design: true
+  # P2-i18n:启用 flutter gen-l10n(配合 l10n.yaml)。
+  # 当前 app 文案由 lib/l10n/kk_strings.dart 手写(免 codegen,沙箱无 flutter SDK 也能编译);
+  # 同时保留 lib/l10n/app_zh.arb / app_en.arb 作为切 gen-l10n 时的源(两路并行维护)。
+  # 未来切 gen-l10n 时:删 kk_strings.dart,改用 `AppLocalizations.of(context)` 即可。
+  generate: true
+
+  # ── 字体(P2 接口留好,资源待投)──
+  # P2-FONTS: 本仓库默认 *不* 携带 .ttf 资源(避免二进制大文件入库 + 沙箱
+  # 无法下载)。`lib/core/fonts/font_family.dart` 已定义 KkFonts.title /
+  # KkFonts.mono + fontFamilyFallback 回退链,即使本段注释掉,app 也能跑:
+  # Flutter 找不到声明的 family,按回退链匹配系统已安装的同名字体
+  # (Noto Serif SC / Source Han Serif SC / Songti SC / serif),视觉接近品牌、
+  # 不崩。这是有意降级,不是 bug。
+  #
+  # 要切到自托管子集:
+  #   1. 按 assets/fonts/README.md 生成两个文件:
+  #        - assets/fonts/NotoSerifSC-Subset.ttf  (Noto Serif SC 子集,~1.5–3MB)
+  #        - assets/fonts/JetBrainsMono-Regular.ttf  (JetBrains Mono Regular,~200KB)
+  #   2. 取消下方 `fonts:` 段注释。
+  #   3. `flutter pub get && flutter run`。
+  # 字体资源 *必须* 先放好再取消注释,否则 `flutter pub get` 会因缺文件报错。
+  #
+  # fonts:
+  #   - family: NotoSerifSC
+  #     fonts:
+  #       - asset: assets/fonts/NotoSerifSC-Subset.ttf
+  #   - family: JetBrainsMono
+  #     fonts:
+  #       - asset: assets/fonts/JetBrainsMono-Regular.ttf

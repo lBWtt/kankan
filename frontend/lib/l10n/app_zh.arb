@@ -1,0 +1,67 @@
+{
+  "@@locale": "zh",
+  "@@last_modified": "2025-01-01T00:00:00Z",
+
+  "appTitle": "看看",
+  "@appTitle": {
+    "description": "App 名称(MaterialApp.title、顶栏标题)。"
+  },
+
+  "discoverTab": "发现",
+  "@discoverTab": { "description": "底栏 Tab 1:发现页。" },
+  "kankanTab": "看看",
+  "@kankanTab": { "description": "底栏 Tab 2:项目 feed。" },
+  "libraryTab": "收藏",
+  "@libraryTab": { "description": "底栏 Tab 3:内容库。" },
+  "meTab": "我的",
+  "@meTab": { "description": "底栏 Tab 4:个人页。" },
+
+  "publish": "发布",
+  "@publish": { "description": "发布动作(FAB、发布入口 sheet 标题)。" },
+  "search": "搜索",
+  "@search": { "description": "搜索动作(顶栏搜索图标 semanticLabel、搜索页标题)。" },
+  "save": "收藏",
+  "@save": { "description": "收藏动作(项目卡收藏按钮 semanticLabel)。" },
+  "like": "点赞",
+  "@like": { "description": "点赞动作(动态/项目卡点赞按钮 semanticLabel)。" },
+  "comment": "评论",
+  "@comment": { "description": "评论动作(动态/项目卡评论按钮 semanticLabel)。" },
+  "share": "分享",
+  "@share": { "description": "分享动作(详情页分享按钮 semanticLabel)。" },
+  "follow": "关注",
+  "@follow": { "description": "关注作者按钮(未关注态)。" },
+  "unfollow": "已关注",
+  "@unfollow": { "description": "关注作者按钮(已关注态)。" },
+  "delete": "删除",
+  "@delete": { "description": "删除动作(拿走物长按菜单等)。" },
+  "cancel": "取消",
+  "@cancel": { "description": "取消(sheet 末项、对话框)。" },
+  "confirm": "确定",
+  "@confirm": { "description": "确认对话框主按钮。" },
+  "retry": "重试",
+  "@retry": { "description": "错误态重试按钮(RemoteError)。" },
+
+  "ranking": "榜单",
+  "@ranking": { "description": "看看页顶栏榜单图标 semanticLabel。" },
+
+  "emptyFeed": "这里还没有内容",
+  "@emptyFeed": { "description": "feed 空状态(发现/看看)。" },
+  "emptyGeneric": "什么都没找到",
+  "@emptyGeneric": { "description": "通用空状态(EmptyState generic variant)。" },
+  "emptySearch": "搜不到相关内容",
+  "@emptySearch": { "description": "搜索结果空状态。" },
+
+  "loadFailed": "加载失败",
+  "@loadFailed": { "description": "加载失败兜底文案。" },
+  "connectFailed": "连不上服务器",
+  "@connectFailed": { "description": "远程数据加载失败文案(RemoteError message)。" },
+
+  "projectSemantic": "项目:{title}",
+  "@projectSemantic": {
+    "description": "项目卡整体无障碍标签(读屏念「项目:标题」)。占位符 {title} 替换为项目标题。"
+  },
+  "postSemantic": "动态:{author}",
+  "@postSemantic": {
+    "description": "动态卡整体无障碍标签。占位符 {author} 替换为作者名。"
+  }
+}

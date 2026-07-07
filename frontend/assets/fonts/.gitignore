@@ -1,0 +1,6 @@
+# 字体资源(.ttf)不入库 — 子集化是离线一次性操作,产物放本地或 CDN。
+# 仅跟踪 README.md / subset.sh / .gitignore 等说明性文件。
+*.ttf
+*.otf
+*.woff
+*.woff2

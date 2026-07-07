@@ -1,0 +1,41 @@
+# Lint 规则 — 比默认 flutter_lints 更严,对齐 HANDOFF §7 执行纪律
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # 渲染铁律:禁 if(artifactType) 硬编码分支(HANDOFF §2 / §7.1)
+    # 这里没法静态检测业务逻辑,但可以把常见漏网 lint 提级为 error
+    avoid_print: error
+    avoid_dynamic_calls: warning
+  exclude:
+    - '**/*.g.dart'
+    - '**/*.freezed.dart'
+
+linter:
+  rules:
+    # ── 代码风格 ──
+    prefer_single_quotes: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    require_trailing_commas: true
+    sort_child_properties_last: true
+
+    # ── 安全 ──
+    avoid_print: true
+    avoid_dynamic_calls: true
+    use_key_in_widget_constructors: true
+    use_build_context_synchronously: true
+    avoid_unnecessary_containers: true
+    sized_box_for_whitespace: true
+    use_decorated_box: true
+
+    # ── 文档 ──
+    public_member_api_docs: false    # Phase 1 不强制,Phase 6 再开
+    lines_longer_than_80_chars: false # 中文行宽放宽

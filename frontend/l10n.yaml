@@ -1,0 +1,18 @@
+# P2-i18n: flutter gen-l10n 配置。
+#
+# 当前(Phase 2)app 文案由 lib/l10n/kk_strings.dart 手写(免 codegen,
+# 沙箱无 flutter SDK 也能编译)。本配置 + lib/l10n/app_*.arb 是「接口就绪、
+# 切换即用」的预留:未来切 flutter gen-l10n 时,只需:
+#   1) 运行 `flutter gen-l10n`(由 pubspec 的 flutter.generate: true 自动触发);
+#   2) 删除 lib/l10n/kk_strings.dart;
+#   3) 调用方把 `ref.watch(kkStringsProvider).xxx` 改为
+#      `AppLocalizations.of(context)!.xxx`(1 文件替换 + 调用点改 import);
+#   4) app.dart 的 localizationsDelegates 从手写三件套改为
+#      `AppLocalizations.localizationsDelegates`。
+#
+# 当前 arb 文件作为「源」与 kk_strings.dart 并行维护:arb 是 gen-l10n 切换时
+# 的输入,kk_strings.dart 是当前运行的输出。两边 key 同名同语义,迁移时对齐即可。
+arb-dir: lib/l10n
+template-arb-file: app_zh.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations

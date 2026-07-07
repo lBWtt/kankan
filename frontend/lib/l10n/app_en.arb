@@ -1,0 +1,67 @@
+{
+  "@@locale": "en",
+  "@@last_modified": "2025-01-01T00:00:00Z",
+
+  "appTitle": "Kankan",
+  "@appTitle": {
+    "description": "App name (MaterialApp.title, top bar)."
+  },
+
+  "discoverTab": "Discover",
+  "@discoverTab": { "description": "Bottom tab 1: discover feed." },
+  "kankanTab": "Kankan",
+  "@kankanTab": { "description": "Bottom tab 2: project feed." },
+  "libraryTab": "Library",
+  "@libraryTab": { "description": "Bottom tab 3: saved content library." },
+  "meTab": "Me",
+  "@meTab": { "description": "Bottom tab 4: profile." },
+
+  "publish": "Publish",
+  "@publish": { "description": "Publish action (FAB, publish entry sheet title)." },
+  "search": "Search",
+  "@search": { "description": "Search action (top bar search icon semanticLabel, search screen title)." },
+  "save": "Save",
+  "@save": { "description": "Save action (project card bookmark button semanticLabel)." },
+  "like": "Like",
+  "@like": { "description": "Like action (post/project card like button semanticLabel)." },
+  "comment": "Comment",
+  "@comment": { "description": "Comment action (post/project card comment button semanticLabel)." },
+  "share": "Share",
+  "@share": { "description": "Share action (detail screen share button semanticLabel)." },
+  "follow": "Follow",
+  "@follow": { "description": "Follow author button (not-following state)." },
+  "unfollow": "Following",
+  "@unfollow": { "description": "Follow author button (following state)." },
+  "delete": "Delete",
+  "@delete": { "description": "Delete action (takeaway long-press menu, etc.)." },
+  "cancel": "Cancel",
+  "@cancel": { "description": "Cancel (sheet last item, dialog)." },
+  "confirm": "Confirm",
+  "@confirm": { "description": "Confirm dialog primary button." },
+  "retry": "Retry",
+  "@retry": { "description": "Error state retry button (RemoteError)." },
+
+  "ranking": "Rankings",
+  "@ranking": { "description": "Kankan screen top bar ranking icon semanticLabel." },
+
+  "emptyFeed": "Nothing here yet",
+  "@emptyFeed": { "description": "Feed empty state (discover/kankan)." },
+  "emptyGeneric": "Nothing found",
+  "@emptyGeneric": { "description": "Generic empty state (EmptyState generic variant)." },
+  "emptySearch": "No results found",
+  "@emptySearch": { "description": "Search empty state." },
+
+  "loadFailed": "Failed to load",
+  "@loadFailed": { "description": "Load failed fallback message." },
+  "connectFailed": "Cannot reach server",
+  "@connectFailed": { "description": "Remote data load failed message (RemoteError message)." },
+
+  "projectSemantic": "Project: {title}",
+  "@projectSemantic": {
+    "description": "Project card accessibility label (screen reader announces 'Project: <title>'). Placeholder {title} replaced with project title."
+  },
+  "postSemantic": "Post: {author}",
+  "@postSemantic": {
+    "description": "Post card accessibility label. Placeholder {author} replaced with author name."
+  }
+}
