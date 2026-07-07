@@ -22,8 +22,9 @@ class Favorite(CreatedAtMixin, Base):
     __tablename__ = "favorites"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——用户/项目删除时收藏随删
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("user_id", "project_id", name="uq_favorites_user_project"),
@@ -37,8 +38,9 @@ class TryItem(CreatedAtMixin, Base):
     __tablename__ = "try_items"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——用户/项目删除时想试随删
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("user_id", "project_id", name="uq_try_items_user_project"),
@@ -54,9 +56,10 @@ class HowToInterest(CreatedAtMixin, Base):
     __tablename__ = "how_to_interests"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    # C-MDL-3：ondelete=CASCADE——用户注销时其"想看怎么做"随删（游客记录由 anon_client_id 维系，不依赖用户）
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     anon_client_id: Mapped[Optional[str]] = mapped_column(String(64))
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (
         # 登录或游客身份至少要有一个，否则这条需求无法去重也无法统计
@@ -85,8 +88,9 @@ class ClueSubscription(CreatedAtMixin, Base):
     __tablename__ = "clue_subscriptions"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——用户/项目删除时线索订阅随删
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("user_id", "project_id", name="uq_clue_subscriptions_user_project"),
@@ -100,13 +104,16 @@ class SimilarProjectLink(CreatedAtMixin, Base):
     __tablename__ = "similar_project_links"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    source_project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    similar_project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——任一端项目删除时关联记录随删
+    source_project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    similar_project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("source_project_id", "similar_project_id", name="uq_similar_links_source_similar"),
         Index("ix_similar_links_source", "source_project_id"),
         Index("ix_similar_links_similar", "similar_project_id"),
+        # H-MDL-2：禁止自关联（source 与 similar 不能是同一个项目）
+        CheckConstraint("source_project_id <> similar_project_id", name="no_self_similar"),
     )
 
 
@@ -116,8 +123,9 @@ class ProjectReaction(CreatedAtMixin, Base):
     __tablename__ = "project_reactions"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——用户/项目删除时反馈随删
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     reaction_type: Mapped[str] = mapped_column(reaction_type_enum, nullable=False)
 
     __table_args__ = (
@@ -143,4 +151,6 @@ class UserFollow(CreatedAtMixin, Base):
     __table_args__ = (
         UniqueConstraint("follower_user_id", "followee_user_id", name="uq_user_follows_pair"),
         Index("ix_user_follows_followee", "followee_user_id"),
+        # H-MDL-1：禁止自关注（follower 与 followee 不能是同一用户）
+        CheckConstraint("follower_user_id <> followee_user_id", name="no_self_follow"),
     )

@@ -426,7 +426,10 @@ def dashboard(
         card_clicks=events("card_click"),
         detail_views=events("detail_view"),
         how_to_interest_clicks=rows_in_window(HowToInterest),
-        clue_views=events("how_to_interest"),  # 点想看怎么做即打开线索页（事件含重复点击）
+        # H-API-3: 原来查 events("how_to_interest") 用未定义事件名 → 恒 0 → clue_downstream_rate 恒 0。
+        # 改成查 how_to_interests 表（与 how_to_interest_clicks 同源）：点想看怎么做即打开线索页，
+        # 以此作为线索页打开数的代理，clue_downstream_rate 才有意义的分母。
+        clue_views=rows_in_window(HowToInterest),
         clue_source_clicks=events("clue_source_click"),
         clue_tool_clicks=events("clue_tool_click"),
         clue_related_clicks=events("clue_related_click"),
@@ -468,26 +471,36 @@ def push_daily_pick(
         raise AppError(404, "NOT_FOUND", "项目不存在或未发布")
 
     opted_out = select(PushPreference.user_id).where(PushPreference.daily_pick_enabled.is_(False))
-    audience = db.scalars(
-        select(User.id).where(User.deleted_at.is_(None), User.id.notin_(opted_out))
-    ).all()
     title = body.title_override or "今日精选"
     notif_body = body.body_override or f"今天值得一看：《{project.title}》"
-    # 批量插入而非逐条 db.add：用户量上去后逐条 ORM add 会在 session 里堆大量对象，
-    # 既慢又可能 OOM；executemany 一次落库，百万级用户也能在秒级完成。
-    if audience:
+    # H-API-4: 原实现一次性 db.scalars(...).all() 把全量用户 ID 载入内存 → 用户量上去后 OOM。
+    # 改成分批拉取（BATCH=5000）+ 分批 executemany 插入：单批内存常量级，百万级用户也不会爆。
+    # offset 分页在此稳定：循环内只写 notifications 表，User 表无变更，偏移量不会错位。
+    BATCH = 5000
+    offset = 0
+    total = 0
+    while True:
+        batch = db.scalars(
+            select(User.id)
+            .where(User.deleted_at.is_(None), User.id.notin_(opted_out))
+            .offset(offset).limit(BATCH)
+        ).all()
+        if not batch:
+            break
         db.execute(
             insert(Notification),
             [
                 {"user_id": uid, "type": "daily_pick", "title": title,
                  "body": notif_body, "project_id": project.id}
-                for uid in audience
+                for uid in batch
             ],
         )
+        total += len(batch)
+        offset += BATCH
     log_admin_action(db, admin.id, "push_daily_pick", "project", project.id,
-                     {"audience_count": len(audience)})
+                     {"audience_count": total})
     db.commit()
-    return DailyPickPushResponse(audience_count=len(audience))
+    return DailyPickPushResponse(audience_count=total)
 
 
 @router.get("/actions", response_model=Page[AdminActionItem], summary="操作日志")

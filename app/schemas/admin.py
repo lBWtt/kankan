@@ -8,7 +8,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -21,6 +21,7 @@ from app.schemas.common import (
     ProjectStatus,
     ReportStatus,
 )
+from app.schemas.interaction import ReportReason
 
 # ---------- 候选池 ----------
 
@@ -56,12 +57,6 @@ class CandidateDetail(CandidateListItem):
     use_cases: List[str] = []
     source_url: Optional[str] = None
     original_author_name: Optional[str] = None
-
-    @field_validator("target_users", "use_cases", mode="before")
-    @classmethod
-    def _none_to_empty(cls, v):
-        # 库里这两列可空：None 统一转 []，客户端不用处理 null
-        return v or []
     original_author_url: Optional[str] = None
     media_json: Optional[Any] = Field(None, description="列表或 {items:[...]}，每项 {url, media_type, thumbnail_url?}")
     scores_json: Optional[Any] = None
@@ -69,6 +64,13 @@ class CandidateDetail(CandidateListItem):
     reviewed_by_user_id: Optional[uuid.UUID] = None
     reviewed_at: Optional[datetime] = None
     updated_at: datetime
+
+    @field_validator("target_users", "use_cases", mode="before")
+    @classmethod
+    def _none_to_empty(cls, v):
+        # 库里这两列可空：None 统一转 []，客户端不用处理 null
+        # H-MDL-12：所有字段声明移到 validator 之前，避免 Pydantic 把后续行当 class var
+        return v or []
 
 
 class CandidatePatch(BaseModel):
@@ -167,7 +169,8 @@ class AdminReportItem(BaseModel):
     project_id: uuid.UUID
     project_title: Optional[str] = None
     reporter_user_id: uuid.UUID
-    reason: str
+    # H-MDL-5：用 ReportReason 枚举替代裸 str，与 models/report.CHECK 一致
+    reason: ReportReason
     description: Optional[str] = None
     status: ReportStatus
     handled_by_user_id: Optional[uuid.UUID] = None
@@ -251,8 +254,12 @@ class DailyPickPushResponse(BaseModel):
 class AdminActionItem(BaseModel):
     id: uuid.UUID
     admin_user_id: uuid.UUID
-    action: str
-    target_type: str
+    # H-MDL-6：用 Literal 替代裸 str，与 models/admin_action.CHECK 值一致
+    action: Literal[
+        "take_down", "restore", "soft_delete", "restore_soft_deleted", "feature", "unfeature",
+        "park", "approve", "discard", "resolve_report", "mark_risk",
+    ]
+    target_type: Literal["project", "candidate", "report", "user"]
     target_id: Optional[uuid.UUID] = None
     detail: Optional[dict] = None
     created_at: datetime

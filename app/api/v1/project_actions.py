@@ -6,16 +6,18 @@
 #   整个产品假设验证不了。
 # ============================================================
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import update
+from sqlalchemy import select as _sel, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_required
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.ratelimit import rate_limit
 from app.models import ClueSubscription, Favorite, Project, ProjectAction, ProjectActionEvent, Report, Share, TryItem, User
 from app.schemas.common import OkResponse, ReactionType
 from app.schemas.interaction import (
@@ -107,6 +109,8 @@ def report_project(
     db: Session = Depends(get_db),
 ):
     """同一人可多次举报（流水不去重，后台按队列处理）。"""
+    # H-API-5: 举报刷量频控（同一用户 60 秒最多 5 条），超出 429
+    rate_limit(f"reports:rl:{user.id}", limit=5, window=60)
     svc.get_published_project(db, project_id)
     report = Report(
         reporter_user_id=user.id,
@@ -139,6 +143,31 @@ def record_action_event(
     if action is None or action.project_id != project_id:
         raise AppError(404, "NOT_FOUND", "项目动作不存在")
 
+    # C-API-1(b): 身份级频控——同一身份 60 秒最多 30 条事件，超出 429（防刷流水与热度分）
+    identity = str(user.id) if user else (body.anon_client_id or "anon")
+    rate_limit(f"action_events:rl:{identity}", limit=30, window=60)
+
+    # C-API-1(a): success 去重——同一身份对同一 action 的 success 只计一次，
+    # 防 (actor, action_id, success) 反复刷高 takeaway_count（×6 权重进 hot_score）。
+    # click 事件不去重（仍是有效行为流水），只控制 success 不重复 +1。
+    if body.event_type.value == "success":
+        actor_filter = (
+            [ProjectActionEvent.user_id == user.id]
+            if user
+            else [ProjectActionEvent.user_id.is_(None),
+                  ProjectActionEvent.anon_client_id == body.anon_client_id]
+        )
+        already = db.scalar(
+            _sel(ProjectActionEvent.id).where(
+                ProjectActionEvent.action_id == action_id,
+                ProjectActionEvent.event_type == "success",
+                *actor_filter,
+            ).limit(1)
+        )
+        should_increment = not already
+    else:
+        should_increment = False  # 非 success 不增 takeaway_count
+
     event = ProjectActionEvent(
         project_id=project_id,
         action_id=action_id,
@@ -150,7 +179,7 @@ def record_action_event(
     db.flush()
 
     takeaway_count = project.takeaway_count or 0
-    if body.event_type.value == "success" and action.action_type == "take":
+    if should_increment and action.action_type == "take":
         takeaway_count = db.scalar(
             update(Project)
             .where(Project.id == project_id)
@@ -209,6 +238,32 @@ def record_share(
     # （Share 表没有 HowToInterest/ProjectActionEvent 那样的 identity CHECK 约束兜底）。
     if user is None and not body.anon_client_id:
         raise AppError(422, "ANON_ID_REQUIRED", "游客记录分享必须携带 anon_client_id")
+
+    # C-API-2(b): 身份级频控——同一身份 60 秒最多 20 条分享，超出 429
+    identity = str(user.id) if user else (body.anon_client_id or "anon")
+    rate_limit(f"shares:rl:{identity}", limit=20, window=60)
+
+    # C-API-2(a): completed 状态按 (actor, project_id) 日级去重——
+    # completed 每条 +6 进 hot_score，同身份同项目当日只计一次（防刷热度榜）。
+    # clicked 状态不去重（仍是有效漏斗行为），只对 completed 做日级幂等。
+    if body.status.value == "completed":
+        since_today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        dup_filter = (
+            [Share.user_id == user.id]
+            if user
+            else [Share.user_id.is_(None), Share.anon_client_id == body.anon_client_id]
+        )
+        existed = db.scalar(
+            _sel(Share.id).where(
+                Share.project_id == project_id,
+                Share.share_status == "completed",
+                Share.created_at >= since_today,
+                *dup_filter,
+            ).limit(1)
+        )
+        if existed:
+            return OkResponse()  # 幂等：当日已记过 completed，不再重复落库/计热度
+
     db.add(
         Share(
             user_id=user.id if user else None,

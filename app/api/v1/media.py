@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import ERRORS_AUTHED, auth_required
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.ratelimit import rate_limit
 from app.models import ProjectMedia, User
 from app.schemas.media import MediaUploadResponse
 from app.services.storage import save_media_file
@@ -52,6 +53,8 @@ def upload_media(
 ):
     """超限/格式不支持 → 422 VALIDATION_FAILED。返回的 id 填进 POST /projects 的 media_ids。
     先写临时文件边写边校验大小，过了再交给存储层（local 落盘 / s3 上传对象存储）。"""
+    # H-API-2: 用户级频控——每分钟最多 20 个上传，防磁盘填满 DoS（攻击者循环上传大文件撑爆存储）
+    rate_limit(f"media:ul:{user.id}", limit=20, window=60)
     if file.content_type not in _ALLOWED:
         raise AppError(
             422, "VALIDATION_FAILED", "不支持的文件类型",

@@ -21,12 +21,13 @@ class Notification(CreatedAtMixin, Base):
     __tablename__ = "notifications"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——用户删除时通知随删；项目删除时关联通知随删
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     type: Mapped[str] = mapped_column(notification_type_enum, nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     body: Mapped[Optional[str]] = mapped_column(Text)
     # 点开落点：普通通知→项目详情；clue_update→实现线索页（页面地图 §3）
-    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id"))
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     read_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
 
@@ -41,7 +42,8 @@ class PushPreference(TimestampMixin, Base):
     __tablename__ = "push_preferences"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True)
+    # C-MDL-3：ondelete=CASCADE——用户删除时推送偏好随删
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     daily_pick_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     weekly_ranking_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     how_to_interest_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))

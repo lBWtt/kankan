@@ -17,10 +17,12 @@ class ProjectMedia(CreatedAtMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     # 可空 = 暂存态：用户先上传拿 media_id，发布项目时才挂到 project（迁移 0002 放宽）
-    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id"))
+    # C-MDL-3：ondelete=CASCADE——项目删除时其画廊媒体随删
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     # 上传者（迁移 0004）：发布挂载时校验暂存媒体属于本人，杜绝跨用户挂别人未挂载的媒体。
     # 可空——AI approve 复制进来的项目媒体没有站内上传者（补全决策）。
-    uploader_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    # C-MDL-3：ondelete=CASCADE——上传者注销时其媒体随删。
+    uploader_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     media_type: Mapped[str] = mapped_column(String(20), nullable=False)  # image / video
     url: Mapped[str] = mapped_column(Text, nullable=False)
     # 视频可配封面缩略图（补全决策：v1.2 原文不可得，按 PRD §8.5 媒体模型合理推断）
@@ -30,4 +32,6 @@ class ProjectMedia(CreatedAtMixin, Base):
     __table_args__ = (
         CheckConstraint("media_type IN ('image', 'video')", name="media_type_allowed"),
         Index("ix_project_media_project_id", "project_id"),
+        # C-MDL-1：补齐 ix_project_media_uploader 索引声明（迁移 0004 已建，模型曾漏声明，避免 autogenerate 漂移）
+        Index("ix_project_media_uploader", "uploader_user_id"),
     )

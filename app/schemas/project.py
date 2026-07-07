@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.common import (
     AiBadge,
@@ -20,6 +20,27 @@ from app.schemas.common import (
 )
 from app.schemas.media import MediaType
 from app.schemas.user import UserBrief
+
+
+def _check_tag_items(v):
+    """H-MDL-9：tags 元素长度校验（1-50 字符），供 ProjectCreate/ProjectUpdate 复用。"""
+    if v is None:
+        return v
+    for t in v:
+        if not isinstance(t, str) or len(t) < 1 or len(t) > 50:
+            raise ValueError("每个标签长度需在 1-50 之间")
+    return v
+
+
+def _check_tool_items(v):
+    """H-API-7：tools 元素长度校验（≤30 字符），供 ProjectCreate/ProjectUpdate 复用。"""
+    if v is None:
+        return v
+    for t in v:
+        if not isinstance(t, str) or len(t) > 30:
+            raise ValueError("每个工具名长度需 ≤30 字符")
+    return v
+
 
 
 class MediaItem(BaseModel):
@@ -195,20 +216,35 @@ class ProjectCreate(BaseModel):
     repo_stars: Optional[str] = Field(None, max_length=20)
     category: Optional[Category] = None
     domains: List[Domain] = Field(default=[])
-    tools: List[str] = Field(default=[], description="准入字段：tools>=1 或 description/intro 含可复现说明")
-    media_ids: List[uuid.UUID] = Field(default=[], description="先调 POST /media 上传拿 id；新版允许无媒体但必须有方法/action")
-    actions: List[ProjectActionInput] = Field(default=[])
+    # H-API-7：tools 数量上限 20，元素长度 ≤30
+    tools: List[str] = Field(default=[], max_length=20, description="准入字段：tools>=1 或 description/intro 含可复现说明")
+    # H-API-7：media_ids 数量上限 20
+    media_ids: List[uuid.UUID] = Field(default=[], max_length=20, description="先调 POST /media 上传拿 id；新版允许无媒体但必须有方法/action")
+    # H-API-7：actions 数量上限 20
+    actions: List[ProjectActionInput] = Field(default=[], max_length=20)
     source_kind: Optional[str] = Field(None, description="新版前端：original/curated；服务端映射到 source_type")
     is_original: bool = True
     source_url: Optional[str] = Field(None, description="is_original=false 必填")
     original_author_name: Optional[str] = Field(None, max_length=100)
-    target_users: List[str] = Field(default=[])
-    use_cases: List[str] = Field(default=[])
+    # H-API-7：target_users / use_cases 数量上限 10
+    target_users: List[str] = Field(default=[], max_length=10)
+    use_cases: List[str] = Field(default=[], max_length=10)
     allow_how_to_interest: bool = True
     related_original_project_id: Optional[uuid.UUID] = Field(
         None, description="从'我做了类似的'入口带入；发布后自动建 similar_project_links"
     )
-    tags: List[str] = Field(default=[])
+    # H-MDL-9：tags 数量上限 20，元素长度 1-50
+    tags: List[str] = Field(default=[], max_length=20)
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def _check_tag_len(cls, v):
+        return _check_tag_items(v)
+
+    @field_validator("tools", mode="after")
+    @classmethod
+    def _check_tool_len(cls, v):
+        return _check_tool_items(v)
 
     @model_validator(mode="after")
     def check_rules(self):
@@ -245,12 +281,24 @@ class ProjectUpdate(BaseModel):
     repo_stars: Optional[str] = Field(None, max_length=20)
     category: Optional[Category] = None
     domains: Optional[List[Domain]] = Field(None, min_length=1)
-    tools: Optional[List[str]] = None
-    media_ids: Optional[List[uuid.UUID]] = Field(None, min_length=1)
-    target_users: Optional[List[str]] = None
-    use_cases: Optional[List[str]] = None
+    # H-API-7：tools 数量上限 20，元素长度 ≤30
+    tools: Optional[List[str]] = Field(None, max_length=20)
+    media_ids: Optional[List[uuid.UUID]] = Field(None, min_length=1, max_length=20)
+    target_users: Optional[List[str]] = Field(None, max_length=10)
+    use_cases: Optional[List[str]] = Field(None, max_length=10)
     allow_how_to_interest: Optional[bool] = None
-    tags: Optional[List[str]] = None
+    # H-MDL-9：tags 数量上限 20，元素长度 1-50
+    tags: Optional[List[str]] = Field(None, max_length=20)
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def _check_tag_len(cls, v):
+        return _check_tag_items(v)
+
+    @field_validator("tools", mode="after")
+    @classmethod
+    def _check_tool_len(cls, v):
+        return _check_tool_items(v)
 
 
 class SimilarProjectsResponse(BaseModel):

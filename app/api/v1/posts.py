@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_required
 from app.core.db import get_db
+from app.core.ratelimit import rate_limit
 from app.models import User
 from app.schemas.common import OkResponse, Page
 from app.schemas.post import PostCreate, PostOut
@@ -32,6 +33,8 @@ def list_posts(
 
 @router.post("", response_model=PostOut, status_code=201, responses=ERRORS_AUTHED, summary="发动态（需登录）")
 def create_post(body: PostCreate, user: User = Depends(auth_required), db: Session = Depends(get_db)):
+    # H-API-6: 用户级频控——每分钟最多 10 条动态，防内容刷量
+    rate_limit(f"posts:create:{user.id}", limit=10, window=60)
     return svc.create_post(db, user, body.content, body.tags, body.quote_project_id, body.media_ids)
 
 

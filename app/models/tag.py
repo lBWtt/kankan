@@ -23,8 +23,9 @@ class ProjectTagRelation(CreatedAtMixin, Base):
     __tablename__ = "project_tag_relations"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    tag_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("project_tags.id"), nullable=False)
+    # C-MDL-3：ondelete=CASCADE——项目删除时其标签关系随删；标签字典删除时关联随删
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    tag_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("project_tags.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("project_id", "tag_id", name="uq_project_tag_relations_project_tag"),

@@ -6,7 +6,7 @@
 import re
 import secrets
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from app.api.deps import ERRORS_PUBLIC
 from app.core.config import dev_login_enabled
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.ratelimit import rate_limit
 from app.core.redis import redis_client
 from app.core.security import create_token_pair, rotate_refresh_token
 from app.models import HowToInterest, ProjectActionEvent, Share, User
@@ -76,9 +77,18 @@ def _merge_anon_records(db: Session, user: User, anon_client_id: str) -> None:
 
 
 @router.post("/send-code", response_model=OkResponse, summary="发送验证码（补全端点）")
-def send_code(body: SendCodeRequest):
-    """频控：同一标识 60 秒 1 条；超限 429 RATE_LIMITED。
+def send_code(body: SendCodeRequest, request: Request):
+    """频控：同一标识 60 秒 1 条；同一 IP 每小时最多 10 条（H-API-1 防 SMS pumping）；超限 429 RATE_LIMITED。
     发送走 services/sms.py：console=只写日志（开发），aliyun=真发短信；发送失败 500 且验证码作废。"""
+    # H-API-1: IP 级频控——同一 IP 每小时最多 10 条验证码，防 SMS pumping（攻击者用大量手机号
+    # 触发短信发送，榨干短信预算）。反代部署下取 X-Forwarded-For 首个地址作为真实来源 IP。
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        ip = xff.split(",")[0].strip()
+    else:
+        ip = request.client.host if request.client else "unknown"
+    rate_limit(f"authcode:rl:ip:{ip}", limit=10, window=3600)
+
     _validate_identifier(body.identifier_type.value, body.identifier)
     rl_key = f"authcode:rl:{body.identifier_type.value}:{body.identifier}"
     if redis_client.exists(rl_key):
@@ -142,8 +152,18 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(user)
+    # H-CORE-4 协调项：core-fix agent 把 create_token_pair 改成 Redis 失败时抛 AppError(503)。
+    # 此时上面的 db.commit() 已把新建用户行落库；若不回滚，会留下"幽灵账号"（无有效令牌、用户不知道自己已注册）。
+    # 这里捕获 503，仅当 is_new_user 时回滚新建的用户行（已存在的老账号不删，只报 503 让用户重试）。
+    try:
+        tokens = create_token_pair(user.id)
+    except AppError:
+        if is_new_user:
+            db.delete(user)
+            db.commit()
+        raise
     return LoginResponse(
-        **create_token_pair(user.id),
+        **tokens,
         user=MeResponse.model_validate(user),
         is_new_user=is_new_user,
     )

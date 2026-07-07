@@ -7,7 +7,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import delete, func, select, tuple_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -26,7 +27,13 @@ from app.schemas.user import UserBrief
 
 
 def _attach_media(db: Session, post_id: uuid.UUID, media_ids: List[uuid.UUID], uploader_id: uuid.UUID) -> None:
-    """把上传的暂存媒体（POST /media 拿的 id）复制进 post_media。校验：存在 + 暂存态 + 本人上传。"""
+    """把上传的暂存媒体（POST /media 拿的 id）复制进 post_media。校验：存在 + 暂存态 + 本人上传。
+
+    消费即删（H-SVC-1）：URL 已复制到 PostMedia 后立即删除源 ProjectMedia，
+    一举解决两个问题：1) 同一媒体不能被多个 Post 复用（复用会导致被删后另一个 Post 裂图）；
+    2) 避免被 purge_staged_media 清理任务判定为“暂存未消费”而删除底层文件。
+    注意：db.delete(m) 后不要再用 m。
+    """
     if not media_ids:
         return
     rows = {m.id: m for m in db.scalars(select(ProjectMedia).where(ProjectMedia.id.in_(media_ids)))}
@@ -41,6 +48,7 @@ def _attach_media(db: Session, post_id: uuid.UUID, media_ids: List[uuid.UUID], u
     for i, mid in enumerate(media_ids):
         m = rows[mid]
         db.add(PostMedia(post_id=post_id, media_type=m.media_type, url=m.url, sort_order=i))
+        db.delete(m)  # 源暂存媒体消费即删，URL 已复制；避免被 purge_staged_media 误删文件 + 防跨动态复用
 
 
 def _get_visible(db: Session, post_id: uuid.UUID) -> Post:
@@ -117,17 +125,36 @@ def delete_post(db: Session, user: User, post_id: uuid.UUID) -> None:
 
 
 def set_post_like(db: Session, user: User, post_id: uuid.UUID, on: bool) -> None:
+    """动态点赞 / 取消点赞（幂等）。
+
+    并发安全（C-SVC-2）：计数器从 read-modify-write 改为原子 UPDATE（like_count = like_count + 1），
+    避免并发点赞计数漂移；并发撞唯一约束时捕获 IntegrityError 做幂等，不再 500。
+    取消时用 DELETE ... WHERE 的 rowcount 判断是否真的删了一行，才决定要不要减计数，
+    并用 greatest(0, like_count-1) 兑底防负。
+    """
     p = _get_visible(db, post_id)
-    existing = db.scalar(
-        select(PostLike).where(PostLike.post_id == post_id, PostLike.user_id == user.id)
-    )
-    if on and existing is None:
-        db.add(PostLike(post_id=post_id, user_id=user.id))
-        p.like_count = (p.like_count or 0) + 1
+    if on:
+        try:
+            db.add(PostLike(post_id=post_id, user_id=user.id))
+            db.flush()  # 触发唯一约束检查
+        except IntegrityError:
+            db.rollback()
+            return  # 幂等：已赞过，不重复计数
+        db.execute(
+            update(Post).where(Post.id == post_id)
+            .values(like_count=Post.like_count + 1)
+        )
         db.commit()
-    elif not on and existing is not None:
-        db.delete(existing)
-        p.like_count = max(0, (p.like_count or 0) - 1)
+    else:
+        result = db.execute(
+            delete(PostLike)
+            .where(PostLike.post_id == post_id, PostLike.user_id == user.id)
+        )
+        if result.rowcount > 0:
+            db.execute(
+                update(Post).where(Post.id == post_id)
+                .values(like_count=func.greatest(0, Post.like_count - 1))
+            )
         db.commit()
 
 

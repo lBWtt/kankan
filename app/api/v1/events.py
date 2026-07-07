@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import ERRORS_PUBLIC, auth_optional
 from app.core.db import get_db
 from app.core.redis import redis_client
-from app.models import AnalyticsEvent, User
+from app.models import AnalyticsEvent, Project, User
 from app.schemas.analytics import EventBatch, EventsAccepted
 
 router = APIRouter(prefix="/events", tags=["埋点"], responses=ERRORS_PUBLIC)
@@ -72,12 +72,36 @@ def ingest_events(
 
     now = datetime.now(timezone.utc)
     earliest = now - timedelta(days=7)
+    accepted = 0
     for e in body.events:
         occurred = e.occurred_at
         if occurred is not None and occurred.tzinfo is None:
             occurred = occurred.replace(tzinfo=timezone.utc)
         if occurred is None or occurred > now + timedelta(minutes=5) or occurred < earliest:
             occurred = now
+
+        # C-API-3(b): 校验 project_id 存在且 published 且未软删——
+        # 防伪造/已删 project_id 灌脏数据进热度分漏斗。db.get 走 session 身份映射，同批重复 id 不重复查库。
+        if e.project_id is not None:
+            proj = db.get(Project, e.project_id)
+            if proj is None or proj.status != "published" or proj.deleted_at is not None:
+                continue
+
+        # C-API-3(a): 曝光/详情事件 per-(project, identity) 日级 cap（200/天）——
+        # 批量级频控按身份计数，攻击者轮换 anon_client_id 即可绕过；这里对进 hot_score 的
+        # card_impression/detail_view 再按 (project, identity) 日级封顶，超出静默丢弃（不抛 429，
+        # 埋点绝不阻断客户端）。identity 复用批量级身份（登录>anon_client_id>IP），anon_client_id 来自 client_info。
+        if e.event_name in ("card_impression", "detail_view") and e.project_id is not None:
+            pkey = f"events:proj:{e.project_id}:{identity}"
+            try:
+                n = redis_client.incr(pkey)
+                if n == 1:
+                    redis_client.expire(pkey, 86400)
+                if n > 200:
+                    continue  # 静默丢弃本条，不影响同批其余事件
+            except Exception:
+                pass  # fail-open：Redis 抖动不阻断埋点入库
+
         db.add(
             AnalyticsEvent(
                 user_id=user.id if user else None,
@@ -88,5 +112,6 @@ def ingest_events(
                 created_at=occurred,
             )
         )
+        accepted += 1
     db.commit()
-    return EventsAccepted(accepted=len(body.events))
+    return EventsAccepted(accepted=accepted)

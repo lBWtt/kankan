@@ -32,7 +32,8 @@ class Project(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     # AI 抓取/手动导入的内容没有站内作者，所以可空
-    author_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    # C-MDL-3：ondelete=SET NULL——作者注销时项目保留（作者字段置空，内容不丢）
+    author_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     # ORM 关系：lazy="raise" 防止隐式 lazy load，必须显式 selectinload
     author: Mapped[Optional["User"]] = relationship(lazy="raise")
 
@@ -89,4 +90,6 @@ class Project(TimestampMixin, Base):
         Index("ix_projects_featured_rank", "featured_rank"),
         Index("ix_projects_domains_gin", "domains", postgresql_using="gin"),
         Index("ix_projects_tools_gin", "tools", postgresql_using="gin"),
+        # H-MDL-8：软删列的部分索引——发现页只刷未删的项目
+        Index("ix_projects_live", "status", "published_at", postgresql_where=text("deleted_at IS NULL")),
     )

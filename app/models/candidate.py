@@ -62,10 +62,12 @@ class CandidateContent(TimestampMixin, Base):
     risk_note: Mapped[Optional[str]] = mapped_column(Text)
 
     # ---- 审核流水 ----
-    reviewed_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    # C-MDL-3：ondelete=SET NULL——审核员注销时审核记录保留，审核员字段置空
+    reviewed_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
     # approve 后回写正式项目 ID（字段·API v1.3 §5.3）
-    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id"))
+    # C-MDL-3：ondelete=SET NULL——项目被物理删时，候选池审核记录保留，project_id 置空
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
 
     __table_args__ = (
         Index("ix_candidate_contents_status_created", "status", "created_at"),
