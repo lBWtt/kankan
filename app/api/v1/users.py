@@ -21,7 +21,7 @@ from app.schemas.common import OkResponse, Page
 from app.schemas.project import ProjectCard
 from app.schemas.user import UserBrief, UserPublic
 from app.services import social
-from app.services.projects import card_from_project
+from app.services.projects import cards_from_projects_with_stats
 
 router = APIRouter(prefix="/users", tags=["用户主页"], responses=ERRORS_PUBLIC)
 
@@ -130,4 +130,6 @@ def user_projects(
     next_cursor = (
         encode_cursor([rows[-1].published_at.isoformat(), str(rows[-1].id)]) if has_more and rows else None
     )
-    return Page[ProjectCard](items=[card_from_project(p) for p in rows], next_cursor=next_cursor, has_more=has_more)
+    # 批量填充 author 和 counts，与发现流/收藏列表一致（否则主页作品卡片没互动数据）
+    items = cards_from_projects_with_stats(db, rows)
+    return Page[ProjectCard](items=items, next_cursor=next_cursor, has_more=has_more)

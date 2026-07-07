@@ -48,7 +48,9 @@ class Settings(BaseSettings):
     # ---- AI 抓取管线：候选内容整理用的 Claude API（不配 key 也不影响服务运行，
     #      只是 python -m app.pipeline process 跑不了真实整理）----
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-opus-4-8"
+    # 模型 ID 必须是 Anthropic 真实在售的带日期后缀的 ID（如 claude-opus-4-1-20250805）；
+    # 之前默认值 "claude-opus-4-8" 不存在，会导致 pipeline process 一调用就 404 model_not_found。
+    anthropic_model: str = "claude-opus-4-1-20250805"
 
     # 分享卡回流的 Web 分享页域名（Web 分享页未建，先占位，上线前改环境变量）
     share_base_url: str = "https://share.example.dev"

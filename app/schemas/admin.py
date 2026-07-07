@@ -186,10 +186,19 @@ class ReportProjectAction(str, Enum):
     soft_delete = "soft_delete"  # 删除 → deleted
 
 
+class ReportResolveResult(str, Enum):
+    """举报处理结论：仅 resolved（成立）/ rejected（不成立）两个值合法。
+    与 ReportStatus（含 pending/processing）区分开，避免在 schema 层放过非法值、
+    再到 service 层才 422。"""
+
+    resolved = "resolved"
+    rejected = "rejected"
+
+
 class ReportResolveRequest(BaseModel):
     """POST /admin/reports/{id}/resolve。"""
 
-    result: ReportStatus = Field(description="resolved=成立 / rejected=不成立（仅这两个值合法）")
+    result: ReportResolveResult = Field(description="resolved=成立 / rejected=不成立")
     project_action: ReportProjectAction = ReportProjectAction.ignore
     note: Optional[str] = Field(None, max_length=500)
 

@@ -26,13 +26,20 @@ EVENTS_RATE_WINDOW_SECONDS = 60
 
 
 def _rate_identity(user: Optional[User], client_info: Optional[dict], request: Request) -> str:
-    """限频身份键：优先登录用户，其次客户端匿名 ID，最后退化到来源 IP。"""
+    """限频身份键：优先登录用户，其次客户端匿名 ID，最后退化到来源 IP。
+    反代部署下 request.client.host 是代理 IP，所有用户会共享一个身份被误限频，
+    因此优先取 X-Forwarded-For 的第一个地址（仅用于限频，非鉴权，可接受被伪造的风险）。"""
     if user is not None:
         return f"u:{user.id}"
     anon = (client_info or {}).get("anon_client_id")
     if anon:
         return f"a:{str(anon)[:64]}"
-    return f"ip:{request.client.host if request.client else 'unknown'}"
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        ip = xff.split(",")[0].strip()
+    else:
+        ip = request.client.host if request.client else ""
+    return f"ip:{ip or 'unknown'}"
 
 
 def _over_event_rate(identity: str, n: int) -> bool:

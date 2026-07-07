@@ -14,7 +14,7 @@ from app.api.deps import ERRORS_PUBLIC
 from app.core.db import get_db
 from app.models import Project
 from app.schemas.project import RankedItem, RankingResponse
-from app.services.projects import card_from_project
+from app.services.projects import cards_from_projects_with_stats
 from app.services.rankings import fetch_in_order, weekly_hot_ids
 
 router = APIRouter(prefix="/rankings", tags=["榜单"], responses=ERRORS_PUBLIC)
@@ -46,8 +46,10 @@ def get_rankings(
             published.where(Project.featured_rank.isnot(None)).order_by(Project.featured_rank.asc()).limit(limit)
         ).all()
 
+    # 批量填充 author 和 counts，与发现流/收藏列表一致（榜单卡片也该带互动数据）
+    cards = cards_from_projects_with_stats(db, rows)
     return RankingResponse(
         type=type.value,
         generated_at=datetime.now(timezone.utc),
-        items=[RankedItem(rank=i + 1, project=card_from_project(p)) for i, p in enumerate(rows)],
+        items=[RankedItem(rank=i + 1, project=c) for i, c in enumerate(cards)],
     )

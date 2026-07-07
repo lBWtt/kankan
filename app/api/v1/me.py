@@ -22,7 +22,7 @@ from app.models import Favorite, Project, PushPreference, TryItem, User
 from app.schemas.common import OkResponse, Page
 from app.schemas.project import ProjectCard
 from app.services import social
-from app.services.projects import card_from_project, cards_from_projects_with_stats, list_linked_projects
+from app.services.projects import cards_from_projects_with_stats, list_linked_projects
 from app.schemas.user import (
     InterestsWrite,
     MeResponse,
@@ -112,8 +112,8 @@ def my_favorites(
     db: Session = Depends(get_db),
 ):
     """按收藏时间倒序；被下架/删除的项目自动隐藏。"""
-    rows, next_cursor, has_more = list_linked_projects(db, Favorite, user, cursor, page_size, load_author=True)
-    # 使用批量组装函数，填充 author 和 counts
+    rows, next_cursor, has_more = list_linked_projects(db, Favorite, user, cursor, page_size)
+    # 使用批量组装函数，填充 author 和 counts（author 在函数内批量自查，无需 selectinload）
     items = cards_from_projects_with_stats(db, rows)
     return Page[ProjectCard](items=items, next_cursor=next_cursor, has_more=has_more)
 
@@ -125,7 +125,7 @@ def my_try_items(
     user: User = Depends(auth_required),
     db: Session = Depends(get_db),
 ):
-    rows, next_cursor, has_more = list_linked_projects(db, TryItem, user, cursor, page_size, load_author=True)
+    rows, next_cursor, has_more = list_linked_projects(db, TryItem, user, cursor, page_size)
     # 使用批量组装函数，填充 author 和 counts
     items = cards_from_projects_with_stats(db, rows)
     return Page[ProjectCard](items=items, next_cursor=next_cursor, has_more=has_more)
@@ -154,4 +154,6 @@ def my_projects(
     next_cursor = None
     if has_more and rows:
         next_cursor = encode_cursor([rows[-1].created_at.isoformat(), str(rows[-1].id)])
-    return Page[ProjectCard](items=[card_from_project(p) for p in rows], next_cursor=next_cursor, has_more=has_more)
+    # 与收藏/想试列表一致：填充 author 和 counts，否则“我的发布”卡片没互动数据
+    items = cards_from_projects_with_stats(db, rows)
+    return Page[ProjectCard](items=items, next_cursor=next_cursor, has_more=has_more)

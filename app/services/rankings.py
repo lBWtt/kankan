@@ -198,8 +198,19 @@ def weekly_hot_ids(db: Session, limit: int) -> List[uuid.UUID]:
 
 
 def fetch_in_order(db: Session, ids: List[uuid.UUID]) -> List[Project]:
-    """按给定 ID 顺序取项目（榜单顺序由计算结果决定，不靠 SQL 排序）。"""
+    """按给定 ID 顺序取项目（榜单顺序由计算结果决定，不靠 SQL 排序）。
+    必须过滤 status=published 且未软删：榜单缓存最长存活 1 小时，期间若有项目被
+    下架/删除，不过滤就会把不可见内容继续挂在榜单上展示给用户。"""
     if not ids:
         return []
-    rows = {p.id: p for p in db.scalars(select(Project).where(Project.id.in_(ids)))}
+    rows = {
+        p.id: p
+        for p in db.scalars(
+            select(Project).where(
+                Project.id.in_(ids),
+                Project.status == "published",
+                Project.deleted_at.is_(None),
+            )
+        )
+    }
     return [rows[i] for i in ids if i in rows]

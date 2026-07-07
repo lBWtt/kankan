@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 
 from sqlalchemy import func, or_, select, tuple_
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
@@ -74,15 +74,11 @@ def list_published(
     cursor: Optional[str],
     page_size: int,
     page: Optional[int],
-    load_author: bool = False,
 ) -> Tuple[List[Project], Optional[str], bool]:
     """发现流查询：只取 published 且未软删；返回 (本页项目, next_cursor, has_more)。
-    load_author=True 时使用 selectinload 预加载作者，避免 N+1。"""
+    author 由 cards_from_projects_with_stats 批量自查（不依赖 selectinload，
+    因为该函数要兼容未预加载的 related/other 项目，统一走自查路径）。"""
     stmt = select(Project).where(Project.status == "published", Project.deleted_at.is_(None))
-    
-    # 预加载 author（用于列表端点填充 author 字段）
-    if load_author:
-        stmt = stmt.options(selectinload(Project.author))
 
     if q:
         # MVP 搜索：标题/亮点模糊 + 工具精确命中（GIN）；中文分词升级是后续项
@@ -157,11 +153,11 @@ def clue_related_projects(db: Session, p: Project, limit: int = 6) -> List[Proje
 
 
 def list_linked_projects(
-    db: Session, link_model, user: User, cursor: Optional[str], page_size: int, load_author: bool = False
+    db: Session, link_model, user: User, cursor: Optional[str], page_size: int
 ) -> Tuple[List[Project], Optional[str], bool]:
     """我的收藏/想试列表：按动作时间倒序，游标=（动作时间,动作行id）；
     只展示仍是 published 的项目（被下架/删除的自动隐藏，不报错）。
-    load_author=True 时使用 selectinload 预加载作者，避免 N+1。"""
+    author 由 cards_from_projects_with_stats 批量自查，无需 selectinload。"""
     stmt = (
         select(link_model, Project)
         .join(Project, Project.id == link_model.project_id)
@@ -172,10 +168,7 @@ def list_linked_projects(
         )
         .order_by(link_model.created_at.desc(), link_model.id.desc())
     )
-    # 预加载 author（用于列表端点填充 author 字段）
-    if load_author:
-        stmt = stmt.options(selectinload(Project.author))
-    
+
     if cursor:
         c_dt, c_id = parse_datetime_cursor(cursor)
         stmt = stmt.where(tuple_(link_model.created_at, link_model.id) < (c_dt, c_id))
