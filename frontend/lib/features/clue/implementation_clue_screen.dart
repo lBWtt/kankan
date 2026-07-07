@@ -501,7 +501,7 @@ class _ImplementationClueScreenState
             // 已订阅 → 描边态;未订阅 → 墨绿浅底
             color: subscribed ? Colors.transparent : KkColors.mint,
             border: Border.all(
-              color: subscribed ? KkColors.bd : KkColors.teal.withOpacity(0.3),
+              color: subscribed ? KkColors.bd : KkColors.teal.withAlpha(77),
               width: 1.5,
             ),
             borderRadius: BorderRadius.circular(KkRadius.md),

@@ -363,7 +363,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   height: 8,
                   margin: const EdgeInsets.symmetric(horizontal: 1),
                   decoration: BoxDecoration(
-                    color: KkColors.teal.withOpacity(a),
+                    color: KkColors.teal.withAlpha((a * 255).round()),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
