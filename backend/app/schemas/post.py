@@ -40,7 +40,7 @@ class PostCreate(BaseModel):
 
 
 class PostMediaOut(BaseModel):
-    # H-MDL-4：用 MediaType 枚举替代裸 str，与 schemas/project.MediaItem.media_type 保持一致
+    # H-MDL-4：用 MediaType 枚举替代裸 str，与 schemas/project.MediaItem.type 保持一致
     type: MediaType
     url: str
     poster: Optional[str] = None
