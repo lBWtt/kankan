@@ -1,0 +1,82 @@
+# ============================================================
+# 这个文件是干什么的：生产环境的"一键编队"——后端 + PostgreSQL + Redis 三个容器一起起，
+#   数据库和缓存只在内网可见，对外只开后端的 8000 端口。
+# 它对应产品里的什么功能：整个后端的线上运行形态。
+# 如果它出错了，用户会看到什么现象：整个 App 连不上服务器。
+#
+# 用法（在 backend/ 下）：cp .env.example .env.prod 并按【生产必改】填好，然后
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# 注意：backend 固定单实例（定时任务随服务进程跑，多实例会重复执行榜单刷新/媒体回收）。
+# ============================================================
+services:
+  backend:
+    build:
+      context: .
+      # 国内服务器构建可加：args: { PIP_INDEX_URL: "https://pypi.tuna.tsinghua.edu.cn/simple" }
+    container_name: ccpj_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://ccpj:${POSTGRES_PASSWORD:?生产必须设置数据库密码}@postgres:5432/ccpj
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: ${APP_ENV:-prod}
+      JWT_SECRET: ${JWT_SECRET:?生产必须设置 JWT 密钥}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-console}
+      ALIYUN_SMS_ACCESS_KEY_ID: ${ALIYUN_SMS_ACCESS_KEY_ID:-}
+      ALIYUN_SMS_ACCESS_KEY_SECRET: ${ALIYUN_SMS_ACCESS_KEY_SECRET:-}
+      ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
+      ALIYUN_SMS_TEMPLATE_CODE: ${ALIYUN_SMS_TEMPLATE_CODE:-}
+      SHARE_BASE_URL: ${SHARE_BASE_URL:-https://share.example.dev}
+      # AI 抓取管线（docker exec ccpj_backend python -m app.pipeline process 时用；可不配）
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-8}
+    volumes:
+      # storage_backend=local 时媒体的持久化盘（切 s3 后可去掉）
+      - uploads:/srv/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    container_name: ccpj_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ccpj
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?生产必须设置数据库密码}
+      POSTGRES_DB: ccpj
+    # 不映射宿主机端口：数据库只对编队内网开放
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ccpj -d ccpj"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: ccpj_redis_prod
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:

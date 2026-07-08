@@ -9,8 +9,8 @@ backend/    FastAPI + PostgreSQL 16 + Redis 7 + SQLAlchemy 2 + Alembic（原 bac
 frontend/   Flutter Web/App（原 kankan-flutter，即 flitter1）
 ```
 
-两个子目录各自保留了合并前的完整 git 历史（subtree 合并）。各自的 README /
-运行说明在子目录内：`backend/README.md`、`frontend/`（`flutter run` / `flutter build web`）。
+两个子目录各自保留了合并前的完整 git 历史（subtree 合并）。运行说明见下方「快速起步」；
+更细的后端约定见根目录 `CLAUDE.md`，前端见 `frontend/docs/KANKAN_SPEC.md`。
 
 ## 快速起步
 
@@ -33,6 +33,7 @@ flutter run                          # 或 flutter build web --release --pwa-str
   **代码路径已用 MinIO 全链路实测通过**（上传 201 + 公开 URL 200 字节一致）；换真实阿里云 OSS 只改 5 个 `S3_*` 值。
   本地复现/验证：`cd backend && docker compose -f docker-compose.minio.yml up -d && cp .env.minio.example .env`（重启后端）。
   两个部署坑见 `backend/.env.minio.example` 顶部注释（boto3 需 pip 装、代理需 NO_PROXY 内网端点）。
-- 短信切真实供应商（aliyun）：`.env` 设 `SMS_BACKEND=aliyun` + 阿里云凭证。
+- 短信切真实供应商（aliyun）：`.env` 设 `SMS_PROVIDER=aliyun` + 阿里云凭证（`ALIYUN_SMS_*`）。
+  **注意**：邮箱验证码目前只写日志、不真发邮件——上线前要么接邮件服务商，要么登录页去掉「邮箱」入口。
 - 迁移 0009 是破坏性的（重建 FK + 触发器），生产低峰期执行 `alembic upgrade head`。
 - 部署：`backend/Dockerfile` + `backend/docker-compose.prod.yml`。

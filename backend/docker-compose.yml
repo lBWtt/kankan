@@ -1,0 +1,41 @@
+# ============================================================
+# 这个文件是干什么的：一键启动开发环境所需的两个"仓库"——
+#   PostgreSQL 16（存所有数据的数据库）和 Redis 7（算热门榜单用的高速缓存）。
+# 它对应产品里的什么功能：所有功能的数据底座——项目、用户、收藏、候选池
+#   都存在 Postgres 里；本周热门榜单的实时分数放在 Redis 里。
+# 如果它出错了，用户会看到什么现象：整个 App 打不开任何内容，
+#   后端服务会启动失败或所有接口报"服务器错误"。
+# 用法：在 backend/ 下 `docker compose up -d`。
+# ============================================================
+services:
+  postgres:
+    image: postgres:16
+    container_name: ccpj_postgres
+    environment:
+      POSTGRES_USER: ccpj
+      POSTGRES_PASSWORD: ccpj_dev
+      POSTGRES_DB: ccpj
+    ports:
+      # 宿主机用 15432：Windows 的 Hyper-V 会保留 5427-5526 端口段，5432 绑不上
+      - "15432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ccpj -d ccpj"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: ccpj_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
