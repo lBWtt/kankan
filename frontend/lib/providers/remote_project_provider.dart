@@ -22,6 +22,13 @@ final userProjectsProvider =
   return ref.watch(projectsApiProvider).byUser(userId);
 });
 
+/// 项目搜索结果（搜索屏「项目」Tab，远端模式用）。后端只搜 title/tagline/tools。
+/// query 变化自动重拉；空 query 早退返空。
+final remoteSearchProjectsProvider =
+    FutureProvider.autoDispose.family<List<Project>, String>((ref, q) async {
+  return ref.watch(projectsApiProvider).search(q);
+});
+
 /// 我的收藏「完整卡片」（收藏屏用）。仅登录 + useRemote 才拉后端，否则空。
 /// 登录态变化会重拉（watch authProvider）；登出即空，回落 mock 演示收藏。
 final remoteFavoritesProvider =

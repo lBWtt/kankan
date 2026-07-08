@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/network/app_exception.dart';
 import '../../core/prefs.dart';
 import '../../core/theme/kk_colors.dart';
@@ -614,7 +615,13 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           _toast(context, e.message);
           return;
         }
-        // 网络/其它后端错 → 回退本地发布,不挡用户。
+        // 上线构建(useRemote)：不掩盖后端错——如实报错，让 API/鉴权/上传/DB 问题暴露，
+        // 不再把失败伪装成「已本地发布」的假成功。
+        if (AppConfig.useRemote) {
+          _toast(context, '发布失败：${e.message}');
+          return;
+        }
+        // demo 构建(mock)：回退本地发布,不挡演示。
         final local = draft.toProject(
           id: 'user_${DateTime.now().millisecondsSinceEpoch}',
           authorId: 'me',

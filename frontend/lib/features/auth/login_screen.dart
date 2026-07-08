@@ -54,10 +54,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
+  /// 仅手机号：邮箱验证码后端只写日志不真发（未接邮件服务商），暂不放行邮箱入口。
+  /// 简单校验中国大陆 11 位手机号；带 @ 明确提示暂不支持邮箱。
+  static final _phoneRe = RegExp(r'^1\d{10}$');
+
+  String? _phoneError(String id) {
+    if (id.isEmpty) return '请输入手机号';
+    if (id.contains('@')) return '暂仅支持手机号登录';
+    if (!_phoneRe.hasMatch(id)) return '请输入 11 位手机号';
+    return null;
+  }
+
   Future<void> _sendCode() async {
     final id = _identifierCtrl.text.trim();
-    if (id.isEmpty) {
-      setState(() => _error = '请先输入手机号或邮箱');
+    final err = _phoneError(id);
+    if (err != null) {
+      setState(() => _error = err);
       return;
     }
     setState(() {
@@ -80,8 +92,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _login() async {
     final id = _identifierCtrl.text.trim();
     final code = _codeCtrl.text.trim();
-    if (id.isEmpty) {
-      setState(() => _error = '请输入手机号或邮箱');
+    final err = _phoneError(id);
+    if (err != null) {
+      setState(() => _error = err);
       return;
     }
     if (code.isEmpty) {
@@ -134,19 +147,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const Text('登录 / 注册', style: KkType.h1),
             const SizedBox(height: KkSpacing.xs),
             Text(
-              '手机号或邮箱验证码登录，未注册自动创建账号',
+              '手机号验证码登录，未注册自动创建账号',
               style: KkType.bodySm.copyWith(color: KkColors.t3),
             ),
             const SizedBox(height: KkSpacing.xl),
 
-            // 手机号 / 邮箱
-            _fieldLabel('手机号或邮箱'),
+            // 手机号（邮箱登录未接邮件服务商，暂不开放）
+            _fieldLabel('手机号'),
             const SizedBox(height: KkSpacing.sm),
             _inputBox(
               child: TextField(
                 controller: _identifierCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: _inputDecoration('输入手机号或邮箱'),
+                keyboardType: TextInputType.phone,
+                decoration: _inputDecoration('输入手机号'),
                 onChanged: (_) {
                   if (_error != null) setState(() => _error = null);
                 },

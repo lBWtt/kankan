@@ -50,6 +50,21 @@ class InteractionsApi {
     }
   }
 
+  /// GET /projects/{id}/implementation-clue → 实现线索原始 JSON（游客可读）。
+  /// 返回后端契约字段（source_url/tools/ai_implementation_hint/related_projects/
+  /// how_to_interest_count/is_subscribed）；调用方（clueProvider）负责映射成 ClueData。
+  Future<Map<String, dynamic>> getImplementationClue(String projectId) async {
+    try {
+      final resp =
+          await _dio.get<dynamic>('/projects/$projectId/implementation-clue');
+      final data = resp.data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+      throw const AppException(code: 'UNKNOWN', message: '线索返回格式异常');
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
   /// 订阅 / 取消订阅实现线索。[on]=true → POST（201）；false → DELETE（204）。
   /// 需登录（后端 auth_required）。
   Future<void> setClueSubscription(String projectId, bool on) async {

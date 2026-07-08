@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_config.dart';
+import '../../core/network/app_exception.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/utils/parse_count.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
+import '../../data/api/me_api.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../../domain/repositories/project_repository.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
@@ -114,15 +118,27 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     _toast('暂未接入');
   }
 
-  void _save() {
+  Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       _toast('名字不能为空');
       return;
     }
     final bio = _bioCtrl.text.trim();
-    // F-3:写入内存 'me' 用户(mockUsers,appState.updateProfile 负责改写)。
-    // domains 暂不持久化(KkUser 无 interests 字段,Phase 5 加字段后接)。
+
+    // 远端模式（useRemote + 已登录）：先 PATCH /me 真落库，失败如实报错、不 pop、不谎称已保存。
+    // domains（关注领域）用的是前端 UI 词表，与后端 Domain 枚举不同源，暂不随此同步。
+    if (AppConfig.useRemote && ref.read(authProvider).isLoggedIn) {
+      try {
+        await ref.read(meApiProvider).updateProfile(nickname: name, bio: bio);
+      } on AppException catch (e) {
+        if (mounted) _toast('保存失败：${e.message}');
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    // 本地 'me' 用户(mockUsers,appState.updateProfile 负责改写)驱动 profile/me 显示。
     ref
         .read(appStateProvider.notifier)
         .updateProfile(name: name, bio: bio.isEmpty ? null : bio);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/utils/levenshtein.dart';
@@ -14,6 +15,7 @@ import '../../domain/models/models.dart';
 import '../../domain/repositories/search_repository.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/project_provider.dart';
+import '../../providers/remote_project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
 import '../shared/empty_state.dart';
@@ -108,7 +110,17 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
   Widget build(BuildContext context) {
     final repo = ref.watch(searchRepositoryProvider);
     final q = widget.query;
-    final counts = repo.counts(q);
+    var counts = repo.counts(q);
+    // 远端模式：项目 Tab 走后端搜索，计数以后端结果为准（posts/users/topics 后端无搜索端点，仍本地）。
+    if (AppConfig.useRemote) {
+      final remote = ref.watch(remoteSearchProjectsProvider(q));
+      counts = SearchCounts(
+        projects: remote.asData?.value.length ?? 0,
+        posts: counts.posts,
+        users: counts.users,
+        topics: counts.topics,
+      );
+    }
 
     return Scaffold(
       backgroundColor: KkColors.bg,
@@ -371,8 +383,22 @@ class _ProjectsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 远端模式：后端 GET /projects?q=（匹配 title/tagline/tools）。demo/本地：内存搜索。
+    if (AppConfig.useRemote) {
+      final async = ref.watch(remoteSearchProjectsProvider(query));
+      return async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(
+          child: EmptyState(variant: EmptyStateVariant.generic),
+        ),
+        data: (list) => _list(list),
+      );
+    }
     final repo = ref.watch(searchRepositoryProvider);
-    final list = repo.searchProjects(query);
+    return _list(repo.searchProjects(query));
+  }
+
+  Widget _list(List<Project> list) {
     if (list.isEmpty) {
       return const Center(
         child: EmptyState(variant: EmptyStateVariant.generic),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/network/app_exception.dart';
 import '../../core/prefs.dart';
 import '../../core/theme/kk_colors.dart';
@@ -154,8 +155,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         _finish('已发送到「看看」');
         return;
       } on AppException catch (e) {
+        // 上线构建(useRemote)：如实报错并停下，不把失败伪装成「已本地发布」的假成功。
+        if (AppConfig.useRemote) {
+          if (mounted) _toast('发送失败：${e.message}');
+          return;
+        }
+        // demo 构建(mock)：落到本地发布，不挡演示。
         if (mounted) _toast('后端未同步（${e.message}），已本地发布');
-        // 落到本地发布
       }
     }
 

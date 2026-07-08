@@ -329,6 +329,14 @@ class AppStateNotifier extends Notifier<AppStateData> {
     state = state.copyWith(unreadNotifIds: const {});
   }
 
+  /// 用后端真实未读集合覆盖本地（远端模式：通知列表拉回后回填，
+  /// tab 角标 / 我的页 / 设置页的未读数都读 unreadNotifIds，故必须同源）。
+  void setUnreadNotifIds(Set<String> ids) {
+    final cur = state.unreadNotifIds;
+    if (ids.length == cur.length && ids.containsAll(cur)) return; // 无变化不 rebuild
+    state = state.copyWith(unreadNotifIds: ids);
+  }
+
   // ── 最近搜索词(Map<String, int> 时间戳)──
   /// 加入一条搜索:刷新时间戳(天然去重)。超过 12 条时淘汰最旧。
   void addRecentSearch(String q) {

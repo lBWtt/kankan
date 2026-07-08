@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/prefs.dart';
 import '../core/utils/backend_id.dart';
 import '../data/api/interactions_api.dart';
+import '../data/dto/project_card_dto.dart';
 import '../domain/models/models.dart';
 import '../domain/repositories/project_repository.dart';
 import 'auth_provider.dart';
@@ -394,6 +395,22 @@ class ClueInteractionNotifier extends Notifier<ClueInteractionState> {
     return state.howToCount(projectId);
   }
 
+  /// 用后端真值回填计数/订阅态（远端模式下 [clueProvider] 拉到线索后调）。
+  /// 屏幕的计数/订阅从本 notifier 读，故必须回填，否则真后端项目显示 0。
+  /// 计数不覆盖用户本会话已乐观标记的项目（避免把刚 +1 的乐观值压回旧值）。
+  void seedFromBackend(String projectId,
+      {required int count, required bool subscribed}) {
+    final counts = Map<String, int>.from(state.howToCounts);
+    if (!state.hasMarked(projectId)) counts[projectId] = count;
+    final subs = Set<String>.from(state.subscribedProjectIds);
+    if (subscribed) {
+      subs.add(projectId);
+    } else {
+      subs.remove(projectId);
+    }
+    state = state.copyWith(howToCounts: counts, subscribedProjectIds: subs);
+  }
+
   /// 切换订阅(ZAI_PLAYBOOK Part 4 订阅区)。乐观切换本地态;
   /// 登录 + 真后端项目(UUID)→ 同步 POST/DELETE /clue-subscription,失败回滚。
   /// mock 项目 / 未登录 → 只本地切换(演示,不设登录墙)。
@@ -444,7 +461,42 @@ final clueInteractionProvider =
 /// 在交互态变化时自动 rebuild — 这是刻意的:静态内容不必跟着计数变)。
 final clueProvider =
     FutureProvider.family<ClueData, String>((ref, projectId) async {
-  // 模拟异步(Phase 5 接 SDK 时是真网络)。
+  // 真后端项目(UUID 形) → 拉 GET /projects/{id}/implementation-clue 真数据。
+  // demo/mock 项目(p_ 前缀，非 UUID) → 走下方 mock。与 recordHowToInterest 同款门槛。
+  if (looksLikeBackendId(projectId)) {
+    try {
+      final json =
+          await ref.read(interactionsApiProvider).getImplementationClue(projectId);
+      final rawRelated = json['related_projects'];
+      final related = (rawRelated is List ? rawRelated : const <dynamic>[])
+          .whereType<Map<dynamic, dynamic>>()
+          .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
+          .toList();
+      final count = (json['how_to_interest_count'] as num?)?.toInt() ?? 0;
+      final subscribed = json['is_subscribed'] == true;
+      // 回填交互 notifier（屏幕计数/订阅从它读）。微任务里做，避开「build 期改 provider」。
+      Future.microtask(() => ref
+          .read(clueInteractionProvider.notifier)
+          .seedFromBackend(projectId, count: count, subscribed: subscribed));
+      return ClueData(
+        projectId: projectId,
+        sourceUrl: json['source_url'] as String?,
+        sourcePlatform: json['source_platform'] as String?,
+        originalAuthorName: json['original_author_name'] as String?,
+        originalAuthorUrl: json['original_author_url'] as String?,
+        tools: (json['tools'] as List?)?.map((e) => e.toString()).toList() ??
+            const [],
+        aiImplementationHint: json['ai_implementation_hint'] as String?,
+        relatedProjects: related,
+        howToInterestCount: count,
+        isSubscribed: subscribed,
+      );
+    } catch (_) {
+      // 远端失败：落回下方 mock/空展示，不中断（游客可读，尽量给内容）。
+    }
+  }
+
+  // 模拟异步(demo 模式无真实后端)。
   await Future<void>.delayed(const Duration(milliseconds: 200));
   final repo = ref.read(projectRepositoryProvider);
   final interaction = ref.read(clueInteractionProvider);

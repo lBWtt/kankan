@@ -24,7 +24,14 @@ import '../../core/widgets/tappable.dart';
 ///   - 无 emoji(用 Icon);零旁白(只列原因,不写"举报后会怎样")。
 ///   - 触控 ≥44pt(Tappable 内置 minTarget)。
 ///
-/// [targetType] / [targetId]:mock 阶段只用 toast,Phase 5 接后端时传给举报 API。
+/// [targetType] / [targetId]:入口覆盖 post / user / comment。
+///
+/// 后端接线缺口（已知，待办）：后端 `Report` 模型目前是「项目专用」
+/// （project_id NOT NULL、无 target_type），只有 POST /projects/{id}/reports；
+/// 而本 sheet 的入口全是 post/user/comment，两边不重叠。要真提交需先做后端泛化
+/// （迁移 0010：Report 加 target_type + target_id、放开 project_id，新增通用
+/// POST /reports，并相应调整后台举报队列/resolve）。在那之前本 sheet 仅本地确认
+/// （toast），不做假的「已提交后端」承诺——见下方 [_ReportSheetState._submit] 注释。
 Future<void> showReportSheet(
   BuildContext context, {
   required String targetType,
@@ -71,7 +78,9 @@ class _ReportSheetState extends State<_ReportSheet> {
   }
 
   /// 提交举报:关 sheet + toast(零旁白,只陈述已举报事实)。
-  /// reason 仅本地用(Phase 5 接后端时随 targetType/targetId 一起上报)。
+  /// 注意：post/user/comment 举报后端暂无对应端点（见文件头「后端接线缺口」），
+  /// 故此处只做本地确认；后端泛化（通用 POST /reports）落地后，这里改成
+  /// `ref.read(...).report(targetType, targetId, reason, description)` 真提交。
   void _submit([String? reason]) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     Navigator.of(context).pop();

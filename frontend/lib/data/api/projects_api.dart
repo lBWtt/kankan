@@ -36,6 +36,30 @@ class ProjectsApi {
     }
   }
 
+  /// GET /projects?q= → 项目搜索（后端匹配 title/tagline/tools，仅 published）。
+  /// 空 q 早退返空（不请求）。返回卡片列表。
+  Future<List<Project>> search(String q, {int limit = 30}) async {
+    final s = q.trim();
+    if (s.isEmpty) return const [];
+    try {
+      final resp = await _dio.get<dynamic>(
+        '/projects',
+        queryParameters: {'q': s, 'page_size': limit},
+      );
+      final data = resp.data;
+      final Object? rawItems = data is Map<dynamic, dynamic>
+          ? (data['items'] ?? data['data'] ?? const <dynamic>[])
+          : (data ?? const <dynamic>[]);
+      final items = rawItems is List ? rawItems : const <dynamic>[];
+      return items
+          .whereType<Map<dynamic, dynamic>>()
+          .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
+          .toList();
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
   /// GET /users/{id}/projects → TA 的作品（仅 published，游客可读）。
   /// 用于个人主页「项目」Tab 远程化；返回 Page 信封 {items:[...]}。
   Future<List<Project>> byUser(String userId, {int limit = 30}) async {

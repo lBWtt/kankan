@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/utils/time_ago.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
+import '../../data/api/notifications_api.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/notification_repository.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/project_provider.dart';
+import '../../providers/remote_notifications_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
 
@@ -37,10 +41,22 @@ class NotificationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(notificationRepositoryProvider);
     final appState = ref.watch(appStateProvider);
-    final all = repo.all();
     final unreadIds = appState.unreadNotifIds;
+
+    // 远端模式（useRemote + 已登录）→ 拉后端真实通知；否则走屏内 mock repo（demo/游客）。
+    final remoteOn = AppConfig.useRemote && ref.watch(authProvider).isLoggedIn;
+    List<NotificationItem> all = const [];
+    bool loading = false;
+    bool failed = false;
+    if (remoteOn) {
+      final async = ref.watch(remoteNotificationsProvider);
+      all = async.asData?.value ?? const [];
+      loading = async.isLoading && !async.hasValue;
+      failed = async.hasError && !async.hasValue;
+    } else {
+      all = ref.watch(notificationRepositoryProvider).all();
+    }
 
     return Scaffold(
       backgroundColor: KkColors.bg,
@@ -54,8 +70,7 @@ class NotificationsScreen extends ConsumerWidget {
         actions: [
           if (unreadIds.isNotEmpty)
             Tappable(
-              onTap: () =>
-                  ref.read(appStateProvider.notifier).markAllNotifRead(),
+              onTap: () => _markAll(ref, remoteOn, unreadIds),
               child: Container(
                 margin: const EdgeInsets.only(right: KkSpacing.lg),
                 alignment: Alignment.center,
@@ -67,13 +82,31 @@ class NotificationsScreen extends ConsumerWidget {
             ),
         ],
       ),
-      body: all.isEmpty
-          ? Center(
-              child: Text('暂无通知',
-                  style: KkType.bodySm.copyWith(color: KkColors.t4)),
-            )
-          : _groupedList(context, ref, all, unreadIds),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : failed
+              ? Center(
+                  child: Text('通知加载失败，下拉重试',
+                      style: KkType.bodySm.copyWith(color: KkColors.t4)),
+                )
+              : all.isEmpty
+                  ? Center(
+                      child: Text('暂无通知',
+                          style: KkType.bodySm.copyWith(color: KkColors.t4)),
+                    )
+                  : _groupedList(context, ref, all, unreadIds),
     );
+  }
+
+  /// 全部已读：清本地未读集合；远端模式下把当前未读逐条推到后端（无批量端点）。
+  void _markAll(WidgetRef ref, bool remoteOn, Set<String> unreadIds) {
+    ref.read(appStateProvider.notifier).markAllNotifRead();
+    if (remoteOn) {
+      final api = ref.read(notificationsApiProvider);
+      for (final id in unreadIds) {
+        api.markRead(id); // fire-and-forget，失败不回滚（下次拉列表以后端为准）
+      }
+    }
   }
 
   Widget _groupedList(BuildContext context, WidgetRef ref,
@@ -148,8 +181,11 @@ class NotificationsScreen extends ConsumerWidget {
 
   /// HANDOFF §6.8 五类精准跳转
   void _handleTap(BuildContext context, WidgetRef ref, NotificationItem n) {
-    // 先标记已读
+    // 先标记已读（本地即时）；远端模式同时推后端（幂等，失败不挡跳转）。
     ref.read(appStateProvider.notifier).markNotifRead(n.id);
+    if (AppConfig.useRemote && ref.read(authProvider).isLoggedIn) {
+      ref.read(notificationsApiProvider).markRead(n.id);
+    }
 
     switch (n.type) {
       case 'like':
@@ -183,6 +219,17 @@ class NotificationsScreen extends ConsumerWidget {
         break;
       case 'system':
         // 系统:不跳转
+        break;
+      default:
+        // 后端内容类通知（daily_pick / clue_update / content_status / similar_project /
+        // how_to_interest / interaction …）：clue_update 跳实现线索页，其余带项目落点跳详情。
+        if (n.targetId != null && n.targetId!.isNotEmpty) {
+          if (n.type == 'clue_update') {
+            context.push(KkRoutes.clue(n.targetId!));
+          } else {
+            context.push(KkRoutes.detail(n.targetId!));
+          }
+        }
         break;
     }
   }
@@ -233,8 +280,8 @@ class _NotifTile extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 头像 / 系统图标
-            if (item.type == 'system')
+            // 头像 / 系统图标（内容类通知无 actor，走系统图标）
+            if (item.type == 'system' || item.actorId == null)
               Container(
                 width: 36,
                 height: 36,
@@ -291,7 +338,11 @@ class _NotifTile extends ConsumerWidget {
                       style: KkType.body,
                     ),
                   ),
-                  if (item.preview != null && item.preview!.isNotEmpty) ...[
+                  // 引用框只给「有 actor 的社交通知」（评论内容等）；内容/系统类
+                  // 的 preview 已作主文案展示，这里不再重复渲染。
+                  if (item.actorId != null &&
+                      item.preview != null &&
+                      item.preview!.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -389,7 +440,8 @@ class _NotifTile extends ConsumerWidget {
           ),
         ];
       default:
-        return [TextSpan(text: '通知', style: KkType.body)];
+        // 后端内容类通知：无 actor，主文案就是 title+body 合成的那一行。
+        return [TextSpan(text: item.preview ?? '通知', style: KkType.body)];
     }
   }
 
