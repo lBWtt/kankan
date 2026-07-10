@@ -150,7 +150,7 @@ class MeScreen extends ConsumerWidget {
         _myPostsSection(context, ref),
         const SizedBox(height: KkSpacing.xl),
         // 6. 我关注的领域
-        _followedDomainsSection(context),
+        _followedDomainsSection(context, ref),
         const SizedBox(height: KkSpacing.xl),
         // 7. 我关注的话题
         _followedTopicsSection(context),
@@ -338,7 +338,13 @@ class MeScreen extends ConsumerWidget {
   // ──────────────────────────────────────────────────────────────────
   // 6. 我关注的领域(chip 排 + "+调整")
   // ──────────────────────────────────────────────────────────────────
-  Widget _followedDomainsSection(BuildContext context) {
+  Widget _followedDomainsSection(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
+    // 登录 + 远端 → 后端真兴趣（interest_content_types）；否则 mock 演示画像。
+    final followedDomains = (auth.isLoggedIn && AppConfig.useRemote)
+        ? (ref.watch(myCountsProvider).value?.interestContentTypes ??
+            const <String>[])
+        : mockFollowedDomains;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
       child: Column(
@@ -354,7 +360,7 @@ class MeScreen extends ConsumerWidget {
             runSpacing: KkSpacing.sm,
             alignment: WrapAlignment.start,
             children: [
-              for (final d in mockFollowedDomains)
+              for (final d in followedDomains)
                 KkChip.solid(label: _domainLabel(d)),
               KkChip.ghost(
                 label: '调整',

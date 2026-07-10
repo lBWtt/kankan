@@ -48,11 +48,13 @@ class MyCounts {
   final int follower;
   final int favorites; // 我收藏的项目数
   final int receivedLikes; // 我的内容获赞总数（项目反应 + 动态点赞）
+  final List<String> interestContentTypes; // 内容类型兴趣（「看看」兴趣设置）
   const MyCounts(
     this.following,
     this.follower, {
     this.favorites = 0,
     this.receivedLikes = 0,
+    this.interestContentTypes = const [],
   });
 }
 
@@ -87,6 +89,11 @@ class UsersApi {
           _readInt(m['follower_count']),
           favorites: _readInt(m['favorite_count']),
           receivedLikes: _readInt(m['received_like_count']),
+          interestContentTypes: (m['interest_content_types'] is List)
+              ? (m['interest_content_types'] as List)
+                  .map((e) => e.toString())
+                  .toList()
+              : const <String>[],
         );
       }
       throw const AppException(code: 'UNKNOWN', message: '/me 返回格式异常');
