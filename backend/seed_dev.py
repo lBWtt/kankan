@@ -8,11 +8,44 @@
 #   $env:PYTHONPATH='.'; .venv\Scripts\python.exe -X utf8 seed_dev.py
 #   加 --force 会先清掉之前种下的种子项目再重灌（幂等）。
 # ============================================================
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 
+from app.core.config import settings
 from app.core.db import SessionLocal
 from app.models import Project, User
+
+# 种子封面配色（柔和双色渐变，暖纸/薄荷调，6 张各不同）。
+_COVER_GRADIENTS = [
+    ((0xEA, 0xF4, 0xEE), (0x8F, 0xC9, 0xA9)),  # mint
+    ((0xF5, 0xEE, 0xE2), (0xD9, 0xB8, 0x8C)),  # sand
+    ((0xEC, 0xEF, 0xF5), (0x9F, 0xB4, 0xD6)),  # slate blue
+    ((0xF4, 0xEA, 0xEC), (0xCE, 0x9A, 0xA6)),  # dusty rose
+    ((0xEE, 0xF1, 0xE8), (0xA9, 0xC0, 0x86)),  # olive
+    ((0xF0, 0xEC, 0xF4), (0xB0, 0x9C, 0xC9)),  # lavender
+]
+
+
+def _ensure_cover(idx: int, fallback: str) -> str:
+    """开发种子封面：本地生成一张 800x600 双色渐变图存进 upload_dir，返回 /uploads 相对路径。
+    这样模拟器/无外网环境也能显示封面（原来用外网 picsum，断网时破图）。
+    PIL 不可用时退回原外链 URL（fallback），保证脚本在任何环境都能跑。"""
+    try:
+        from PIL import Image
+    except Exception:
+        return fallback
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    fname = f"seed_cover_{idx}.png"
+    path = os.path.join(settings.upload_dir, fname)
+    top, bottom = _COVER_GRADIENTS[idx % len(_COVER_GRADIENTS)]
+    # 1×600 竖向渐变列，再横向拉伸到 800 宽（快且干净）。
+    grad = Image.new("RGB", (1, 600))
+    for y in range(600):
+        t = y / 599
+        grad.putpixel((0, y), tuple(int(top[c] * (1 - t) + bottom[c] * t) for c in range(3)))
+    grad.resize((800, 600)).save(path)
+    return f"/uploads/{fname}"
 
 SEED_EMAIL = "seed@kankan.dev"
 
@@ -114,7 +147,8 @@ def main() -> None:
                     domains=domains,
                     tools=tools,
                     ai_badge=badge,
-                    cover_media_url=cover,
+                    # 本地生成封面（/uploads/…），无外网也能显示；PIL 缺失时退回原 cover 外链。
+                    cover_media_url=_ensure_cover(i, cover),
                     repo_stars=stars,
                     takeaway_count=takeaways,
                     allow_how_to_interest=True,
