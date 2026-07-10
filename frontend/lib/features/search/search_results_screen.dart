@@ -103,7 +103,9 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
     if (s.isEmpty) return;
     if (s == widget.query) return;
     ref.read(appStateProvider.notifier).addRecentSearch(s);
-    context.push(KkRoutes.searchResults(s));
+    // 在结果页里改词再搜：replace 当前结果页而非 push，避免连搜多次后要按同样多次
+    // 返回才回到发现（从搜索输入页首次进入仍是 push，返回键正确回到输入页）。
+    context.replace(KkRoutes.searchResults(s));
   }
 
   @override

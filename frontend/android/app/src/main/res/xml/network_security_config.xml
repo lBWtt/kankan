@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 开发联调用：只对本地后端域名放行明文 HTTP（后端跑 http://10.0.2.2:8000，非 HTTPS）。
+     其余所有域名仍强制 HTTPS —— 生产/线上域名不受影响，release 安全不打折。
+     targetSdk>=28 默认禁明文，不放行的话前端所有请求被系统拦掉，表现为「加载失败」。 -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>      <!-- Android 模拟器访问宿主机 -->
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

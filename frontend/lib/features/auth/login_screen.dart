@@ -101,6 +101,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _error = '请输入验证码');
       return;
     }
+    // 捕获路由守卫带来的目标（?from=...）：登录成功后跳回原意图页，而非停在「我」页。
+    final from = GoRouterState.of(context).uri.queryParameters['from'];
     setState(() {
       _loggingIn = true;
       _error = null;
@@ -119,7 +121,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             backgroundColor: KkColors.t1,
           ),
         );
-      if (context.canPop()) {
+      if (from != null && from.isNotEmpty) {
+        // from 已由 go_router 的 queryParameters 解码过，直接用（勿再 decode，防双重解码）。
+        context.go(from);
+      } else if (context.canPop()) {
         context.pop();
       } else {
         context.go(KkRoutes.me);

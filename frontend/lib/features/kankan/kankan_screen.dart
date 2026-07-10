@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/pagination/infinite_scroll.dart';
 import '../../core/pagination/page.dart';
 import '../../core/theme/kk_colors.dart';
@@ -64,10 +65,15 @@ class _KankanScreenState extends ConsumerState<KankanScreen>
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    });
+    if (AppConfig.useRemote) {
+      // 远端有真实加载态（paginatedProjectsProvider isLoading），不摆 300ms 假骨架。
+      _loading = false;
+    } else {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        setState(() => _loading = false);
+      });
+    }
   }
 
   @override
@@ -447,7 +453,9 @@ class _RecommendStripState extends ConsumerState<_RecommendStrip> {
           _header(context, x.title),
           const SizedBox(height: KkSpacing.sm),
           SizedBox(
-            height: 130, // 小卡:封面 84 + 标题/赞 + padding
+            // 小卡:封面 84 + 标题/赞 + padding。给 2px 余量吸收不同机型字体行高取整,
+            // 否则内容实测 131px 会在 130 里溢出 1px(debug 黄黑条)。
+            height: 132,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(

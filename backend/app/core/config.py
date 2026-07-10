@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://ccpj:ccpj_dev@localhost:15432/ccpj"
     redis_url: str = "redis://localhost:6379/0"
 
+    # 反向代理层数：按 IP 限流时，X-Forwarded-For 可被客户端任意伪造，只有我方可信反代
+    # 追加的那段才可信。0 = 直连/未知（忽略 XFF，用 socket 对端 IP，不可伪造）；
+    # N = 我方部署在 N 层可信反代之后（取 XFF 从右数第 N 个，左侧客户端伪造的忽略）。
+    # 生产若经 nginx/CDN，按真实层数设，否则 IP 限流可被换头绕过（SMS pumping）。
+    trusted_proxy_hops: int = 0
+
     # dev / prod：dev 环境登录接受万能验证码 888888（无短信服务商时本地可测；还需密钥为默认值）
     app_env: str = "dev"
     # JWT 签名密钥——上线前必须改成强随机值并放环境变量（prod 下用默认值会拒绝启动）

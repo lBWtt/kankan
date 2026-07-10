@@ -1,8 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/theme/kk_colors.dart';
+import '../core/theme/tokens.dart';
 import '../core/widgets/kk_tab_bar.dart';
+import '../core/widgets/tappable.dart';
+import '../providers/auth_provider.dart';
 import '../features/activity/activity_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/comments/comments_screen.dart';
@@ -43,10 +48,32 @@ import 'routes.dart';
 ///   - /search/results/:q    搜索结果(4 Tab)
 ///   - /u/:userId            个人主页
 ///   - /notifications        通知中心
+/// 需登录才能进入的写操作路由。游客可自由浏览一切（HANDOFF 游客优先），
+/// 只有「发布/发动态/编辑资料」这类写操作在进入前就拦到登录页——避免用户
+/// 填完整张发布表单、点提交才被告知需登录（原来只在提交时 check）。
+const _authRequiredRoutes = <String>{
+  KkRoutes.publish,
+  KkRoutes.compose,
+  KkRoutes.profileEdit,
+};
+
 final goRouterProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: KkRoutes.discover,
-    debugLogDiagnostics: true,
+    // 生产构建关掉路由诊断日志（原来恒 true，会往 release 输出路由细节）。
+    debugLogDiagnostics: kDebugMode,
+    // 路由守卫：未登录访问写操作路由 → 跳登录并带 from，登录成功后跳回目标。
+    redirect: (context, state) {
+      final loc = state.matchedLocation;
+      if (_authRequiredRoutes.contains(loc) &&
+          !ref.read(authProvider).isLoggedIn) {
+        final from = Uri.encodeComponent(state.uri.toString());
+        return '${KkRoutes.login}?from=$from';
+      }
+      return null;
+    },
+    // 404 兜底：未定义路径不再抛 Flutter 错误页，给暖纸底友好页 + 回发现。
+    errorBuilder: (context, state) => const _NotFoundScreen(),
     routes: [
       // ── 顶层路由:详情(深链,HANDOFF §6.7)──
       GoRoute(
@@ -296,6 +323,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  // auth 变化时刷新路由，让 redirect 重新评估（登录后放行、登出后重新拦截）。
+  ref.listen(authProvider, (previous, next) => router.refresh());
+  return router;
 });
 
 /// Phase 4-a:顶层路由通用过渡页工厂。
@@ -365,4 +395,50 @@ void _showPublishEntrySheet(BuildContext context) {
       },
     ),
   );
+}
+
+/// 404 兜底页：访问未定义路径时展示（零旁白，一句事实 + 回发现）。
+class _NotFoundScreen extends StatelessWidget {
+  const _NotFoundScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: KkColors.bg,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.explore_off_outlined, size: 48, color: KkColors.t3),
+              const SizedBox(height: KkSpacing.md),
+              Text('页面不存在', style: KkType.body.copyWith(color: KkColors.t2)),
+              const SizedBox(height: KkSpacing.lg),
+              Tappable(
+                onTap: () => context.go(KkRoutes.discover),
+                borderRadius: BorderRadius.circular(KkRadius.pill),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KkSpacing.lg,
+                    vertical: KkSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: KkColors.mint,
+                    borderRadius: BorderRadius.circular(KkRadius.pill),
+                  ),
+                  child: Text(
+                    '回到发现',
+                    style: KkType.body.copyWith(
+                      color: KkColors.teal,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

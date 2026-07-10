@@ -46,6 +46,19 @@ Future<void> main() async {
       FlutterError.presentError(details);
     }
   };
+  // 任务 2(补):异步/平台层未捕获异常兜底。FlutterError.onError 只覆盖 framework
+  //   同步错误;Future 未 catch 等 zone 外异步异常走 PlatformDispatcher.onError,
+  //   不注册的话 release 下会静默崩溃。返回 true = 已处理,阻止默认上抛。
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    if (kReleaseMode) {
+      debugPrint('Uncaught async error: $error');
+    } else {
+      FlutterError.presentError(
+        FlutterErrorDetails(exception: error, stack: stack),
+      );
+    }
+    return true;
+  };
   final prefs = await SharedPreferences.getInstance();
   runApp(
     ProviderScope(
