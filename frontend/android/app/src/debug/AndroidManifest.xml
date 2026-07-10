@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 开发联调：允许明文 HTTP（后端跑在 http://10.0.2.2:8000，非 HTTPS）。
+         targetSdk>=28 默认禁明文，不加这句所有请求会被系统拦掉 → 前端表现为「加载失败」。
+         仅 debug manifest 生效，release 构建仍全程禁明文（生产安全不受影响）。 -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>

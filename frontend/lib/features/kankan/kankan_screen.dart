@@ -447,7 +447,9 @@ class _RecommendStripState extends ConsumerState<_RecommendStrip> {
           _header(context, x.title),
           const SizedBox(height: KkSpacing.sm),
           SizedBox(
-            height: 130, // 小卡:封面 84 + 标题/赞 + padding
+            // 小卡:封面 84 + 标题/赞 + padding。给 2px 余量吸收不同机型字体行高取整,
+            // 否则内容实测 131px 会在 130 里溢出 1px(debug 黄黑条)。
+            height: 132,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(

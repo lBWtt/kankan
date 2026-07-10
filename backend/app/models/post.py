@@ -47,6 +47,9 @@ class Post(CreatedAtMixin, Base):
         Index("ix_posts_author", "author_user_id"),
         # H-MDL-8：软删列的部分索引——发现页只刷未删的动态
         Index("ix_posts_live_created", "created_at", postgresql_where=text("deleted_at IS NULL")),
+        # 外键 quote_project_id 补索引：项目删除时（ON DELETE SET NULL）需回扫引用它的动态，
+        # 无索引会全表扫；大多数动态不引用项目，故用 IS NOT NULL 部分索引省空间。
+        Index("ix_posts_quote_project", "quote_project_id", postgresql_where=text("quote_project_id IS NOT NULL")),
     )
 
 

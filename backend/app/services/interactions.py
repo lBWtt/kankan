@@ -21,6 +21,12 @@ from app.models import HowToInterest, Notification, Project, ProjectReaction, Us
 logger = logging.getLogger("app.interactions")
 
 
+def _is_unique_violation(err: IntegrityError) -> bool:
+    """区分「唯一约束冲突」(并发幂等，可吞) 与其他完整性错误 (FK 失效等，必须抛)。
+    PostgreSQL SQLSTATE 23505 = unique_violation；只有它才当作「已存在」幂等成功。"""
+    return getattr(getattr(err, "orig", None), "pgcode", None) == "23505"
+
+
 def get_published_project(db: Session, project_id: uuid.UUID) -> Project:
     """互动只允许发生在已发布的项目上；其余状态一律 404（不暴露存在性）。"""
     p = db.get(Project, project_id)
@@ -43,8 +49,10 @@ def add_user_link(db: Session, model: Type, user: User, project_id: uuid.UUID) -
     db.add(row)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()  # 并发下另一请求已插入，幂等视为成功，不抛 500
+        if not _is_unique_violation(e):
+            raise  # 非唯一冲突（如 FK 失效）不能静默吞成幂等成功，照常抛
         return db.scalar(select(model.id).where(model.user_id == user.id, model.project_id == project_id).limit(1))
     log_business("add_link", user.id, model=model.__name__, project_id=project_id)
     return row.id
@@ -82,8 +90,10 @@ def add_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: 
     db.add(row)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()  # 并发下另一请求已插入同类反应，幂等成功
+        if not _is_unique_violation(e):
+            raise  # 非唯一冲突（如 FK 失效）不能静默吞成幂等成功，照常抛
         return db.scalar(
             select(ProjectReaction.id)
             .where(
@@ -155,8 +165,10 @@ def add_how_to_interest(
     db.add(row)
     try:
         db.flush()  # INSERT 在此触发；并发撞部分唯一索引会在这里抛
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()  # 并发下另一请求已记同一需求，幂等成功，返回当前累计数
+        if not _is_unique_violation(e):
+            raise  # 非唯一冲突（如 FK 失效）不能静默吞成幂等成功，照常抛
         return how_to_interest_count(db, project_id)
     count = how_to_interest_count(db, project_id)
     # 主信号先独立落库：它是产品核心，绝不能因下游通知副作用失败而一起回滚丢失。

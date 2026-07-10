@@ -38,9 +38,9 @@ final dioProvider = Provider<Dio>((ref) {
   Future<bool> doRefresh() async {
     final oldRefresh = store.refreshToken;
     if (oldRefresh == null || oldRefresh.isEmpty) return false;
+    // 用裸 Dio 换令牌，避免走本拦截器造成递归；用完 close 释放其连接池，防长跑泄漏。
+    final bare = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
     try {
-      // 用裸 Dio 换令牌，避免走本拦截器造成递归。
-      final bare = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
       final r = await bare.post<dynamic>(
         '/auth/refresh',
         data: {'refresh_token': oldRefresh},
@@ -65,60 +65,67 @@ final dioProvider = Provider<Dio>((ref) {
       return false;
     } catch (_) {
       return false;
+    } finally {
+      bare.close();
     }
   }
 
   Future<bool> refreshTokens() =>
       refreshing ??= doRefresh().whenComplete(() => refreshing = null);
 
-  dio.interceptors.add(InterceptorsWrapper(
-    onRequest: (options, handler) {
-      final token = store.accessToken;
-      if (token != null && token.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-      handler.next(options);
-    },
-    onError: (e, handler) async {
-      final is401 = e.response?.statusCode == 401;
-      final alreadyRetried = e.requestOptions.extra['__retried'] == true;
-      final isAuthCall = e.requestOptions.path.contains('/auth/'); // 登录/刷新自身 401 不套刷新
-      if (!is401 || alreadyRetried || isAuthCall) {
-        return handler.next(e);
-      }
-
-      // 保险 1：本请求带的令牌已经不是当前令牌（并发请求刚刷新过）→ 不再刷，直接重试。
-      final sentAuth = e.requestOptions.headers['Authorization'];
-      final current = store.accessToken;
-      var ok = current != null &&
-          current.isNotEmpty &&
-          sentAuth != 'Bearer $current';
-
-      // 保险 2：单飞刷新——并发 401 等同一个 Future，只有一次真正的 /auth/refresh。
-      if (!ok) {
-        if (!(store.refreshToken?.isNotEmpty ?? false)) {
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final token = store.accessToken;
+        if (token != null && token.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+      onError: (e, handler) async {
+        final is401 = e.response?.statusCode == 401;
+        final alreadyRetried = e.requestOptions.extra['__retried'] == true;
+        final isAuthCall =
+            e.requestOptions.path.contains('/auth/'); // 登录/刷新自身 401 不套刷新
+        if (!is401 || alreadyRetried || isAuthCall) {
           return handler.next(e);
         }
-        ok = await refreshTokens();
-      }
-      if (!ok || !(store.accessToken?.isNotEmpty ?? false)) {
-        return handler.next(e); // 刷新失败：原 401 冒泡（UI 弹登录）
-      }
 
-      // 重试原请求（带新令牌 + 标记，防二次刷新死循环）。裸 Dio 防拦截器递归。
-      try {
-        final opts = e.requestOptions;
-        opts.headers['Authorization'] = 'Bearer ${store.accessToken}';
-        opts.extra['__retried'] = true;
+        // 保险 1：本请求带的令牌已经不是当前令牌（并发请求刚刷新过）→ 不再刷，直接重试。
+        final sentAuth = e.requestOptions.headers['Authorization'];
+        final current = store.accessToken;
+        var ok = current != null &&
+            current.isNotEmpty &&
+            sentAuth != 'Bearer $current';
+
+        // 保险 2：单飞刷新——并发 401 等同一个 Future，只有一次真正的 /auth/refresh。
+        if (!ok) {
+          if (!(store.refreshToken?.isNotEmpty ?? false)) {
+            return handler.next(e);
+          }
+          ok = await refreshTokens();
+        }
+        if (!ok || !(store.accessToken?.isNotEmpty ?? false)) {
+          return handler.next(e); // 刷新失败：原 401 冒泡（UI 弹登录）
+        }
+
+        // 重试原请求（带新令牌 + 标记，防二次刷新死循环）。裸 Dio 防拦截器递归，用完 close 防泄漏。
         final bare = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
-        final clone = await bare.fetch<dynamic>(opts);
-        return handler.resolve(clone);
-      } catch (_) {
-        // 重试自身失败（含 FormData 不可复用等）：原 401 冒泡，不再纠缠。
-        return handler.next(e);
-      }
-    },
-  ));
+        try {
+          final opts = e.requestOptions;
+          opts.headers['Authorization'] = 'Bearer ${store.accessToken}';
+          opts.extra['__retried'] = true;
+          final clone = await bare.fetch<dynamic>(opts);
+          return handler.resolve(clone);
+        } catch (_) {
+          // 重试自身失败（含 FormData 不可复用等）：原 401 冒泡，不再纠缠。
+          return handler.next(e);
+        } finally {
+          bare.close();
+        }
+      },
+    ),
+  );
 
   return dio;
 });

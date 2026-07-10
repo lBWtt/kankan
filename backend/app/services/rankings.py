@@ -6,6 +6,7 @@
 # ============================================================
 import json
 import secrets
+import time
 import uuid
 from typing import Dict, List, Optional, Tuple
 
@@ -183,7 +184,6 @@ def weekly_hot_ids(db: Session, limit: int) -> List[uuid.UUID]:
     
     if not lock_acquired:
         # 其他请求正在重算，短暂等待后再次读取缓存
-        import time
         time.sleep(0.5)  # sync 端点跑在线程池，不阻塞事件循环
         ranked = _read_cache()
         if ranked is not None and len(ranked) >= limit:

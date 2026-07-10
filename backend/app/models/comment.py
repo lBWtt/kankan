@@ -48,6 +48,9 @@ class Comment(CreatedAtMixin, Base):
         Index("ix_comments_parent", "parent_comment_id"),
         # H-MDL-8：软删列的部分索引——列表只展示未删评论
         Index("ix_comments_live_host", "host_type", "host_id", postgresql_where=text("deleted_at IS NULL")),
+        # 外键 author_user_id 补索引：用户注销时（ON DELETE CASCADE）需回扫其评论，
+        # 无索引会全表扫；也支撑「某用户的评论」查询。
+        Index("ix_comments_author", "author_user_id"),
     )
 
 
