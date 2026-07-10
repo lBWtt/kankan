@@ -53,7 +53,8 @@ String _resolveMediaUrl(String url) {
   return url.startsWith('/') ? '$origin$url' : '$origin/$url';
 }
 
-/// 后端 category → 前端 domain（成果类型）尽力映射，兜底 'tool'。
+/// 兜底：后端 content_type 为空（旧数据）时，从 category 尽力映射，兜底 'tool'。
+/// 正常走后端真 content_type（见 domain 字段），此函数仅作 null 回退。
 String _mapDomain(String? category) {
   switch (category) {
     case 'image_design':
@@ -129,7 +130,7 @@ Project projectFromDetailJson(Map<String, dynamic> j) {
     actions: const [], // 后端 actions 结构与前端 sealed ActionItem 不同,暂不映射
     tags: tools,
     authorNote: (j['intro'] ?? j['description'])?.toString(),
-    domain: _mapDomain(j['category']?.toString()),
+    domain: j['content_type']?.toString() ?? _mapDomain(j['category']?.toString()),
     likes: _likesFromCounts(counts),
     commentCount: 0,
     takeawayCount: takeaway is int ? takeaway : int.tryParse('$takeaway') ?? 0,
@@ -158,7 +159,7 @@ Project projectFromCardJson(Map<String, dynamic> j) {
     resultData: ResultData(media: media),
     actions: const [],
     tags: tools,
-    domain: _mapDomain(j['category']?.toString()),
+    domain: j['content_type']?.toString() ?? _mapDomain(j['category']?.toString()),
     likes: _likesFromCounts(counts),
     commentCount: 0,
     takeawayCount: takeaway is int ? takeaway : int.tryParse('$takeaway') ?? 0,

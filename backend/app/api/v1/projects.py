@@ -16,7 +16,7 @@ from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_requi
 from app.core.db import get_db
 from app.core.ratelimit import rate_limit
 from app.models import ClueSubscription, User
-from app.schemas.common import Category, Domain, Page
+from app.schemas.common import Category, ContentType, Domain, Page
 from app.schemas.project import (
     ImplementationClue,
     ProjectCard,
@@ -47,6 +47,7 @@ def list_projects(
     q: Optional[str] = Query(None, max_length=80, description="搜索 title/tagline/tools"),
     domain: Optional[Domain] = Query(None, description="看我这行筛选"),
     category: Optional[Category] = None,
+    content_type: Optional[ContentType] = Query(None, description="内容类型（成果类型）筛选"),
     section: Optional[Literal["today_pick"]] = Query(None, description="today_pick=今日精选（按 featured_rank 排序）"),
     cursor: Optional[str] = None,
     page_size: int = Query(20, ge=1, le=50),
@@ -60,6 +61,7 @@ def list_projects(
         q=q,
         domain=domain.value if domain else None,
         category=category.value if category else None,
+        content_type=content_type.value if content_type else None,
         section=section,
         cursor=cursor,
         page_size=page_size,

@@ -75,6 +75,7 @@ def list_published(
     cursor: Optional[str],
     page_size: int,
     page: Optional[int],
+    content_type: Optional[str] = None,
 ) -> Tuple[List[Project], Optional[str], bool]:
     """发现流查询：只取 published 且未软删；返回 (本页项目, next_cursor, has_more)。
     author 由 cards_from_projects_with_stats 批量自查（不依赖 selectinload，
@@ -90,6 +91,8 @@ def list_published(
         stmt = stmt.where(Project.domains.any(domain))
     if category:
         stmt = stmt.where(Project.category == category)
+    if content_type:
+        stmt = stmt.where(Project.content_type == content_type)
 
     if section == "today_pick":
         # 今日精选：运营设置 featured_rank，量小，不分页
