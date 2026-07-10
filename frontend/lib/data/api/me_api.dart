@@ -2,9 +2,8 @@
 // 它对应产品里的什么功能：编辑资料页保存按钮（远端模式下真落库）。
 // 如果它出错了：保存失败会如实提示（不伪装成已保存）。
 //
-// 只传昵称/简介：前端「关注领域」用的是 UI 分类词表（ai_image/web/app…），
-// 与后端 Domain 枚举（dev/design/video…）不同源，直接发会 422，故 interests 暂不接
-// （留待前后端领域词表对齐后再接）。
+// 传昵称/简介 + 关注领域（内容类型）：后端已加 content_type 轴（interest_content_types），
+// 前端 UI 词表（ai_image/web/app…）与它 1:1，直接 PATCH /me 即可落库，不再 422。
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,6 +19,7 @@ class MeApi {
   Future<Map<String, dynamic>> updateProfile({
     String? nickname,
     String? bio,
+    List<String>? interestContentTypes,
   }) async {
     try {
       final resp = await _dio.patch<dynamic>(
@@ -28,6 +28,9 @@ class MeApi {
           if (nickname != null) 'nickname': nickname,
           // bio 传空串 = 清空（后端对 bio 允许 null/空语义）。
           if (bio != null) 'bio': bio,
+          // 关注领域（内容类型）：与后端 content_type 轴 1:1，直接落库。
+          if (interestContentTypes != null)
+            'interest_content_types': interestContentTypes,
         },
       );
       final data = resp.data;

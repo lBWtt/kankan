@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import Domain, Language, UserRole
+from app.schemas.common import ContentType, Domain, Language, UserRole
 
 
 class MeResponse(BaseModel):
@@ -25,6 +25,7 @@ class MeResponse(BaseModel):
     language_preference: Language
     country_region: Optional[str] = None
     interests: List[Domain] = []
+    interest_content_types: List[ContentType] = []  # 内容类型兴趣（「看看」兴趣设置）
     role: Optional[UserRole] = None
     created_at: datetime
     following_count: int = 0  # 我关注的人数（关注功能，服务端填）
@@ -42,6 +43,7 @@ class MeUpdate(BaseModel):
     language_preference: Optional[Language] = None
     country_region: Optional[str] = Field(None, max_length=50)
     interests: Optional[List[Domain]] = None
+    interest_content_types: Optional[List[ContentType]] = None
     role: Optional[UserRole] = None
 
 

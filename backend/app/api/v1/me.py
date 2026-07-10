@@ -87,8 +87,8 @@ def update_me(body: MeUpdate, user: User = Depends(auth_required), db: Session =
     for field, value in changes.items():
         if value is None and field not in ("avatar_url", "bio", "country_region", "role"):
             continue
-        if field == "interests" and value is not None:
-            user.interests = [d.value if hasattr(d, "value") else d for d in value]
+        if field in ("interests", "interest_content_types") and value is not None:
+            setattr(user, field, [d.value if hasattr(d, "value") else d for d in value])
         elif hasattr(value, "value"):
             setattr(user, field, value.value)
         else:

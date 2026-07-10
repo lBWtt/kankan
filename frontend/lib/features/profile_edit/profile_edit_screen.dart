@@ -10,6 +10,7 @@ import '../../core/utils/parse_count.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../data/api/me_api.dart';
+import '../../data/api/users_api.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../../domain/repositories/project_repository.dart';
@@ -61,6 +62,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   /// 关注领域本地选中集合(KkUser 无 interests 字段,UI-only)
   Set<String> _selectedDomains = <String>{};
   Set<String> _initialDomains = const <String>{};
+  bool _domainsSeeded = false; // 登录+远端时用后端真兴趣初始化一次
 
   /// 领域 pill 候选 — 对齐 kankan 屏 7 领域(去"全部")
   static const _domainOptions = <(String label, String value)>[
@@ -127,10 +129,15 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     final bio = _bioCtrl.text.trim();
 
     // 远端模式（useRemote + 已登录）：先 PATCH /me 真落库，失败如实报错、不 pop、不谎称已保存。
-    // domains（关注领域）用的是前端 UI 词表，与后端 Domain 枚举不同源，暂不随此同步。
+    // 关注领域（内容类型）与后端 content_type 轴 1:1，随此一起落库。
     if (AppConfig.useRemote && ref.read(authProvider).isLoggedIn) {
       try {
-        await ref.read(meApiProvider).updateProfile(nickname: name, bio: bio);
+        await ref.read(meApiProvider).updateProfile(
+              nickname: name,
+              bio: bio,
+              interestContentTypes: _selectedDomains.toList(),
+            );
+        ref.invalidate(myCountsProvider); // me 页重读真兴趣
       } on AppException catch (e) {
         if (mounted) _toast('保存失败：${e.message}');
         return;
@@ -167,6 +174,19 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   Widget build(BuildContext context) {
     final me = ref.watch(userByIdProvider('me'));
     _ensureCtrls(me?.name, me?.bio);
+
+    // 登录+远端：用后端真兴趣（interest_content_types）初始化选中集，数据到位后一次性
+    // （async provider 首帧可能 loading=null，故 seeded 标记只在拿到数据后置位）。
+    if (!_domainsSeeded &&
+        AppConfig.useRemote &&
+        ref.watch(authProvider).isLoggedIn) {
+      final counts = ref.watch(myCountsProvider).value;
+      if (counts != null) {
+        _selectedDomains = counts.interestContentTypes.toSet();
+        _initialDomains = {..._selectedDomains};
+        _domainsSeeded = true;
+      }
+    }
 
     final projectRepo = ref.watch(projectRepositoryProvider);
     final postRepo = ref.watch(postRepositoryProvider);
