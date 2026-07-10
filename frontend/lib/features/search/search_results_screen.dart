@@ -15,6 +15,7 @@ import '../../domain/models/models.dart';
 import '../../domain/repositories/search_repository.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/project_provider.dart';
+import '../../providers/remote_post_provider.dart';
 import '../../providers/remote_project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
@@ -113,12 +114,13 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
     final repo = ref.watch(searchRepositoryProvider);
     final q = widget.query;
     var counts = repo.counts(q);
-    // 远端模式：项目 Tab 走后端搜索，计数以后端结果为准（posts/users/topics 后端无搜索端点，仍本地）。
+    // 远端模式：项目 + 动态 Tab 走后端搜索，计数以后端结果为准（users/topics 后端无搜索端点，仍本地）。
     if (AppConfig.useRemote) {
       final remote = ref.watch(remoteSearchProjectsProvider(q));
+      final remotePosts = ref.watch(remoteSearchPostsProvider(q));
       counts = SearchCounts(
         projects: remote.asData?.value.length ?? 0,
-        posts: counts.posts,
+        posts: remotePosts.asData?.value.length ?? 0,
         users: counts.users,
         topics: counts.topics,
       );
@@ -554,8 +556,22 @@ class _PostsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 远端模式：后端 GET /posts?q=（匹配正文）。demo/本地：内存搜索。
+    if (AppConfig.useRemote) {
+      final async = ref.watch(remoteSearchPostsProvider(query));
+      return async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(
+          child: EmptyState(variant: EmptyStateVariant.generic),
+        ),
+        data: (list) => _list(list),
+      );
+    }
     final repo = ref.watch(searchRepositoryProvider);
-    final list = repo.searchPosts(query);
+    return _list(repo.searchPosts(query));
+  }
+
+  Widget _list(List<Post> list) {
     if (list.isEmpty) {
       return const Center(
         child: EmptyState(variant: EmptyStateVariant.generic),
@@ -564,8 +580,7 @@ class _PostsTab extends ConsumerWidget {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: KkSpacing.sm),
       itemCount: list.length,
-      itemBuilder: (context, i) =>
-          _PostHit(post: list[i], query: query),
+      itemBuilder: (context, i) => _PostHit(post: list[i], query: query),
     );
   }
 }

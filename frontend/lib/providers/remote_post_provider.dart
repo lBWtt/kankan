@@ -28,6 +28,18 @@ final userPostsProvider =
   return result.posts;
 });
 
+/// 动态搜索结果（搜索屏「动态」Tab，远端模式用）。后端匹配正文（GET /posts?q=）。
+/// query 变化自动重拉；空 query 早退返空；加载后并「我已赞」点亮心。
+final remoteSearchPostsProvider =
+    FutureProvider.autoDispose.family<List<Post>, String>((ref, q) async {
+  if (q.trim().isEmpty) return const <Post>[];
+  final result = await ref.watch(postsApiProvider).search(q);
+  if (result.likedIds.isNotEmpty) {
+    ref.read(appStateProvider.notifier).mergeLikedIds(result.likedIds);
+  }
+  return result.posts;
+});
+
 /// 按 id 取动态：先查 mock repo（命中=mock feed 的动态），miss 且 useRemote → 拉后端。
 /// 动态详情页用（AsyncValue：loading/error/data）。命中已赞则点亮心。
 final postByIdProvider =

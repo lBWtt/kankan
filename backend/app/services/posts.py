@@ -179,8 +179,18 @@ def _paged(db: Session, base_stmt, viewer: Optional[User], cursor: Optional[str]
     return _posts_to_out(db, rows, viewer), next_cursor, has_more
 
 
-def list_posts(db: Session, viewer: Optional[User], cursor: Optional[str], page_size: int) -> Tuple[List[PostOut], Optional[str], bool]:
-    return _paged(db, select(Post).where(Post.deleted_at.is_(None)), viewer, cursor, page_size)
+def list_posts(
+    db: Session,
+    viewer: Optional[User],
+    cursor: Optional[str],
+    page_size: int,
+    q: Optional[str] = None,
+) -> Tuple[List[PostOut], Optional[str], bool]:
+    stmt = select(Post).where(Post.deleted_at.is_(None))
+    if q:
+        # 动态搜索：匹配正文（大小写不敏感），仅未删动态；与项目搜索口径一致。
+        stmt = stmt.where(Post.content.ilike(f"%{q}%"))
+    return _paged(db, stmt, viewer, cursor, page_size)
 
 
 def list_user_posts(db: Session, user_id: uuid.UUID, viewer: Optional[User], cursor: Optional[str], page_size: int):

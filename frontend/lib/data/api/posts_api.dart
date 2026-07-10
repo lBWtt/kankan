@@ -112,6 +112,19 @@ class PostsApi {
     }
   }
 
+  /// GET /posts?q= → 动态搜索（后端匹配正文，仅未删）。搜索结果屏「动态」Tab 用。
+  Future<PostList> search(String q, {int limit = 30}) async {
+    try {
+      final resp = await _dio.get<dynamic>(
+        '/posts',
+        queryParameters: {'q': q, 'page_size': limit},
+      );
+      return _parseList(resp.data);
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
   /// GET /posts（游标分页）→ 动态流 + 已赞集合 + nextCursor + hasMore。
   /// [cursor]=null 拉首页；非 null 拉下一页。后端不认 cursor 时返回首页，
   /// 前端去重 + hasMore 启发式兜底（见 PaginatedNotifier.loadMore）。
