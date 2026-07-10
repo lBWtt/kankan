@@ -17,6 +17,7 @@ import '../../domain/repositories/project_repository.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/project_provider.dart';
+import '../../providers/remote_project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/kk_chip.dart';
 import '../shared/profile_header.dart';
@@ -265,8 +266,18 @@ class MeScreen extends ConsumerWidget {
   // 项目用 projectRepo.byAuthor('me'),复用「最近看过」小卡视觉(_recentProjectCard)。
   // 真实计数,禁编造。空态:「还没有发布」(零旁白,不写"快去发布"引导)。
   Widget _myPostsSection(BuildContext context, WidgetRef ref) {
-    final projectRepo = ref.watch(projectRepositoryProvider);
-    final myProjects = projectRepo.byAuthor('me');
+    final auth = ref.watch(authProvider);
+    // 登录 + useRemote → 真数据：当前用户已发布的项目（GET /users/{id}/projects）。
+    // loading/error 时退回空（显「还没有发布」），不闪 mock 演示数据。
+    // 未登录 / mock 模式 → mock 'me' 演示画像。
+    final bool remote =
+        auth.isLoggedIn && AppConfig.useRemote && auth.currentUser != null;
+    final List<Project> myProjects = remote
+        ? (ref.watch(userProjectsProvider(auth.currentUser!.id)).value ??
+            const <Project>[])
+        : ref.watch(projectRepositoryProvider).byAuthor('me');
+    // 「查看全部」目标：登录走真 UUID 主页（真项目列表），否则 mock 'me'。
+    final String allTargetId = remote ? auth.currentUser!.id : 'me';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
       child: Column(
@@ -278,7 +289,7 @@ class MeScreen extends ConsumerWidget {
               const Spacer(),
               if (myProjects.isNotEmpty)
                 Tappable(
-                  onTap: () => context.push(KkRoutes.profile('me')),
+                  onTap: () => context.push(KkRoutes.profile(allTargetId)),
                   borderRadius: BorderRadius.circular(KkRadius.sm),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
