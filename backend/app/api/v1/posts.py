@@ -24,10 +24,11 @@ router = APIRouter(prefix="/posts", tags=["动态"], responses=ERRORS_PUBLIC)
 def list_posts(
     cursor: Optional[str] = None,
     page_size: int = Query(20, ge=1, le=50),
+    q: Optional[str] = Query(None, max_length=100, description="搜索关键词，匹配动态正文"),
     viewer: Optional[User] = Depends(auth_optional),
     db: Session = Depends(get_db),
 ):
-    items, next_cursor, has_more = svc.list_posts(db, viewer, cursor, page_size)
+    items, next_cursor, has_more = svc.list_posts(db, viewer, cursor, page_size, q)
     return Page[PostOut](items=items, next_cursor=next_cursor, has_more=has_more)
 
 
