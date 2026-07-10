@@ -14,6 +14,7 @@ from app.api.deps import ERRORS_PUBLIC
 from app.core.config import dev_login_enabled
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.net import client_ip
 from app.core.ratelimit import rate_limit
 from app.core.redis import redis_client
 from app.core.security import create_token_pair, rotate_refresh_token
@@ -81,12 +82,9 @@ def send_code(body: SendCodeRequest, request: Request):
     """频控：同一标识 60 秒 1 条；同一 IP 每小时最多 10 条（H-API-1 防 SMS pumping）；超限 429 RATE_LIMITED。
     发送走 services/sms.py：console=只写日志（开发），aliyun=真发短信；发送失败 500 且验证码作废。"""
     # H-API-1: IP 级频控——同一 IP 每小时最多 10 条验证码，防 SMS pumping（攻击者用大量手机号
-    # 触发短信发送，榨干短信预算）。反代部署下取 X-Forwarded-For 首个地址作为真实来源 IP。
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        ip = xff.split(",")[0].strip()
-    else:
-        ip = request.client.host if request.client else "unknown"
+    # 触发短信发送，榨干短信预算）。IP 经 client_ip 安全取值：只信可信反代追加的 XFF，
+    # 否则用 socket 对端 IP——防攻击者换 X-Forwarded-For 头刷新 IP 桶绕过限流。
+    ip = client_ip(request)
     rate_limit(f"authcode:rl:ip:{ip}", limit=10, window=3600)
 
     _validate_identifier(body.identifier_type.value, body.identifier)
