@@ -96,6 +96,10 @@ SEED_PROJECTS = [
 ]
 
 
+# 每条种子项目的内容类型（与 SEED_PROJECTS 顺序对应），给「看看」筛选/兴趣演示用真值。
+_SEED_CONTENT_TYPES = ["ai_image", "tool", "ai_video", "prompt", "opensource", "tool"]
+
+
 def get_or_create_seed_user(db) -> User:
     user = db.query(User).filter(User.email == SEED_EMAIL).one_or_none()
     if user is None:
@@ -141,6 +145,7 @@ def main() -> None:
                     tagline=tagline,
                     summary=summary,
                     category=category,
+                    content_type=_SEED_CONTENT_TYPES[i],
                     language="zh-CN",
                     source_type="user_original",
                     is_original=True,

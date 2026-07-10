@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, uuid_pk
-from app.models.enums import DOMAIN, USER_ROLE, language_enum, quoted_list
+from app.models.enums import CONTENT_TYPE, DOMAIN, USER_ROLE, language_enum, quoted_list
 
 
 class User(TimestampMixin, Base):
@@ -29,6 +29,8 @@ class User(TimestampMixin, Base):
     country_region: Mapped[Optional[str]] = mapped_column(String(50))
     # v1.3 新增：兴趣领域（domain 枚举值数组），onboarding 写入，驱动发现页个性化
     interests: Mapped[list] = mapped_column(ARRAY(Text), nullable=False, server_default=text("'{}'::text[]"))
+    # 内容类型兴趣（前端「看看」兴趣设置用；与 interests 职业维度正交，互不替代）
+    interest_content_types: Mapped[list] = mapped_column(ARRAY(Text), nullable=False, server_default=text("'{}'::text[]"))
     # v1.3 新增：creator / developer / general，可空
     role: Mapped[Optional[str]] = mapped_column(String(20))
     # 管理后台权限标记（文档未明确，补全决策：后台接口需要区分管理员）
@@ -42,6 +44,10 @@ class User(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint(f"role IS NULL OR role IN ({quoted_list(USER_ROLE)})", name="role_allowed"),
         CheckConstraint(f"interests <@ ARRAY[{quoted_list(DOMAIN)}]::text[]", name="interests_allowed"),
+        CheckConstraint(
+            f"interest_content_types <@ ARRAY[{quoted_list(CONTENT_TYPE)}]::text[]",
+            name="interest_content_types_allowed",
+        ),
         # C-MDL-2：email/phone 至少有一个，杜绝幽灵账号（两者都可空但不可同时为空）
         CheckConstraint("email IS NOT NULL OR phone IS NOT NULL", name="contact_present"),
         # H-MDL-8：软删列的部分索引——只索引未软删的活跃用户，提升登录/查询性能

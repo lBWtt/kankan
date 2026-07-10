@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.common import (
     AiBadge,
     Category,
+    ContentType,
     ContentSourceType,
     Domain,
     Language,
@@ -171,6 +172,7 @@ class ProjectCard(BaseModel):
     repo_stars: Optional[str] = None
     cover_media_url: Optional[str] = None
     category: Category
+    content_type: Optional[ContentType] = Field(None, description="内容类型（成果类型），可空")
     domains: List[Domain]
     tools: List[str]
     ai_badge: AiBadge

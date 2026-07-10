@@ -18,6 +18,7 @@ def _make_enum(name: str, values: tuple) -> type:
 
 
 Category = _make_enum("Category", model_enums.CATEGORY)
+ContentType = _make_enum("ContentType", model_enums.CONTENT_TYPE)
 Domain = _make_enum("Domain", model_enums.DOMAIN)
 ProjectStatus = _make_enum("ProjectStatus", model_enums.PROJECT_STATUS)
 CandidateStatus = _make_enum("CandidateStatus", model_enums.CANDIDATE_STATUS)
