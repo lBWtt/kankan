@@ -23,6 +23,10 @@ CATEGORY = (
 # ---- 领域（"看我这行"筛选）：存在 text[] 列里，用 CHECK 约束限定取值 ----
 DOMAIN = ("dev", "design", "video", "marketing", "writing", "education", "ecommerce", "office", "cad_3d", "other")
 
+# ---- 内容类型（前端「看看」筛选/兴趣用的成果类型；与 CATEGORY 用途、DOMAIN 职业正交，不删那两套）----
+# project.content_type 单选（可空，旧数据按 category 回填）；user.interest_content_types 多选。
+CONTENT_TYPE = ("ai_image", "ai_video", "web", "app", "tool", "opensource", "prompt")
+
 # ---- 内容来源 ----
 CONTENT_SOURCE_TYPE = ("ai_crawled", "manual_import", "user_original", "user_discovery")
 
@@ -60,6 +64,7 @@ def _pg_enum(name: str, values: tuple) -> ENUM:
 project_status_enum = _pg_enum("project_status", PROJECT_STATUS)
 candidate_status_enum = _pg_enum("candidate_status", CANDIDATE_STATUS)
 category_enum = _pg_enum("category", CATEGORY)
+content_type_enum = _pg_enum("content_type", CONTENT_TYPE)
 content_source_type_enum = _pg_enum("content_source_type", CONTENT_SOURCE_TYPE)
 reaction_type_enum = _pg_enum("reaction_type", REACTION_TYPE)
 share_status_enum = _pg_enum("share_status", SHARE_STATUS)

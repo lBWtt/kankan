@@ -56,6 +56,7 @@ def card_from_project(p: Project, author: Optional[UserBrief] = None, counts: Op
         repo_stars=p.repo_stars,
         cover_media_url=p.cover_media_url,
         category=p.category,
+        content_type=p.content_type,
         domains=p.domains or [],
         tools=p.tools or [],
         ai_badge=p.ai_badge,

@@ -18,6 +18,7 @@ from app.models.enums import (
     DOMAIN,
     category_enum,
     content_source_type_enum,
+    content_type_enum,
     language_enum,
     project_status_enum,
     quoted_list,
@@ -48,6 +49,8 @@ class Project(TimestampMixin, Base):
     repo_stars: Mapped[Optional[str]] = mapped_column(String(20))
 
     category: Mapped[str] = mapped_column(category_enum, nullable=False)
+    # 内容类型（前端筛选/兴趣的成果类型；可空，旧数据按 category 回填，与 category/domains 正交）
+    content_type: Mapped[Optional[str]] = mapped_column(content_type_enum)
     language: Mapped[str] = mapped_column(language_enum, nullable=False, server_default="zh-CN")
     source_type: Mapped[str] = mapped_column(content_source_type_enum, nullable=False)
     is_original: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
@@ -86,6 +89,7 @@ class Project(TimestampMixin, Base):
         # 字段·API v1.3 §11 要求的查询索引（全文索引在迁移脚本里用原生 SQL 建）
         Index("ix_projects_status_published_at", "status", "published_at"),
         Index("ix_projects_category_status", "category", "status"),
+        Index("ix_projects_content_type_status", "content_type", "status"),
         Index("ix_projects_hot_score", "hot_score"),
         Index("ix_projects_featured_rank", "featured_rank"),
         Index("ix_projects_domains_gin", "domains", postgresql_using="gin"),
