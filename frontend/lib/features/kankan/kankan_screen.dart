@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -369,21 +370,47 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
 // 把推荐条作为独立 section 放在精选列表之上(不违反"精选无 shuffle"铁律——
 // 洗牌只作用于推荐条内部,_ProjectList 排序逻辑零改动)。
 // browseHistory 为空 → 推荐条不渲染(零旁白,不占位),只显精选列表。
-class _FeaturedTab extends ConsumerWidget {
+class _FeaturedTab extends ConsumerStatefulWidget {
   final String? domain;
 
   const _FeaturedTab({required this.domain});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FeaturedTab> createState() => _FeaturedTabState();
+}
+
+class _FeaturedTabState extends ConsumerState<_FeaturedTab> {
+  // 推荐条随滚动方向收放：下滑隐藏（腾空间），上滑/回顶显示。
+  bool _stripVisible = true;
+
+  @override
+  Widget build(BuildContext context) {
     final history = ref.watch(appStateProvider).browseHistory;
     final hasHistory = history.isNotEmpty;
-    return Column(
-      children: [
-        // 推荐条跨领域推荐(不受当前领域筛选限制),给用户发现 X 领域外相关项目。
-        if (hasHistory) const _RecommendStrip(),
-        Expanded(child: _ProjectList(sort: 'featured', domain: domain)),
-      ],
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (n) {
+        if (n.direction == ScrollDirection.reverse && _stripVisible) {
+          setState(() => _stripVisible = false); // 下滑 → 收起
+        } else if (n.direction == ScrollDirection.forward && !_stripVisible) {
+          setState(() => _stripVisible = true); // 上滑 → 展开
+        }
+        return false;
+      },
+      child: Column(
+        children: [
+          // 推荐条跨领域推荐(不受当前领域筛选限制),给用户发现 X 领域外相关项目。
+          // AnimatedSize 让收/放有平滑过渡；隐藏时高度归零不占空间。
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: (hasHistory && _stripVisible)
+                ? const _RecommendStrip()
+                : const SizedBox(width: double.infinity),
+          ),
+          Expanded(child: _ProjectList(sort: 'featured', domain: widget.domain)),
+        ],
+      ),
     );
   }
 }
@@ -419,13 +446,17 @@ class _RecommendStripState extends ConsumerState<_RecommendStrip> {
 
   @override
   Widget build(BuildContext context) {
-    final repo = ref.watch(projectRepositoryProvider);
+    // 数据源改读真 feed（paginatedProjectsProvider.items）——远端模式即后端真项目，
+    // mock 模式也走同一 provider。不再读 projectRepository（那是 mock 种子，会串出假项目）。
+    final items = ref.watch(paginatedProjectsProvider).items;
     final history = ref.watch(appStateProvider).browseHistory;
+    if (items.isEmpty) return const SizedBox.shrink();
+    final byId = {for (final p in items) p.id: p};
 
-    // X = 浏览史里第一个能 byId 取回的项目(取不到往后找)。
+    // X = 浏览史里第一个能在真 feed 里取回的项目(取不到往后找)。
     Project? x;
     for (final id in history) {
-      final p = repo.byId(id);
+      final p = byId[id];
       if (p != null) {
         x = p;
         break;
@@ -433,7 +464,7 @@ class _RecommendStripState extends ConsumerState<_RecommendStrip> {
     }
     if (x == null) return const SizedBox.shrink();
 
-    final candidates = _buildCandidates(repo.all(), x);
+    final candidates = _buildCandidates(items, x);
     if (candidates.isEmpty) return const SizedBox.shrink();
 
     // 确定性重排(可复现,非随机):按 (p.id.hashCode ^ _seed) 排序。

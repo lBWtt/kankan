@@ -105,6 +105,16 @@ class AppStateNotifier extends Notifier<AppStateData> {
     }
   }
 
+  /// 批量把「已确定关注」的用户 id 并入 followedUserIds（本地，不发后端）。
+  /// 用于「我的关注列表」加载后：列表里的人本就是我关注的，按钮应显「已关注」，
+  /// 但登录种子(_loadFollowingFromBackend)可能没覆盖到（如 mock 关注 / 拉取失败）。
+  void seedFollowing(Iterable<String> ids) {
+    final next = Set<String>.from(state.followedUserIds)..addAll(ids);
+    if (next.length != state.followedUserIds.length) {
+      state = state.copyWith(followedUserIds: next);
+    }
+  }
+
   /// 登出:从 followedUserIds 移除后端用户(UUID),保留 mock 演示关注(短 id)。
   void _dropBackendFollows() {
     final next = state.followedUserIds

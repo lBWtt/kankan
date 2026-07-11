@@ -378,9 +378,10 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     final rd = project.resultData;
     final children = <Widget>[];
 
-    // media(视频优先 + 照片轮播)
-    if (rd.media.isNotEmpty) {
-      children.add(MediaCarousel(media: rd.media));
+    // media(视频优先 + 照片轮播)。跳过首图——首图即顶部 Hero 封面(_DetailCover),
+    // 避免封面在详情页出现两次。只有存在额外图集(>1 张)时才渲染轮播。
+    if (rd.media.length > 1) {
+      children.add(MediaCarousel(media: rd.media.sublist(1)));
     }
     // repo(仓库卡)
     if (rd.repo != null) {
