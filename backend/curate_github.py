@@ -29,14 +29,54 @@ _COVER_GRADIENTS = [
 ]
 
 
-def _ensure_cover(idx: int) -> str:
-    """本地生成 800x600 双色竖向渐变封面，存进 upload_dir，返回 /uploads 相对路径。
-    PIL 不可用时退回一张纯占位路径（不至于让脚本挂掉）。"""
+def _og_card_url(source_url: str):
+    """GitHub 仓库 URL → 社交预览卡地址（含仓库名/描述/star/语言/仓主头像）。
+    https://github.com/owner/repo → https://opengraph.githubassets.com/1/owner/repo"""
+    if not source_url:
+        return None
+    scheme_idx = source_url.find("://")
+    path = source_url[scheme_idx + 3:] if scheme_idx >= 0 else source_url
+    segs = [s for s in path.split("/") if s]
+    # segs[0]=github.com, segs[1]=owner, segs[2]=repo
+    if len(segs) >= 3 and "github.com" in segs[0]:
+        return f"https://opengraph.githubassets.com/1/{segs[1]}/{segs[2]}"
+    return None
+
+
+def _download_og(source_url: str, path: str) -> bool:
+    """转存 GitHub 社交预览卡到本地 path（下载后存自己盘，不热链他人 CDN）。
+    走环境代理（HTTP_PROXY，Clash）访问 GitHub。成功 True；失败由调用方退回渐变。"""
+    og = _og_card_url(source_url)
+    if not og:
+        return False
+    try:
+        import urllib.request
+        req = urllib.request.Request(og, headers={"User-Agent": "kankan-curator"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = r.read()
+        if data and len(data) > 1000:
+            with open(path, "wb") as f:
+                f.write(data)
+            return True
+    except Exception as e:
+        print(f"OG 下载失败 {og}: {e}，退回渐变封面")
+    return False
+
+
+def _ensure_cover(idx: int, source_url: str) -> str:
+    """封面优先转存 GitHub 社交预览卡（真图：仓库名/描述/star/仓主头像），存进 upload_dir。
+    下载失败（无网/被墙）退回本地生成的双色渐变封面——离线也有图，脚本任何环境都能跑。"""
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    # 先试真封面（GitHub OG 卡）；文件名带 _gh 与渐变区分，避免前端图片缓存串图。
+    gh_name = f"curate_cover_{idx}_gh.png"
+    gh_path = os.path.join(settings.upload_dir, gh_name)
+    if _download_og(source_url, gh_path):
+        return f"/uploads/{gh_name}"
+    # 退回渐变封面
     try:
         from PIL import Image
     except Exception:
         return f"/uploads/curate_cover_{idx}.png"
-    os.makedirs(settings.upload_dir, exist_ok=True)
     fname = f"curate_cover_{idx}.png"
     path = os.path.join(settings.upload_dir, fname)
     top, bottom = _COVER_GRADIENTS[idx % len(_COVER_GRADIENTS)]
@@ -257,7 +297,7 @@ def main() -> None:
                     domains=c["domains"],
                     tools=c["tools"],
                     ai_badge=c["ai_badge"],
-                    cover_media_url=_ensure_cover(i),
+                    cover_media_url=_ensure_cover(i, c["source_url"]),
                     repo_stars=c["repo_stars"],
                     allow_how_to_interest=True,
                     status="published",
