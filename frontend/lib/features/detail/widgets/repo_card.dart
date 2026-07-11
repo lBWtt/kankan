@@ -62,20 +62,23 @@ class RepoCard extends StatelessWidget {
                         _fmtStars(repo.stars),
                         style: KkType.mono.copyWith(fontSize: 12),
                       ),
-                      const SizedBox(width: KkSpacing.lg),
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: KkColors.teal,
-                          shape: BoxShape.circle,
+                      // 语言为空(后端不返回主语言时)不显示那段圆点+文字。
+                      if (repo.language.isNotEmpty) ...[
+                        const SizedBox(width: KkSpacing.lg),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: KkColors.teal,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        repo.language,
-                        style: KkType.mono.copyWith(fontSize: 12),
-                      ),
+                        const SizedBox(width: 4),
+                        Text(
+                          repo.language,
+                          style: KkType.mono.copyWith(fontSize: 12),
+                        ),
+                      ],
                     ],
                   ),
                 ],

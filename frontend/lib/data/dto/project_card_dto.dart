@@ -88,6 +88,64 @@ int _parseMs(dynamic isoOrNull) {
   return DateTime.now().millisecondsSinceEpoch;
 }
 
+/// 把后端 repo_stars 字符串（"148k" / "1.2k" / "2300" / "—"）解析成 int（RepoInfo.stars 用）。
+/// 解析不出（空 / 破折号）返回 0。
+int _parseStars(dynamic raw) {
+  if (raw == null) return 0;
+  final s = raw.toString().trim().toLowerCase();
+  if (s.isEmpty || s == '—' || s == '-') return 0;
+  final m = RegExp(r'^([0-9]+(?:\.[0-9]+)?)\s*([km]?)').firstMatch(s);
+  if (m == null) return 0;
+  final base = double.tryParse(m.group(1)!) ?? 0;
+  final unit = m.group(2);
+  final mult = unit == 'k' ? 1000 : (unit == 'm' ? 1000000 : 1);
+  return (base * mult).round();
+}
+
+/// 从详情 JSON 的 source_url 造 RepoInfo（成果区仓库卡 + 「去 GitHub」外链）。
+/// 无 source_url → null（不出仓库卡）。owner/repo 从 URL 路径末两段取。
+RepoInfo? _repoFromSource(Map<String, dynamic> j) {
+  final url = j['source_url']?.toString();
+  if (url == null || url.isEmpty) return null;
+  var fullName = url;
+  final schemeIdx = url.indexOf('://');
+  if (schemeIdx >= 0) {
+    final path = url.substring(schemeIdx + 3);
+    final segs = path.split('/').where((s) => s.isNotEmpty).toList();
+    // segs[0]=域名, segs[1]=owner, segs[2]=repo
+    if (segs.length >= 3) {
+      fullName = '${segs[1]}/${segs[2]}';
+    } else if (segs.length == 2) {
+      fullName = segs[1];
+    }
+  }
+  final name = fullName.contains('/') ? fullName.split('/').last : fullName;
+  final author = j['original_author_name']?.toString();
+  return RepoInfo(
+    name: name,
+    fullName: fullName,
+    stars: _parseStars(j['repo_stars']),
+    // 后端不返回主语言 → 留空（RepoCard 空则不显示语言那段）。
+    language: '',
+    url: url,
+    description:
+        (author != null && author.isNotEmpty) ? '原作者：$author' : null,
+  );
+}
+
+/// 轻量 markdown → 纯文本：去掉标题井号、把 -/* 列表符号换成 •、去掉 ** 粗体标记。
+/// 后端 intro 可能带 markdown，详情页用纯 Text 渲染，先清一遍免得显示生 `##`。
+String _stripLightMarkdown(String s) {
+  final out = <String>[];
+  for (final line in s.split('\n')) {
+    var t = line.replaceFirst(RegExp(r'^\s*#{1,6}\s*'), '');
+    t = t.replaceFirst(RegExp(r'^\s*[-*]\s+'), '• ');
+    t = t.replaceAll('**', '');
+    out.add(t);
+  }
+  return out.join('\n').trim();
+}
+
 /// 从后端**详情** JSON 造 Project（GET /projects/{id}，比卡片多 intro/author/media/counts）。
 /// 详情页 `projectByIdProvider` 在 remote 模式命中时用。作者：后端展开了 author 对象，
 /// 但前端 Project 只存 authorId（作者名靠 userByIdProvider 查 mock）——remote 作者不在 mock，
@@ -121,19 +179,28 @@ Project projectFromDetailJson(Map<String, dynamic> j) {
       : const <String>[];
   final counts = j['counts'];
   final takeaway = counts is Map ? counts['takeaways'] : j['takeaway_count'];
+  // 简介正文：intro > description，做轻量 markdown 清洗后进成果区 text（左对齐正文）。
+  final rawIntro = (j['intro'] ?? j['description'])?.toString();
+  final introText =
+      (rawIntro != null && rawIntro.isNotEmpty) ? _stripLightMarkdown(rawIntro) : null;
+  final repo = _repoFromSource(j);
   return Project(
     id: j['id'].toString(),
     title: (j['title'] ?? '').toString(),
     summary: (j['tagline'] ?? j['subtitle'] ?? '').toString(),
     authorId: _authorIdAndCache(j['author']),
-    resultData: ResultData(media: media),
+    // 成果区：封面 media + 仓库卡（source_url）+ 简介正文（intro）。
+    // 详情页 _results 会跳过 media 首图（即顶部 Hero 封面），避免封面重复。
+    resultData: ResultData(media: media, repo: repo, text: introText),
     actions: const [], // 后端 actions 结构与前端 sealed ActionItem 不同,暂不映射
     tags: tools,
-    authorNote: (j['intro'] ?? j['description'])?.toString(),
+    // intro 已进 resultData.text（左对齐正文），不再塞 authorNote（居中「作者的话」）。
+    authorNote: null,
     domain: j['content_type']?.toString() ?? _mapDomain(j['category']?.toString()),
     likes: _likesFromCounts(counts),
     commentCount: 0,
     takeawayCount: takeaway is int ? takeaway : int.tryParse('$takeaway') ?? 0,
+    repoStars: _parseStars(j['repo_stars']),
     createdAtMs: _parseMs(j['published_at']),
   );
 }

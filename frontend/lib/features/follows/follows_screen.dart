@@ -12,6 +12,7 @@ import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../data/api/users_api.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/paginated_follows_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
@@ -277,6 +278,8 @@ class _PaginatedFollowList extends ConsumerStatefulWidget {
 
 class _PaginatedFollowListState extends ConsumerState<_PaginatedFollowList> {
   late final ScrollController _scrollCtrl;
+  // 「我的关注列表」只种一次真态，避免取关后被重新灌回。
+  bool _seeded = false;
 
   @override
   void initState() {
@@ -343,6 +346,24 @@ class _PaginatedFollowListState extends ConsumerState<_PaginatedFollowList> {
     // KkUser 已在 UsersApi._parseUsers 里 cacheRemoteUser(或 mock userByIdProvider),
     // _FollowRow watch userByIdProvider 能查到。传 id 复用 mock/remote 同款行。
     final users = state.items;
+
+    // 修复「我的关注列表里，已关注的人按钮仍显『关注』」：这一屏是我自己关注的人时，
+    // 把他们并入 followedUserIds，按钮显真态。仅我自己的 following 列表 + 一次性。
+    if (!widget.followers && !_seeded && users.isNotEmpty) {
+      final myId = ref.read(authProvider).currentUser?.id;
+      // 「我的」关注列表：登录态 = 我的 UUID；游客/mock = 'me'（见 me_screen followsTargetId）。
+      final isMyList =
+          widget.userId == 'me' || (myId != null && myId == widget.userId);
+      if (isMyList) {
+        _seeded = true;
+        final ids = users.map((u) => u.id).toList();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ref.read(appStateProvider.notifier).seedFollowing(ids);
+          }
+        });
+      }
+    }
     final list = ListView.separated(
       controller: _scrollCtrl,
       padding: const EdgeInsets.only(bottom: KkSpacing.xxl),
