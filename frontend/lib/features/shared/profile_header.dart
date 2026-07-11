@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/utils/local_image.dart';
+
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/utils/parse_count.dart';
@@ -112,12 +114,20 @@ class ProfileHeader extends StatelessWidget {
                     ? Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
-                            bannerImageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const _GradientBanner(),
-                          ),
+                          // 换背景图选的是本地图（移动端文件路径）→ localImage 真显示；
+                          // 远端 http URL → Image.network。都坏则回退渐变。
+                          bannerImageUrl!.startsWith('http')
+                              ? Image.network(
+                                  bannerImageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const _GradientBanner(),
+                                )
+                              : localImage(
+                                  bannerImageUrl!,
+                                  fit: BoxFit.cover,
+                                  placeholder: const _GradientBanner(),
+                                ),
                           // 底部渐隐到暖纸底,让压在下沿的头像/名字清晰
                           const DecoratedBox(
                             decoration: BoxDecoration(

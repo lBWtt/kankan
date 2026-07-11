@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+
+import '../../core/utils/local_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -734,18 +736,13 @@ class _GridThumb extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    // 同 MediaPicker:本地路径用 picsum 占位(URL 始 http 直接 network)。
-    // 跨平台兼容(Image.file 需 dart:io,Web 不行,Phase 2 先占位)。
     if (media.url.startsWith('http')) {
       return Image.network(media.url,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _placeholder());
     }
-    return Image.network(
-      'https://picsum.photos/seed/${media.url.hashCode}/200/200',
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _placeholder(),
-    );
+    // 本地选取的图片：移动端 Image.file / web blob URL → 真显示（不再用随机占位图）。
+    return localImage(media.url, fit: BoxFit.cover, placeholder: _placeholder());
   }
 
   Widget _placeholder() {
