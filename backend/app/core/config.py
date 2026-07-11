@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     #（PR#4 曾误改为 claude-opus-4-1-20250805——那是 zai 训练数据过时导致的误判，已还原。）
     anthropic_model: str = "claude-opus-4-8"
 
+    # ---- AI 整理的 provider 开关：claude / deepseek。
+    #      DeepSeek 走 OpenAI 兼容接口（openai SDK + base_url），中文好且便宜；
+    #      不配 key 时对应 provider 跑不了，但不影响服务启动。----
+    ai_provider: str = "claude"                  # claude | deepseek
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com"
+
     # 分享卡回流的 Web 分享页域名（Web 分享页未建，先占位，上线前改环境变量）
     share_base_url: str = "https://share.example.dev"
 

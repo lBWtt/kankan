@@ -111,6 +111,56 @@ def claude_analyze(payload: dict) -> CandidateAnalysis:
     return response.parsed_output
 
 
+def _strip_json_fence(text: str) -> str:
+    """稳妥剥掉模型偶尔套的 ```json 代码块围栏（json_object 模式一般不会，但兜一手）。"""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = t[3:]
+        if t[:4].lower() == "json":
+            t = t[4:]
+        if t.endswith("```"):
+            t = t[:-3]
+    return t.strip()
+
+
+def deepseek_analyze(payload: dict) -> CandidateAnalysis:
+    """DeepSeek 整理：走 OpenAI 兼容接口 + JSON 模式，产出 JSON 再用 pydantic 校验。
+    DeepSeek 无 Claude 的原生 parse，故用 json_object 模式 + 提示词带 schema；
+    校验不过（枚举越界/字段缺）→ 抛异常，由 process_collected 记录跳过、下轮重跑。"""
+    if not settings.deepseek_api_key:
+        raise AppError(500, "INTERNAL", "未配置 DEEPSEEK_API_KEY，无法运行 DeepSeek 整理")
+    from openai import OpenAI  # 惰性导入：没装 openai SDK 不影响服务其他部分
+
+    client = OpenAI(api_key=settings.deepseek_api_key, base_url=settings.deepseek_base_url)
+    schema = json.dumps(CandidateAnalysis.model_json_schema(), ensure_ascii=False)
+    resp = client.chat.completions.create(
+        model=settings.deepseek_model,
+        temperature=0.3,
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "system",
+                "content": _SYSTEM_PROMPT
+                + "\n\n只输出一个 JSON 对象，严格符合下面的 JSON Schema"
+                "（字段名与枚举值照抄，不要多余字段、不要 markdown 代码块）：\n"
+                + schema,
+            },
+            {
+                "role": "user",
+                "content": "请整理这条抓取内容，只输出 JSON：\n"
+                + json.dumps(payload, ensure_ascii=False, indent=2),
+            },
+        ],
+    )
+    text = _strip_json_fence(resp.choices[0].message.content or "")
+    return CandidateAnalysis.model_validate_json(text)
+
+
+def get_analyzer() -> AnalyzeFn:
+    """按 settings.ai_provider 选整理器：deepseek / claude（默认 claude）。"""
+    return deepseek_analyze if settings.ai_provider == "deepseek" else claude_analyze
+
+
 def compute_curation_score(scores: AnalysisScores) -> int:
     """ai_curation_score = 加权合成（PRD §10 权重），四舍五入到整数。"""
     total = sum(getattr(scores, k) * w for k, w in SCORE_WEIGHTS.items())
@@ -162,7 +212,7 @@ def process_collected(
 ) -> Dict[str, int]:
     """批量整理：按入池顺序取 ai_collected 的候选逐条整理。单条失败记日志跳过
     （下轮重跑会再取到它），不让一条坏数据卡死整批。返回统计。"""
-    analyze = analyze or claude_analyze
+    analyze = analyze or get_analyzer()
     stats = {"processed": 0, "to_review": 0, "failed": 0}
     candidates = db.execute(
         select(CandidateContent)
