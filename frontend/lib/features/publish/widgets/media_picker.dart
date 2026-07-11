@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/utils/local_image.dart';
+
 import '../../../core/theme/kk_colors.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/tappable.dart';
@@ -207,22 +209,12 @@ class _MediaThumb extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    // Phase 2:本地路径用 Image.file;Phase 5 上传后是 URL 用 Image.network
     if (media.url.startsWith('http')) {
       return Image.network(media.url, fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _placeholder());
     }
-    // 本地路径
-    // 注意:Image.file 需要 dart:io,Flutter mobile 可用,Web 不行
-    // Phase 2 假设移动端,Web 兼容 Phase 6 处理
-    try {
-      return Image.network(
-        'https://picsum.photos/seed/${media.url.hashCode}/100/100',
-        fit: BoxFit.cover,
-      ); // 占位(本地路径真显示需 Image.file,但跨平台兼容性差,先用占位)
-    } catch (_) {
-      return _placeholder();
-    }
+    // 本地选取的图片：移动端 Image.file / web blob URL → 真显示（不再用随机占位图）。
+    return localImage(media.url, fit: BoxFit.cover, placeholder: _placeholder());
   }
 
   Widget _placeholder() {

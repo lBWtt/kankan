@@ -420,11 +420,19 @@ class _TodayTopicStrip extends StatelessWidget {
 }
 
 // ── 关注 feed:仅关注的人发的 ──
-class _FollowingFeed extends ConsumerWidget {
+class _FollowingFeed extends ConsumerStatefulWidget {
   const _FollowingFeed();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FollowingFeed> createState() => _FollowingFeedState();
+}
+
+class _FollowingFeedState extends ConsumerState<_FollowingFeed> {
+  // fallback 关注只种一次真态，避免取关后被重新灌回。
+  bool _seeded = false;
+
+  @override
+  Widget build(BuildContext context) {
     final appState = ref.watch(appStateProvider);
     final repo = ref.watch(postRepositoryProvider);
     final followed = appState.followedUserIds;
@@ -437,6 +445,16 @@ class _FollowingFeed extends ConsumerWidget {
     final effectiveFollowed = followed.isEmpty
         ? const <String>{'chen', 'lin', 'wang'}
         : followed;
+
+    // 修:关注流里出现的人都是「我关注的」，但按钮读 followedUserIds。首启用 fallback
+    // 关注时，把这些 id 种进去，让 PostCard 关注按钮显真态（已关注）。一次性。
+    if (!_seeded && followed.isEmpty) {
+      _seeded = true;
+      final ids = effectiveFollowed.toList();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(appStateProvider.notifier).seedFollowing(ids);
+      });
+    }
 
     // 任务⑫:同样过滤「不感兴趣」(负反馈闭环对称推荐流)。
     final ni = appState.notInterestedIds;

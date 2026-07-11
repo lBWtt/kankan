@@ -70,7 +70,9 @@ class PostDetailScreen extends ConsumerWidget {
 
   // ── 顶栏:返回 / 作者名(单行 ellipsis)/ 更多 ──
   PreferredSizeWidget _appBar(BuildContext context, WidgetRef ref, Post? post) {
-    final authorName = post?.authorId ?? '';
+    // 顶栏标题显作者名（原来错显 authorId——远端是 UUID，很丑）。查不到名就显「动态」。
+    final author = post != null ? ref.watch(userByIdProvider(post.authorId)) : null;
+    final authorName = author?.name ?? (post != null ? '动态' : '');
     return AppBar(
       backgroundColor: KkColors.bg,
       elevation: 0,
@@ -199,22 +201,35 @@ class PostDetailScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
           child: Text(post.content, style: KkType.body.copyWith(height: 1.6)),
         ),
-        // 3. 标签(可点 → 搜索该 tag)
+        // 3. 标签(可点 → 搜索该 tag)。小胶囊横向排（左对齐），不再用会撑满整行的 Tappable。
         if (post.tags.isNotEmpty) ...[
-          const SizedBox(height: KkSpacing.sm),
+          const SizedBox(height: KkSpacing.md),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
             child: Wrap(
               spacing: KkSpacing.sm,
-              runSpacing: KkSpacing.xs,
+              runSpacing: KkSpacing.sm,
               children: [
                 for (final t in post.tags)
-                  Tappable(
+                  GestureDetector(
                     onTap: () => context.push(KkRoutes.searchResults(t)),
-                    borderRadius: BorderRadius.circular(KkRadius.sm),
-                    child: Text(
-                      '#$t',
-                      style: KkType.bodySm.copyWith(color: KkColors.teal),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: KkSpacing.sm,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: KkColors.mint,
+                        borderRadius: BorderRadius.circular(KkRadius.pill),
+                      ),
+                      child: Text(
+                        '#$t',
+                        style: KkType.bodySm.copyWith(
+                          color: KkColors.teal,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -689,6 +704,7 @@ class _ImageGrid extends StatelessWidget {
       ),
       itemCount: images.length,
       itemBuilder: (context, i) {
+        final url = images[i].url;
         return Tappable(
           onTap: () => openImageLightbox(
             context,
@@ -696,17 +712,21 @@ class _ImageGrid extends StatelessWidget {
             initialIndex: i,
           ),
           borderRadius: BorderRadius.circular(KkRadius.md),
-          child: Container(
-            decoration: BoxDecoration(
-              color: KkColors.bgSubtle,
-              borderRadius: BorderRadius.circular(KkRadius.md),
-              border: Border.all(color: KkColors.bd),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.image_outlined,
-              size: 28,
-              color: KkColors.t4,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(KkRadius.md),
+            // 真图（原来只画了个占位图标，从没加载真实图片——详情页九宫格全是破图）。
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) => progress == null
+                  ? child
+                  : Container(color: KkColors.bgSubtle),
+              errorBuilder: (context, error, stack) => Container(
+                color: KkColors.bgSubtle,
+                alignment: Alignment.center,
+                child: const Icon(Icons.image_outlined,
+                    size: 28, color: KkColors.t4),
+              ),
             ),
           ),
         );
