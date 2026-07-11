@@ -6,10 +6,13 @@
 #
 # 用法（在 backend/ 下，激活虚拟环境）：
 #   python -m app.pipeline collect 抓取条目.json --platform xiaohongshu
-#   python -m app.pipeline process --limit 20      # 需要环境变量 ANTHROPIC_API_KEY
+#   python -m app.pipeline process --limit 20
+#     process 调 LLM 整理，用哪个由 AI_PROVIDER 决定：
+#       AI_PROVIDER=claude   + ANTHROPIC_API_KEY   （默认）
+#       AI_PROVIDER=deepseek + DEEPSEEK_API_KEY    （OpenAI 兼容接口，中文好且便宜）
 #
 # 抓取条目.json 是一个数组，每条至少含 source_url + title，形状见 services/ingestion.py 文件头。
-# 各平台的抓取脚本（注意平台 ToS 与图片版权）只要产出这个形状，就能接进管线。
+# 各平台的抓取脚本（如 MediaCrawler，注意平台 ToS 与图片版权）只要产出这个形状，就能接进管线。
 # ============================================================
 import argparse
 import json
@@ -50,7 +53,7 @@ def main() -> int:
     p_collect.add_argument("--platform", default=None, help="条目没写来源平台时的默认值")
     p_collect.set_defaults(func=cmd_collect)
 
-    p_process = sub.add_parser("process", help="调 Claude 整理 ai_collected 的候选 → 待审核")
+    p_process = sub.add_parser("process", help="调 LLM(Claude/DeepSeek) 整理 ai_collected 的候选 → 待审核")
     p_process.add_argument("--limit", type=int, default=20, help="本次最多整理几条（默认 20）")
     p_process.set_defaults(func=cmd_process)
 
