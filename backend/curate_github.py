@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.models import Project, User
+from app.models import Project, ProjectMedia, User
 
 # 封面配色（柔和双色渐变），给无外网环境（模拟器）也能显示封面。
 _COVER_GRADIENTS = [
@@ -29,14 +29,54 @@ _COVER_GRADIENTS = [
 ]
 
 
-def _ensure_cover(idx: int) -> str:
-    """本地生成 800x600 双色竖向渐变封面，存进 upload_dir，返回 /uploads 相对路径。
-    PIL 不可用时退回一张纯占位路径（不至于让脚本挂掉）。"""
+def _og_card_url(source_url: str):
+    """GitHub 仓库 URL → 社交预览卡地址（含仓库名/描述/star/语言/仓主头像）。
+    https://github.com/owner/repo → https://opengraph.githubassets.com/1/owner/repo"""
+    if not source_url:
+        return None
+    scheme_idx = source_url.find("://")
+    path = source_url[scheme_idx + 3:] if scheme_idx >= 0 else source_url
+    segs = [s for s in path.split("/") if s]
+    # segs[0]=github.com, segs[1]=owner, segs[2]=repo
+    if len(segs) >= 3 and "github.com" in segs[0]:
+        return f"https://opengraph.githubassets.com/1/{segs[1]}/{segs[2]}"
+    return None
+
+
+def _download_og(source_url: str, path: str) -> bool:
+    """转存 GitHub 社交预览卡到本地 path（下载后存自己盘，不热链他人 CDN）。
+    走环境代理（HTTP_PROXY，Clash）访问 GitHub。成功 True；失败由调用方退回渐变。"""
+    og = _og_card_url(source_url)
+    if not og:
+        return False
+    try:
+        import urllib.request
+        req = urllib.request.Request(og, headers={"User-Agent": "kankan-curator"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = r.read()
+        if data and len(data) > 1000:
+            with open(path, "wb") as f:
+                f.write(data)
+            return True
+    except Exception as e:
+        print(f"OG 下载失败 {og}: {e}，退回渐变封面")
+    return False
+
+
+def _ensure_cover(idx: int, source_url: str) -> str:
+    """封面优先转存 GitHub 社交预览卡（真图：仓库名/描述/star/仓主头像），存进 upload_dir。
+    下载失败（无网/被墙）退回本地生成的双色渐变封面——离线也有图，脚本任何环境都能跑。"""
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    # 先试真封面（GitHub OG 卡）；文件名带 _gh 与渐变区分，避免前端图片缓存串图。
+    gh_name = f"curate_cover_{idx}_gh.png"
+    gh_path = os.path.join(settings.upload_dir, gh_name)
+    if _download_og(source_url, gh_path):
+        return f"/uploads/{gh_name}"
+    # 退回渐变封面
     try:
         from PIL import Image
     except Exception:
         return f"/uploads/curate_cover_{idx}.png"
-    os.makedirs(settings.upload_dir, exist_ok=True)
     fname = f"curate_cover_{idx}.png"
     path = os.path.join(settings.upload_dir, fname)
     top, bottom = _COVER_GRADIENTS[idx % len(_COVER_GRADIENTS)]
@@ -46,6 +86,86 @@ def _ensure_cover(idx: int) -> str:
         grad.putpixel((0, y), tuple(int(top[c] * (1 - t) + bottom[c] * t) for c in range(3)))
     grad.resize((800, 600)).save(path)
     return f"/uploads/{fname}"
+
+
+def _http_get(url: str) -> bytes:
+    """GET 原始字节（带 UA，走环境代理访问 GitHub）。异常上抛由调用方兜。"""
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 kankan-curator"})
+    with urllib.request.urlopen(req, timeout=25) as r:
+        return r.read()
+
+
+def _repo_slug(source_url: str):
+    """https://github.com/owner/repo → 'owner/repo'（非 github 返回 None）。"""
+    if not source_url:
+        return None
+    scheme_idx = source_url.find("://")
+    path = source_url[scheme_idx + 3:] if scheme_idx >= 0 else source_url
+    segs = [s for s in path.split("/") if s]
+    if len(segs) >= 3 and "github.com" in segs[0]:
+        return f"{segs[1]}/{segs[2]}"
+    return None
+
+
+def _download_gallery(source_url: str, idx: int, max_n: int = 3):
+    """从 GitHub README 抽取真实截图 / GIF 演示图，转存本地 uploads，返回 [{url, media_type}]。
+    只保留 PIL 能读、尺寸够大的栅格图（滤掉徽章/图标/赞助 logo）；GIF 以 image 存（前端会动）。
+    无网/被墙/无图 → 返回空列表（详情页就只有封面+文字+仓库卡，不报错）。"""
+    import io
+    import re
+
+    slug = _repo_slug(source_url)
+    if not slug:
+        return []
+    md = branch = None
+    for b in ("main", "master"):
+        try:
+            md = _http_get(f"https://raw.githubusercontent.com/{slug}/{b}/README.md").decode("utf-8", "ignore")
+            branch = b
+            break
+        except Exception:
+            continue
+    if not md:
+        return []
+    try:
+        from PIL import Image
+    except Exception:
+        return []
+
+    raw = re.findall(r"!\[[^\]]*\]\(\s*<?([^)\s>]+)", md) + re.findall(r"<img[^>]+src=[\"']([^\"'>]+)", md)
+    cand, seen = [], set()
+    for u in raw:
+        if re.search(r"shields\.io|/badge|\.svg|sponsor|discord|twitter|star-history|contrib", u, re.I):
+            continue
+        full = u if u.startswith("http") else f"https://raw.githubusercontent.com/{slug}/{branch}/" + u.lstrip("./")
+        if full in seen:
+            continue
+        seen.add(full)
+        cand.append(full)
+
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    results = []
+    for u in cand:
+        if len(results) >= max_n:
+            break
+        try:
+            data = _http_get(u)
+            im = Image.open(io.BytesIO(data))
+            w, h = im.size
+            if w < 350 or h < 150 or len(data) < 8000:
+                continue
+            ext = (im.format or "PNG").lower()
+            ext = "jpg" if ext == "jpeg" else ext
+            fname = f"curate_gallery_{idx}_{len(results)}.{ext}"
+            with open(os.path.join(settings.upload_dir, fname), "wb") as f:
+                f.write(data)
+            results.append({"url": f"/uploads/{fname}", "media_type": "image"})
+        except Exception:
+            continue
+    if results:
+        print(f"  [{slug}] 转存画廊媒体 {len(results)} 张")
+    return results
 
 
 # 几个「正常名字」的编辑号（表现像真实用户，冷启动常见做法；见 PIPELINE_PLAN.md 决策 5）。
@@ -234,39 +354,55 @@ def main() -> None:
             print(f"--force：删除旧的本批内容 {len(existing)} 条")
 
         now = datetime.now(timezone.utc)
+        media_total = 0
         for i, c in enumerate(CURATED):
             author = editors[c["editor"]]
-            db.add(
-                Project(
-                    author_user_id=author.id,
-                    title=c["title"],
-                    tagline=c["tagline"],
-                    summary=c["summary"],
-                    intro=c["intro"],
-                    ai_implementation_hint=c["ai_implementation_hint"],
-                    category=c["category"],
-                    content_type=c["content_type"],
-                    language="zh-CN",
-                    # 手动导入（agent 精选）+ 非站内原创 + GitHub 原作者归属
-                    source_type="manual_import",
-                    is_original=False,
-                    source_platform="github",
-                    source_url=c["source_url"],
-                    original_author_name=c["original_author_name"],
-                    original_author_url=c["original_author_url"],
-                    domains=c["domains"],
-                    tools=c["tools"],
-                    ai_badge=c["ai_badge"],
-                    cover_media_url=_ensure_cover(i),
-                    repo_stars=c["repo_stars"],
-                    allow_how_to_interest=True,
-                    status="published",
-                    hot_score=float(95 - i * 6),
-                    published_at=now - timedelta(minutes=i),
-                )
+            project = Project(
+                author_user_id=author.id,
+                title=c["title"],
+                tagline=c["tagline"],
+                summary=c["summary"],
+                intro=c["intro"],
+                ai_implementation_hint=c["ai_implementation_hint"],
+                category=c["category"],
+                content_type=c["content_type"],
+                language="zh-CN",
+                # 手动导入（agent 精选）+ 非站内原创 + GitHub 原作者归属
+                source_type="manual_import",
+                is_original=False,
+                source_platform="github",
+                source_url=c["source_url"],
+                original_author_name=c["original_author_name"],
+                original_author_url=c["original_author_url"],
+                domains=c["domains"],
+                tools=c["tools"],
+                ai_badge=c["ai_badge"],
+                cover_media_url=_ensure_cover(i, c["source_url"]),
+                repo_stars=c["repo_stars"],
+                allow_how_to_interest=True,
+                status="published",
+                hot_score=float(95 - i * 6),
+                published_at=now - timedelta(minutes=i),
             )
+            db.add(project)
+            db.flush()  # 拿到 project.id 才能挂画廊媒体
+            # 画廊：转存 README 里的真实截图 / GIF 演示图（详情页图片轮播，丰富度）。
+            for order, m in enumerate(_download_gallery(c["source_url"], i)):
+                db.add(
+                    ProjectMedia(
+                        project_id=project.id,
+                        uploader_user_id=None,  # 抓取内容无站内上传者
+                        media_type=m["media_type"],
+                        url=m["url"],
+                        sort_order=order,
+                    )
+                )
+                media_total += 1
         db.commit()
-        print(f"已灌入 {len(CURATED)} 条精选 GitHub 项目（编辑号：{', '.join(e['nickname'] for e in EDITORS.values())}）")
+        print(
+            f"已灌入 {len(CURATED)} 条精选 GitHub 项目 + {media_total} 张画廊媒体"
+            f"（编辑号：{', '.join(e['nickname'] for e in EDITORS.values())}）"
+        )
     finally:
         db.close()
 
