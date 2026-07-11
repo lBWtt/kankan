@@ -47,7 +47,8 @@ class _KankanScreenState extends ConsumerState<KankanScreen>
   /// 现在 mock 数据是同步的,300ms 假延迟让骨架屏有展示机会。
   bool _loading = true;
 
-  static const _sorts = [('精选', 'featured'), ('热门', 'hot'), ('推荐', 'new')];
+  // 顺序：精选 / 推荐 / 热门；默认落在「推荐」（见 initState initialIndex）。
+  static const _sorts = [('精选', 'featured'), ('推荐', 'new'), ('热门', 'hot')];
 
   static const _domains = <(String, String?)>[
     ('全部', null),
@@ -63,7 +64,8 @@ class _KankanScreenState extends ConsumerState<KankanScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    // 默认落在「推荐」Tab（index 1）——瀑布流是主逛区。
+    _tabCtrl = TabController(length: 3, vsync: this, initialIndex: 1);
     if (AppConfig.useRemote) {
       // 远端有真实加载态（paginatedProjectsProvider isLoading），不摆 300ms 假骨架。
       _loading = false;
@@ -99,11 +101,11 @@ class _KankanScreenState extends ConsumerState<KankanScreen>
                 : TabBarView(
                     controller: _tabCtrl,
                     children: [
-                      // 三 Tab（精选/热门/推荐）共享分页 state，各自客户端 filter+sort。
+                      // 三 Tab（精选/推荐/热门）共享分页 state，各自客户端 filter+sort。
                       _ProjectList(sort: 'featured', domain: _domainFilter),
-                      _ProjectList(sort: 'hot', domain: _domainFilter),
-                      // 推荐：小红书式双栏瀑布流（极少数高价值全宽大卡 + 其余双栏）。
+                      // 推荐：小红书式双栏瀑布流（极少数高价值全宽大卡 + 其余双栏）。默认 Tab。
                       RecommendMasonry(domain: _domainFilter),
+                      _ProjectList(sort: 'hot', domain: _domainFilter),
                     ],
                   ),
           ),
