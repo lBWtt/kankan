@@ -8,21 +8,21 @@ MediaCrawler 抓 (jsonl)  →  mediacrawler_adapter.py (转标准 JSON)  →
   pipeline collect (入候选池)  →  pipeline process (DeepSeek 富化)  →  人工审核  →  approve  →  App
 ```
 
-## 一、装 MediaCrawler（一次性）
+## 一、装 MediaCrawler（✅ 已装好，此节仅备查/换机重装用）
 
 MediaCrawler 需要 **Python ≥3.11**（本项目后端是 3.9，故给它单独的 conda 环境）。
+**本机已完成**：clone 到 `F:/MediaCrawler`；conda 环境 `mediacrawler`（Python 3.11.15）；
+依赖全装（含 playwright/opencv/asyncmy，无失败）；Playwright Chromium 已下。CLI 实测可用。
 
+重装步骤（换机时）：
 ```bash
-# 1) 已 clone 到 F:/MediaCrawler
-# 2) 建 3.11 环境 + 装依赖
+git clone https://github.com/NanmiCoder/MediaCrawler.git F:/MediaCrawler
 conda create -n mediacrawler python=3.11 -y
-conda activate mediacrawler
-cd /f/MediaCrawler
-pip install -r requirements.txt
-python -m playwright install chromium      # 装浏览器内核（Playwright 自动化）
+D:/conda/envs/mediacrawler/python.exe -m pip install -r F:/MediaCrawler/requirements.txt \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple
+cd /f/MediaCrawler && HTTPS_PROXY=http://127.0.0.1:7890 \
+    D:/conda/envs/mediacrawler/python.exe -m playwright install chromium
 ```
-> 若 `asyncmy` / `aiomysql`（MySQL）在 Windows 编译失败：我们用 jsonl 输出、不碰 MySQL，
-> 可从 requirements.txt 里去掉这两行再装（或忽略其报错，其余装上即可）。
 
 ## 二、配置 MediaCrawler（每次抓前）
 
@@ -37,10 +37,16 @@ python -m playwright install chromium      # 装浏览器内核（Playwright 自
 
 ## 三、跑一轮
 
+> MediaCrawler 已装好：conda 环境 `mediacrawler`（Python 3.11）+ 依赖 + Playwright Chromium。
+> CLI 是 typer，参数可覆盖 config（`SAVE_DATA_OPTION=jsonl` 建议直接在 config 里设死）。
+
 ```bash
-# 1) 采集（在 mediacrawler 环境，F:/MediaCrawler）
-conda activate mediacrawler
-cd /f/MediaCrawler && python main.py
+# 1) 采集（用 mediacrawler 环境的 python，F:/MediaCrawler）
+cd /f/MediaCrawler
+D:/conda/envs/mediacrawler/python.exe main.py \
+    --platform xhs --type search --lt qrcode \
+    --keywords "AI绘画,Midjourney,提示词"
+#   首次弹二维码 → 你用小红书/抖音 App 扫码登录（登录态会缓存，之后免扫）
 #   产出 F:/MediaCrawler/data/xhs/jsonl/search_contents_YYYY-MM-DD.jsonl
 
 # 2) 转成标准条目（在后端环境，backend/）
