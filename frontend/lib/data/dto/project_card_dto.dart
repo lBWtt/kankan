@@ -152,26 +152,29 @@ String _stripLightMarkdown(String s) {
 /// 故作者行会留空（已知分叉，同 feed 卡片）。
 Project projectFromDetailJson(Map<String, dynamic> j) {
   // media：后端 media 数组 [{type,url,poster?,...}]；空则用 cover 兜一张。
-  final rawMedia = j['media'];
   final media = <MediaItem>[];
+  // 封面永远第一张：详情页顶部 Hero 用 media.first；_results 会跳过首图避免与画廊重复。
+  final cover = j['cover_media_url'];
+  final coverUrl = (cover is String && cover.isNotEmpty) ? _resolveMediaUrl(cover) : null;
+  if (coverUrl != null) {
+    media.add(MediaItem(type: 'image', url: coverUrl));
+  }
+  // 画廊媒体（后端 project_media：截图 / GIF 演示）接在封面之后 → 详情页图片轮播。
+  final rawMedia = j['media'];
   if (rawMedia is List) {
     for (final m in rawMedia.whereType<Map<dynamic, dynamic>>()) {
       final url = m['url']?.toString();
-      if (url != null && url.isNotEmpty) {
-        media.add(MediaItem(
-          type: m['type']?.toString() == 'video' ? 'video' : 'image',
-          url: _resolveMediaUrl(url),
-          poster: m['poster'] != null
-              ? _resolveMediaUrl(m['poster'].toString())
-              : null,
-        ));
-      }
-    }
-  }
-  if (media.isEmpty) {
-    final cover = j['cover_media_url'];
-    if (cover is String && cover.isNotEmpty) {
-      media.add(MediaItem(type: 'image', url: _resolveMediaUrl(cover)));
+      if (url == null || url.isEmpty) continue;
+      final resolved = _resolveMediaUrl(url);
+      // 去重：画廊里若混进与封面同一张图，不重复加。
+      if (resolved == coverUrl) continue;
+      media.add(MediaItem(
+        type: m['type']?.toString() == 'video' ? 'video' : 'image',
+        url: resolved,
+        poster: m['poster'] != null
+            ? _resolveMediaUrl(m['poster'].toString())
+            : null,
+      ));
     }
   }
   final tools = (j['tools'] is List)
