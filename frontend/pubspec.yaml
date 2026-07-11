@@ -79,6 +79,9 @@ dependencies:
   # 若解析/编译不兼容,退 barcode_widget(任务文件兜底)。
   qr_flutter: ^4.1.0
 
+  # 看看「推荐」Tab 的双栏瀑布流（小红书式 masonry）。SliverMasonryGrid 支持 CustomScrollView + 懒加载。
+  flutter_staggered_grid_view: ^0.7.0
+
   # ── Phase 5:真持久化 ──
   # F-34:Drift/drift_dev/sqlite3_flutter_libs 已移除。
   # 原因:drift_dev 要求 analyzer >=8.0.0,与 freezed 2.x 的 analyzer ^6.5||^7.0 互斥,
