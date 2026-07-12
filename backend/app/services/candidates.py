@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.models import CandidateContent, Project, ProjectMedia, User
 from app.services.audit import log_admin_action
+from app.services.media_transfer import transfer_candidate_media
 from app.services.publishing import attach_tags
 
 # 这些状态允许 discard / park / 编辑；approved 和 discarded 是终态
@@ -113,6 +114,12 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
     ensure_approvable(candidate)
     check_publish_gate(candidate)
 
+    # 媒体转存：把外部平台（小红书/抖音…）的图/视频下载到我们自己的存储、替换外链
+    # （各平台 CDN 有防盗链，且不该热链他人 CDN；PIPELINE_PLAN 决策4）。失败的自动跳过。
+    transferred = transfer_candidate_media(_as_list(candidate.media_json), candidate.source_platform)
+    # 封面 = 转存后的第一张图（视频不做封面）；都失败则无封面（前端走 CoverArt 占位）。
+    cover_url = next((t["url"] for t in transferred if t.get("media_type") == "image"), None)
+
     now = datetime.now(timezone.utc)
     project = Project(
         author_user_id=None,  # 外部内容无站内作者
@@ -128,7 +135,7 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
         source_platform=candidate.source_platform,
         original_author_name=candidate.original_author_name,
         original_author_url=candidate.original_author_url,
-        cover_media_url=candidate.cover_media_url,
+        cover_media_url=cover_url,
         tools=candidate.tools or [],
         domains=candidate.domains or [],
         ai_badge=badge_for_score(candidate.ai_curation_score),
@@ -142,10 +149,8 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
     db.add(project)
     db.flush()  # 拿到 project.id
 
-    # 媒体：media_json 暂存 → project_media 落表
-    for i, item in enumerate(_as_list(candidate.media_json)):
-        if not isinstance(item, dict) or not item.get("url"):
-            continue
+    # 媒体：转存后的 URL（已下载到本地/OSS，非外链）→ project_media 落表
+    for i, item in enumerate(transferred):
         db.add(
             ProjectMedia(
                 project_id=project.id,
