@@ -56,10 +56,25 @@ class NotificationsApi {
     final createdMs =
         DateTime.tryParse(m['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ??
             DateTime.now().millisecondsSinceEpoch;
+    // 深链落点：优先项目详情，其次动态详情；都无但有 actor（关注类）→ 由 _handleTap 跳触发者主页。
+    final projectId = m['project_id']?.toString();
+    final postId = m['post_id']?.toString();
+    String? targetId;
+    String? hostType;
+    if (projectId != null && projectId.isNotEmpty) {
+      targetId = projectId;
+      hostType = 'project';
+    } else if (postId != null && postId.isNotEmpty) {
+      targetId = postId;
+      hostType = 'post';
+    }
+    final actorId = m['actor_user_id']?.toString();
     return NotificationItem(
       id: m['id'].toString(),
       type: (m['type'] ?? 'system').toString(),
-      targetId: m['project_id']?.toString(),
+      actorId: (actorId != null && actorId.isNotEmpty) ? actorId : null,
+      targetId: targetId,
+      hostType: hostType,
       preview: line.isEmpty ? null : line,
       read: m['is_read'] == true,
       createdAtMs: createdMs,

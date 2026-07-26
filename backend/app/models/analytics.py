@@ -34,7 +34,7 @@ class AnalyticsEvent(CreatedAtMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     # 埋点表高频写入且允许游客事件，所以 user_id/project_id 不设外键、可空（字段·API v1.3 §10）
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
-    # 事件名 snake_case 英文（PRD §13.5）：app_open / card_click / how_to_interest / clue_subscribe ...
+    # 事件名 snake_case 英文：app_open / card_click / want_to_try / clue_source_click ...
     event_name: Mapped[str] = mapped_column(String(50), nullable=False)
     project_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
     # 事件属性（如 reaction type、搜索词）；客户端信息（设备、版本、匿名 ID、粗粒度地区）

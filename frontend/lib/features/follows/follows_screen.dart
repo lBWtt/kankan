@@ -318,6 +318,7 @@ class _PaginatedFollowListState extends ConsumerState<_PaginatedFollowList> {
       // 首屏加载失败:RemoteError 重试 → refresh。
       return RemoteError(
         message: '加载失败',
+        error: state.error,
         onRetry: () async {
           if (widget.followers) {
             await ref

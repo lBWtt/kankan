@@ -84,17 +84,30 @@ class NotificationsScreen extends ConsumerWidget {
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : failed
-              ? Center(
-                  child: Text('通知加载失败，下拉重试',
-                      style: KkType.bodySm.copyWith(color: KkColors.t4)),
-                )
-              : all.isEmpty
-                  ? Center(
-                      child: Text('暂无通知',
-                          style: KkType.bodySm.copyWith(color: KkColors.t4)),
+          : RefreshIndicator(
+              color: KkColors.teal,
+              onRefresh: () async {
+                // 下拉刷新：重新拉最新通知（换账号/别人刚点赞关注后，进来一拉就有）。
+                if (!remoteOn) return;
+                ref.invalidate(remoteNotificationsProvider);
+                try {
+                  await ref.read(remoteNotificationsProvider.future);
+                } catch (_) {}
+              },
+              child: (failed || all.isEmpty)
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 140),
+                        Center(
+                          child: Text(failed ? '通知加载失败，下拉重试' : '暂无通知',
+                              style:
+                                  KkType.bodySm.copyWith(color: KkColors.t4)),
+                        ),
+                      ],
                     )
                   : _groupedList(context, ref, all, unreadIds),
+            ),
     );
   }
 
@@ -115,6 +128,7 @@ class NotificationsScreen extends ConsumerWidget {
     final buckets = _bucketize(all);
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: KkSpacing.xxl),
       children: [
         for (final entry in buckets.entries)
@@ -221,14 +235,19 @@ class NotificationsScreen extends ConsumerWidget {
         // 系统:不跳转
         break;
       default:
-        // 后端内容类通知（daily_pick / clue_update / content_status / similar_project /
-        // how_to_interest / interaction …）：clue_update 跳实现线索页，其余带项目落点跳详情。
+        // 后端内容类 / 互动类通知（interaction / daily_pick / clue_update / …）：
+        //   有落点 → 按 hostType 跳（项目详情 / 动态详情）；clue_update → 线索页；
+        //   无落点但有 actor（关注类）→ 跳触发者主页。
         if (n.targetId != null && n.targetId!.isNotEmpty) {
           if (n.type == 'clue_update') {
             context.push(KkRoutes.clue(n.targetId!));
+          } else if (n.hostType == 'post') {
+            context.push(KkRoutes.postDetail(n.targetId!));
           } else {
             context.push(KkRoutes.detail(n.targetId!));
           }
+        } else if (n.actorId != null && n.actorId!.isNotEmpty) {
+          context.push(KkRoutes.profile(n.actorId!));
         }
         break;
     }

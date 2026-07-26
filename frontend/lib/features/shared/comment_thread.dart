@@ -16,6 +16,7 @@ import '../../domain/models/models.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../../domain/repositories/project_repository.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/paginated_comments_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
@@ -202,7 +203,7 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
         horizontal: KkSpacing.lg,
         vertical: KkSpacing.md,
       ),
-      child: Text('心得 $count', style: KkType.h3),
+      child: Text('评论 $count', style: KkType.h3),
     );
   }
 
@@ -210,7 +211,7 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
     return Padding(
       padding: const EdgeInsets.all(KkSpacing.xl),
       child: Text(
-        '暂无心得',
+        '暂无评论',
         style: KkType.bodySm.copyWith(color: KkColors.t4),
         textAlign: TextAlign.center,
       ),
@@ -305,23 +306,28 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
   // 回调能直接 setState 改本组件 _comments(从外部调用够不到内部 state)。
   // own = authorId == 'me';仅 own 显编辑/删除;linkUrl 从 content 正则提取。
   void _showActions(Comment c) {
+    if (c.isDeleted) return;
     final linkUrl = _extractUrl(c.content);
+    final currentUserId = ref.read(authProvider).currentUser?.id;
+    final isOwn = c.authorId == 'me' || c.authorId == currentUserId;
     showCommentActionsSheet(
       context,
       comment: c,
       hostType: widget.hostType,
       hostId: widget.hostId,
-      isOwn: c.authorId == 'me',
+      isOwn: isOwn,
       onCopy: () {}, // sheet 内部已真实现 Clipboard,空回调占位
       onEdit: () => _startEdit(c),
       onDelete: () => _confirmDelete(c),
       // 任务⑫:他人评论显「举报」(comment_actions_sheet onReport 参数已存在,
       // 传了自动出按钮)。sheet 内部先 pop 本 sheet 再回调,接 showReportSheet。
-      onReport: () => showReportSheet(
-        context,
-        targetType: 'comment',
-        targetId: c.id,
-      ),
+      onReport: isOwn
+          ? null
+          : () => showReportSheet(
+                context,
+                targetType: 'comment',
+                targetId: c.id,
+              ),
       linkUrl: linkUrl,
     );
   }
@@ -369,9 +375,7 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
     if (updated != null) {
       // 同步 mockComments(与 _submit 写入对称),杜绝 detail 底栏计数/内容分裂。
       if (widget.hostType == 'project') {
-        ref
-            .read(projectRepositoryProvider)
-            .updateComment(updated!);
+        ref.read(projectRepositoryProvider).updateComment(updated!);
       } else {
         ref.read(postRepositoryProvider).updateComment(updated!);
       }
@@ -389,7 +393,7 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        content: const Text('删除这条心得?'),
+        content: const Text('删除这条评论?'),
         contentTextStyle: KkType.body.copyWith(color: KkColors.t1),
         actionsPadding: const EdgeInsets.symmetric(
           horizontal: KkSpacing.md,
@@ -422,38 +426,33 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
   }
 
   void _doDelete(Comment c) {
-    // 远程模式:乐观移除(PaginatedNotifier.removeItem 即时反馈)→ 后端 delete →
-    // 失败 refresh 回滚。不再用本地 _comments.removeWhere(build 用 provider items)。
+    // 远程模式:删除后重拉评论树,保留后端返回的“内容已删除”占位,不让上下文断裂。
     if (_remote) {
-      ref
-          .read(paginatedCommentsProvider(_paginatedKey).notifier)
-          .removeItem(c.id);
       () async {
         try {
           await ref.read(commentsApiProvider).delete(c.id);
-          // 后端确认成功,乐观态即正确,无需重拉。
+          await ref
+              .read(paginatedCommentsProvider(_paginatedKey).notifier)
+              .refresh();
+          widget.onChanged?.call();
+          if (mounted) _toast('评论已删除');
         } on AppException catch (e) {
           if (mounted) {
             _toast(e.message);
-            // 失败 → refresh 重拉首页恢复(rollback 乐观移除)。
-            await ref
-                .read(paginatedCommentsProvider(_paginatedKey).notifier)
-                .refresh();
           }
         }
       }();
-      widget.onChanged?.call();
       return;
     }
+    final deleted = c.copyWith(content: '内容已删除', isDeleted: true, likes: 0);
     setState(() {
-      _comments.removeWhere((x) => x.id == c.id);
+      _comments = _comments.map((x) => x.id == c.id ? deleted : x).toList();
     });
-    // 同步 mockComments(对称 addComment),杜绝 detail 底栏「心得 N」
-    // 从 commentsFor 重读时计数分裂(删除后底栏计数应同步减 1)。
+    // 同步 mockComments,让本地重读时也保留删除占位。
     if (widget.hostType == 'project') {
-      ref.read(projectRepositoryProvider).removeComment(c.id);
+      ref.read(projectRepositoryProvider).updateComment(deleted);
     } else {
-      ref.read(postRepositoryProvider).removeComment(c.id);
+      ref.read(postRepositoryProvider).updateComment(deleted);
     }
     widget.onChanged?.call();
   }
@@ -477,7 +476,8 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
       FocusScope.of(context).unfocus();
       () async {
         try {
-          await ref.read(commentsApiProvider)
+          await ref
+              .read(commentsApiProvider)
               .create(widget.hostType, widget.hostId, text, parentId: parentId);
           // 发送成功 → refresh 重拉首页(PaginatedNotifier.refresh 保留旧 items
           // 直到新页到达,无空窗闪烁)。
@@ -559,7 +559,7 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
       ctrl = _editCtrl;
       onSubmit = _submitEdit;
       onCancel = _cancelEdit;
-      hint = '编辑心得';
+      hint = '编辑评论';
       submitLabel = '保存';
       modeLabel = '编辑';
     } else if (isReply) {
@@ -573,7 +573,7 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
       ctrl = _ctrl;
       onSubmit = _submit;
       onCancel = () {};
-      hint = '写心得';
+      hint = '写评论';
       submitLabel = '发送';
       modeLabel = '';
     }
@@ -602,8 +602,8 @@ class _CommentThreadState extends ConsumerState<CommentThread> {
                   const SizedBox(width: KkSpacing.xs),
                   Tappable(
                     onTap: onCancel,
-                    child: const Icon(Icons.close,
-                        size: 14, color: KkColors.t3),
+                    child:
+                        const Icon(Icons.close, size: 14, color: KkColors.t3),
                   ),
                 ],
               ),
@@ -693,7 +693,8 @@ class _CommentTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final author = ref.watch(userByIdProvider(comment.authorId));
-    final likeCount = comment.likes + (isLiked ? 1 : 0);
+    final isDeleted = comment.isDeleted;
+    final likeCount = isDeleted ? 0 : comment.likes + (isLiked ? 1 : 0);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -704,16 +705,24 @@ class _CommentTile extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onLongPress: onLongPress == null
+            onLongPress: isDeleted || onLongPress == null
                 ? null
                 : () => onLongPress!(comment),
             behavior: HitTestBehavior.opaque,
-            child: TappableAvatar(
-              userId: comment.authorId,
-              user: author,
-              size: 32,
-              onTap: () => context.push(KkRoutes.profile(comment.authorId)),
-            ),
+            child: isDeleted
+                ? const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: KkColors.bgSubtle,
+                    child: Icon(Icons.hide_source_outlined,
+                        size: 16, color: KkColors.t3),
+                  )
+                : TappableAvatar(
+                    userId: comment.authorId,
+                    user: author,
+                    size: 32,
+                    onTap: () =>
+                        context.push(KkRoutes.profile(comment.authorId)),
+                  ),
           ),
           const SizedBox(width: KkSpacing.md),
           Expanded(
@@ -722,7 +731,7 @@ class _CommentTile extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 GestureDetector(
-                  onLongPress: onLongPress == null
+                  onLongPress: isDeleted || onLongPress == null
                       ? null
                       : () => onLongPress!(comment),
                   behavior: HitTestBehavior.opaque,
@@ -733,10 +742,12 @@ class _CommentTile extends ConsumerWidget {
                       Row(
                         children: [
                           Text(
-                            author?.name ?? comment.authorId,
+                            isDeleted
+                                ? '内容已删除'
+                                : author?.name ?? comment.authorId,
                             style: KkType.bodySm.copyWith(
                               fontWeight: FontWeight.w600,
-                              color: KkColors.t1,
+                              color: isDeleted ? KkColors.t3 : KkColors.t1,
                             ),
                           ),
                           const SizedBox(width: KkSpacing.sm),
@@ -747,57 +758,64 @@ class _CommentTile extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(comment.content, style: KkType.body),
+                      Text(
+                        comment.content,
+                        style: KkType.body.copyWith(
+                          color: isDeleted ? KkColors.t3 : KkColors.t1,
+                          fontStyle:
+                              isDeleted ? FontStyle.italic : FontStyle.normal,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: KkSpacing.sm),
-                // 操作行:点赞 / 回复(零旁白,只图标 + 数字)
-                // 不包长按,避免长按点赞按钮触发评论操作 sheet
-                Row(
-                  children: [
-                    Tappable(
-                      onTap: onLike,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isLiked
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            size: 14,
-                            color: isLiked ? KkColors.like : KkColors.t3,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            formatCount(likeCount),
-                            style: KkType.mono.copyWith(
-                              fontSize: 11,
+                if (!isDeleted) ...[
+                  const SizedBox(height: KkSpacing.sm),
+                  // 操作行:点赞 / 回复(零旁白,只图标 + 数字)
+                  // 不包长按,避免长按点赞按钮触发评论操作 sheet
+                  Row(
+                    children: [
+                      Tappable(
+                        onTap: onLike,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              size: 14,
                               color: isLiked ? KkColors.like : KkColors.t3,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Text(
+                              formatCount(likeCount),
+                              style: KkType.mono.copyWith(
+                                fontSize: 11,
+                                color: isLiked ? KkColors.like : KkColors.t3,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: KkSpacing.lg),
-                    Tappable(
-                      onTap: onReply,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.chat_bubble_outline,
-                              size: 14, color: KkColors.t3),
-                          const SizedBox(width: 4),
-                          Text(
-                            '回复',
-                            style: KkType.mono.copyWith(
-                                fontSize: 11, color: KkColors.t3),
-                          ),
-                        ],
+                      const SizedBox(width: KkSpacing.lg),
+                      Tappable(
+                        onTap: onReply,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.chat_bubble_outline,
+                                size: 14, color: KkColors.t3),
+                            const SizedBox(width: 4),
+                            Text(
+                              '回复',
+                              style: KkType.mono
+                                  .copyWith(fontSize: 11, color: KkColors.t3),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
                 // 楼中楼
                 if (comment.replies.isNotEmpty) ...[
                   const SizedBox(height: KkSpacing.sm),
@@ -836,10 +854,18 @@ class _ReplyTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final author = ref.watch(userByIdProvider(reply.authorId));
+    final isDeleted = reply.isDeleted;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        KkAvatar(userId: reply.authorId, user: author, size: 20),
+        isDeleted
+            ? const CircleAvatar(
+                radius: 10,
+                backgroundColor: KkColors.bgSubtle,
+                child: Icon(Icons.hide_source_outlined,
+                    size: 10, color: KkColors.t3),
+              )
+            : KkAvatar(userId: reply.authorId, user: author, size: 20),
         const SizedBox(width: KkSpacing.sm),
         Expanded(
           child: Column(
@@ -847,14 +873,20 @@ class _ReplyTile extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                author?.name ?? reply.authorId,
+                isDeleted ? '内容已删除' : author?.name ?? reply.authorId,
                 style: KkType.bodySm.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: KkColors.t1,
+                  color: isDeleted ? KkColors.t3 : KkColors.t1,
                 ),
               ),
               const SizedBox(height: 2),
-              Text(reply.content, style: KkType.bodySm),
+              Text(
+                reply.content,
+                style: KkType.bodySm.copyWith(
+                  color: isDeleted ? KkColors.t3 : KkColors.t1,
+                  fontStyle: isDeleted ? FontStyle.italic : FontStyle.normal,
+                ),
+              ),
             ],
           ),
         ),

@@ -13,9 +13,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models import CandidateContent, Project, ProjectMedia, User
+from app.models import CandidateContent, Post, PostMedia, Project, ProjectMedia, User
 from app.services.audit import log_admin_action
 from app.services.media_transfer import transfer_candidate_media
+from app.services.personas import pick_persona_for
 from app.services.publishing import attach_tags
 
 # 这些状态允许 discard / park / 编辑；approved 和 discarded 是终态
@@ -83,11 +84,74 @@ def check_publish_gate(candidate: CandidateContent) -> None:
         problems.append("domains 至少 1 个")
     if not candidate.cover_media_url:
         problems.append("封面缺失（PRD §8.5 主封面必填）")
+    # 用户硬要求：没有「可去用链接」不发布——try_url = 能开的网页 / App Store / GitHub 三选一。
+    if not (candidate.try_url and candidate.try_url.strip()):
+        problems.append("缺少可去用链接（try_url：能开的网页 / App Store / GitHub 三选一）")
     # 红线：tools≥1 或 description 含可复现说明（启发式：≥20 字视为有说明）；纯单图无方法不发布
     if not candidate.tools and not (candidate.description and len(candidate.description.strip()) >= 20):
         problems.append("准入不满足：tools≥1 或 description 含可复现方法说明（≥20 字）")
     if problems:
         raise AppError(409, "PUBLISH_GATE_FAILED", "发布准入不满足，不能通过", {"problems": problems})
+
+
+def check_post_gate(candidate: CandidateContent) -> None:
+    """动态（content_kind=post）发布准入：正文（存 summary）够长 + 至少 1 个标签。
+    动态无封面/分类/领域要求（可纯文字），故门槛比项目松。"""
+    problems: List[str] = []
+    if not candidate.summary or len(candidate.summary.strip()) < 20:
+        problems.append("动态正文缺失或过短（≥20 字）")
+    if not _as_list(candidate.tags_json):
+        problems.append("话题标签至少 1 个")
+    if problems:
+        raise AppError(409, "PUBLISH_GATE_FAILED", "动态发布准入不满足，不能通过", {"problems": problems})
+
+
+def _lock_approvable(db: Session, candidate: CandidateContent) -> CandidateContent:
+    """approve 入口共用：SELECT ... FOR UPDATE 重载候选行并刷新 identity map（并发安全 C-SVC-1），
+    校验状态可 approve。返回加锁后的候选行。"""
+    locked = db.execute(
+        select(CandidateContent)
+        .where(CandidateContent.id == candidate.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
+    if locked is None:
+        raise AppError(404, "NOT_FOUND", "候选不存在")
+    ensure_approvable(locked)
+    return locked
+
+
+def approve_candidate_as_post(db: Session, candidate: CandidateContent, admin: User) -> Post:
+    """§动态：候选（content_kind=post）→ 马甲发的正式动态。正文取 summary、标签取 tags_json，
+    图片转存后落 post_media（动态仅图片，视频跳过）。无马甲则拒绝（动态必须有作者）。"""
+    candidate = _lock_approvable(db, candidate)
+    check_post_gate(candidate)
+
+    persona = pick_persona_for(db, category=candidate.category, domains=candidate.domains)
+    if persona is None:
+        raise AppError(409, "NO_PERSONA", "没有可用马甲号，无法发布动态（先跑 seed_personas.py）")
+
+    # 图片转存（动态仅图片；外链防盗链，下载到本地/OSS 再落表）
+    transferred = [t for t in transfer_candidate_media(_as_list(candidate.media_json), candidate.source_platform)
+                   if t.get("media_type") == "image"]
+
+    now = datetime.now(timezone.utc)
+    post = Post(
+        author_user_id=persona.id,
+        content=(candidate.summary or "").strip(),
+        tags=_as_list(candidate.tags_json)[:5],
+    )
+    db.add(post)
+    db.flush()  # 拿 post.id
+    for i, item in enumerate(transferred):
+        db.add(PostMedia(post_id=post.id, media_type="image", url=item["url"], sort_order=i))
+
+    candidate.status = "approved"
+    candidate.reviewed_by_user_id = admin.id
+    candidate.reviewed_at = now
+    log_admin_action(db, admin.id, "approve_candidate_post", "candidate", candidate.id,
+                     {"post_id": str(post.id)})
+    return post
 
 
 def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> Project:
@@ -101,17 +165,7 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
     """
     # 即使 admin 端点已 db.get 过，这里仍要重新 FOR UPDATE：既加行锁，又用 populate_existing
     # 把 identity map 里的旧属性（如 status=pending_review）刷新成数据库提交后的最新值。
-    locked = db.execute(
-        select(CandidateContent)
-        .where(CandidateContent.id == candidate.id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    ).scalar_one_or_none()
-    if locked is None:
-        raise AppError(404, "NOT_FOUND", "候选不存在")
-    candidate = locked
-
-    ensure_approvable(candidate)
+    candidate = _lock_approvable(db, candidate)
     check_publish_gate(candidate)
 
     # 媒体转存：把外部平台（小红书/抖音…）的图/视频下载到我们自己的存储、替换外链
@@ -120,9 +174,14 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
     # 封面 = 转存后的第一张图（视频不做封面）；都失败则无封面（前端走 CoverArt 占位）。
     cover_url = next((t["url"] for t in transferred if t.get("media_type") == "image"), None)
 
+    # 马甲发布（决策：让外部内容读起来像真实用户自己发的帖）：随机派一个马甲当作者。
+    # 「完全不留出处」：原作者名/链接不落到项目上（不展示）；source_url 仍留作去重/内部备查，
+    # 前端只对 GitHub 源渲染出处卡，其余不显示，故不会露出小红书/抖音来源。
+    persona = pick_persona_for(db, category=candidate.category, domains=candidate.domains)
+
     now = datetime.now(timezone.utc)
     project = Project(
-        author_user_id=None,  # 外部内容无站内作者
+        author_user_id=persona.id if persona else None,  # 马甲作者（无马甲则回退无站内作者）
         title=candidate.title,
         tagline=candidate.tagline,
         summary=candidate.summary,
@@ -131,10 +190,11 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
         language=candidate.language,
         source_type=candidate.source_type,
         is_original=False,
-        source_url=candidate.source_url,
+        source_url=candidate.source_url,  # 内部备查/去重用，不展示
+        try_url=candidate.try_url,        # 体验入口（DeepSeek 提取，小红书/抖音成果尤其重要）
         source_platform=candidate.source_platform,
-        original_author_name=candidate.original_author_name,
-        original_author_url=candidate.original_author_url,
+        original_author_name=None,  # 不留出处
+        original_author_url=None,
         cover_media_url=cover_url,
         tools=candidate.tools or [],
         domains=candidate.domains or [],

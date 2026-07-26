@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/seed/mock_seed.dart';
 import '../domain/models/models.dart';
 
 /// 全局 AppState 的不可变数据载体。
@@ -118,38 +117,7 @@ class AppStateData {
     ];
   }
 
-  factory AppStateData.initial() => AppStateData(
-        // HANDOFF §6.3:启动即载入 mock 的"我拿走的",library 屏可直接读真实数据。
-        savedTakeaways: mockSavedTakeaways,
-        // Phase 3:启动载入 mock 通知未读(全部 mock 通知默认未读)+ 浏览历史 + 最近搜索。
-        unreadNotifIds: {for (final n in mockNotifications) n.id},
-        browseHistory: mockBrowseHistory,
-        // recentSearches 升级为 Map<String, int>,mock 词分散到今天/昨天/更早
-        // 三段时间区间,让 search_screen 时间分组有真实演示数据。
-        recentSearchesMap: _seedRecentSearches(),
-      );
-
-  /// 把 mockRecentSearches 6 条词分散到 今天/昨天/更早 三段。
-  /// 第 0-1 条:今天(30min / 2h 前);2-3:昨天(26h / 30h 前);4-5:更早(3d / 10d 前)。
-  static Map<String, int> _seedRecentSearches() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    const hour = 60 * 60 * 1000;
-    const day = 24 * hour;
-    const offsets = [
-      30 * 60 * 1000, // 0:今天 30min 前
-      2 * hour, // 1:今天 2h 前
-      26 * hour, // 2:昨天 26h 前
-      30 * hour, // 3:昨天 30h 前
-      3 * day, // 4:更早 3d 前
-      10 * day, // 5:更早 10d 前
-    ];
-    final out = <String, int>{};
-    for (var i = 0; i < mockRecentSearches.length; i++) {
-      final offset = i < offsets.length ? offsets[i] : day * (i + 1);
-      out[mockRecentSearches[i]] = now - offset;
-    }
-    return out;
-  }
+  factory AppStateData.initial() => const AppStateData();
 
   AppStateData copyWith({
     ThemeMode? themeMode,

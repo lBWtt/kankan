@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/kk_colors.dart';
 import '../../../core/theme/tokens.dart';
-import '../../../data/seed/mock_seed.dart';
+import '../../../domain/models/heatmap_cell.dart';
 
 /// 贡献热力图 — 任务⑯升级到 web 原型信息量。
 ///
@@ -66,6 +66,7 @@ class ContributionHeatmap extends StatelessWidget {
         // 热力图主体:横向滚动(26 周宽,小屏溢出)
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          reverse: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

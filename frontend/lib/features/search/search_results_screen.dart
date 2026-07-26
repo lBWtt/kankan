@@ -17,6 +17,7 @@ import '../../providers/app_state_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../providers/remote_post_provider.dart';
 import '../../providers/remote_project_provider.dart';
+import '../../providers/search_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
 import '../shared/empty_state.dart';
@@ -114,16 +115,37 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
     final repo = ref.watch(searchRepositoryProvider);
     final q = widget.query;
     var counts = repo.counts(q);
-    // 远端模式：项目 + 动态 Tab 走后端搜索，计数以后端结果为准（users/topics 后端无搜索端点，仍本地）。
+    // 远端模式：四个 Tab 全走后端搜索（/projects?q= 、/posts?q= 、/users/search 、/topics），
+    // 计数以后端结果为准；加载中先按 0 显示，数据到齐后 badge 自动补上。
     if (AppConfig.useRemote) {
       final remote = ref.watch(remoteSearchProjectsProvider(q));
       final remotePosts = ref.watch(remoteSearchPostsProvider(q));
+      final remoteUsers = ref.watch(searchUsersProvider(q));
+      final remoteTopics = ref.watch(searchTopicsProvider(q));
+      final isLoading = remote.isLoading ||
+          remotePosts.isLoading ||
+          remoteUsers.isLoading ||
+          remoteTopics.isLoading;
       counts = SearchCounts(
         projects: remote.asData?.value.length ?? 0,
         posts: remotePosts.asData?.value.length ?? 0,
-        users: counts.users,
-        topics: counts.topics,
+        users: remoteUsers.asData?.value.length ?? 0,
+        topics: remoteTopics.asData?.value.length ?? 0,
       );
+      if (isLoading && counts.total == 0) {
+        return Scaffold(
+          backgroundColor: KkColors.bg,
+          appBar: AppBar(
+            backgroundColor: KkColors.bg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: const KkBackButton(),
+            titleSpacing: 0,
+            title: _searchField(),
+          ),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+      }
     }
 
     return Scaffold(
@@ -169,12 +191,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
         children: [
           if (suggestion != null) ...[
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
+              padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
               child: _CorrectionCard(
                 suggestion: suggestion,
-                onTap: () =>
-                    context.push(KkRoutes.searchResults(suggestion)),
+                onTap: () => context.push(KkRoutes.searchResults(suggestion)),
               ),
             ),
             const SizedBox(height: KkSpacing.lg),
@@ -210,7 +230,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
 
   Widget _searchField() {
     return Container(
-      height: 36,
+      height: 42,
       margin: const EdgeInsets.only(right: KkSpacing.lg),
       decoration: BoxDecoration(
         color: KkColors.bgSubtle,
@@ -220,25 +240,21 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
         controller: _ctrl,
         autofocus: false,
         textInputAction: TextInputAction.search,
-        style: KkType.body,
+        textAlignVertical: TextAlignVertical.center,
+        style: KkType.body.copyWith(color: KkColors.t1),
         decoration: InputDecoration(
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: KkSpacing.md,
-            vertical: 0,
-          ),
-          prefixIcon:
-              const Icon(Icons.search, size: 18, color: KkColors.t3),
+          contentPadding: const EdgeInsets.symmetric(horizontal: KkSpacing.md),
+          prefixIcon: const Icon(Icons.search, size: 18, color: KkColors.t3),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 36,
-            minHeight: 36,
+            minHeight: 42,
           ),
           suffixIcon: _ctrl.text.isNotEmpty
               ? Tappable(
                   onTap: _ctrl.clear,
                   borderRadius: BorderRadius.circular(KkRadius.pill),
-                  child: const Icon(Icons.close,
-                      size: 16, color: KkColors.t3),
+                  child: const Icon(Icons.close, size: 16, color: KkColors.t3),
                 )
               : null,
           border: InputBorder.none,
@@ -284,8 +300,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
           children: [
             TextSpan(
               text: ' $count',
-              style: KkType.mono
-                  .copyWith(fontSize: 11, color: KkColors.t3),
+              style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
             ),
           ],
         ),
@@ -341,30 +356,20 @@ class HighlightedText extends StatelessWidget {
     while (true) {
       final idx = lower.indexOf(lq, start);
       if (idx < 0) {
-        spans.add(
-            TextSpan(text: text.substring(start), style: baseStyle));
+        spans.add(TextSpan(text: text.substring(start), style: baseStyle));
         break;
       }
       if (idx > start) {
-        spans.add(TextSpan(
-            text: text.substring(start, idx), style: baseStyle));
+        spans.add(TextSpan(text: text.substring(start, idx), style: baseStyle));
       }
-      spans.add(WidgetSpan(
-        alignment: PlaceholderAlignment.baseline,
-        baseline: TextBaseline.alphabetic,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            color: KkColors.mint,
-            borderRadius: BorderRadius.circular(KkRadius.sm),
-          ),
-          child: Text(
-            text.substring(idx, idx + q.length),
-            style: baseStyle.copyWith(
-              color: KkColors.teal,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+      // 高亮段用纯 TextSpan + backgroundColor（紧贴字形的底色，无 padding、不打断文字流）。
+      // 原来用 WidgetSpan 包 Container（2px padding + 圆角）→ 命中词中间时把词拆成「Oll ama」，很丑。
+      spans.add(TextSpan(
+        text: text.substring(idx, idx + q.length),
+        style: baseStyle.copyWith(
+          color: KkColors.teal,
+          fontWeight: FontWeight.w600,
+          backgroundColor: KkColors.mint,
         ),
       ));
       start = idx + q.length;
@@ -479,8 +484,7 @@ class _ProjectHit extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: KkColors.mint,
-                        borderRadius:
-                            BorderRadius.circular(KkRadius.sm),
+                        borderRadius: BorderRadius.circular(KkRadius.sm),
                       ),
                       child: HighlightedText(
                         text: '#$t',
@@ -497,8 +501,7 @@ class _ProjectHit extends ConsumerWidget {
             const SizedBox(height: KkSpacing.sm),
             Row(
               children: [
-                KkAvatar(
-                    userId: project.authorId, user: author, size: 20),
+                KkAvatar(userId: project.authorId, user: author, size: 20),
                 const SizedBox(width: KkSpacing.xs),
                 Flexible(
                   child: Text(
@@ -514,27 +517,22 @@ class _ProjectHit extends ConsumerWidget {
                 const SizedBox(width: KkSpacing.sm),
                 Text(
                   timeAgo(project.createdAtMs),
-                  style: KkType.mono
-                      .copyWith(fontSize: 11, color: KkColors.t3),
+                  style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
                 ),
                 const Spacer(),
-                Icon(Icons.favorite_border,
-                    size: 12, color: KkColors.t3),
+                Icon(Icons.favorite_border, size: 12, color: KkColors.t3),
                 const SizedBox(width: 2),
                 Text(
                   formatCount(project.likes),
-                  style: KkType.mono
-                      .copyWith(fontSize: 11, color: KkColors.t3),
+                  style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
                 ),
                 const SizedBox(width: KkSpacing.sm),
-                Icon(Icons.chat_bubble_outline,
-                    size: 12, color: KkColors.t3),
+                Icon(Icons.chat_bubble_outline, size: 12, color: KkColors.t3),
                 const SizedBox(width: 2),
                 Text(
                   // F-8b:评论数取 commentsFor(project.id).length(与详情页 / 项目卡同源)。
                   formatCount(commentsFor(project.id).length),
-                  style: KkType.mono
-                      .copyWith(fontSize: 11, color: KkColors.t3),
+                  style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
                 ),
               ],
             ),
@@ -604,8 +602,7 @@ class _PostHit extends ConsumerWidget {
         ),
         decoration: const BoxDecoration(
           color: KkColors.bgCard,
-          border:
-              Border(bottom: BorderSide(color: KkColors.divider)),
+          border: Border(bottom: BorderSide(color: KkColors.divider)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -613,8 +610,7 @@ class _PostHit extends ConsumerWidget {
             // 作者行
             Row(
               children: [
-                KkAvatar(
-                    userId: post.authorId, user: author, size: 20),
+                KkAvatar(userId: post.authorId, user: author, size: 20),
                 const SizedBox(width: KkSpacing.xs),
                 Flexible(
                   child: Text(
@@ -630,8 +626,7 @@ class _PostHit extends ConsumerWidget {
                 const SizedBox(width: KkSpacing.sm),
                 Text(
                   timeAgo(post.createdAtMs),
-                  style: KkType.mono
-                      .copyWith(fontSize: 11, color: KkColors.t3),
+                  style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
                 ),
                 const Spacer(),
                 if (post.quoteProjectId != null)
@@ -642,8 +637,7 @@ class _PostHit extends ConsumerWidget {
                     ),
                     decoration: BoxDecoration(
                       color: KkColors.mint,
-                      borderRadius:
-                          BorderRadius.circular(KkRadius.sm),
+                      borderRadius: BorderRadius.circular(KkRadius.sm),
                     ),
                     child: Text(
                       '引用项目',
@@ -677,8 +671,7 @@ class _PostHit extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: KkColors.mint,
-                        borderRadius:
-                            BorderRadius.circular(KkRadius.sm),
+                        borderRadius: BorderRadius.circular(KkRadius.sm),
                       ),
                       child: HighlightedText(
                         text: '#$t',
@@ -695,23 +688,19 @@ class _PostHit extends ConsumerWidget {
             const SizedBox(height: KkSpacing.sm),
             Row(
               children: [
-                Icon(Icons.favorite_border,
-                    size: 12, color: KkColors.t3),
+                Icon(Icons.favorite_border, size: 12, color: KkColors.t3),
                 const SizedBox(width: 2),
                 Text(
                   formatCount(post.likes),
-                  style: KkType.mono
-                      .copyWith(fontSize: 11, color: KkColors.t3),
+                  style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
                 ),
                 const SizedBox(width: KkSpacing.lg),
-                Icon(Icons.chat_bubble_outline,
-                    size: 12, color: KkColors.t3),
+                Icon(Icons.chat_bubble_outline, size: 12, color: KkColors.t3),
                 const SizedBox(width: 2),
                 Text(
                   // F-8c:评论数取 commentsFor(post.id).length(与动态详情页同源)。
                   formatCount(commentsFor(post.id).length),
-                  style: KkType.mono
-                      .copyWith(fontSize: 11, color: KkColors.t3),
+                  style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
                 ),
               ],
             ),
@@ -732,8 +721,21 @@ class _UsersTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(searchRepositoryProvider);
-    final list = repo.searchUsers(query);
+    // 远端模式：后端 GET /users/search?q=（昵称/简介）。demo/本地：内存搜索。
+    if (AppConfig.useRemote) {
+      final async = ref.watch(searchUsersProvider(query));
+      return async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(
+          child: EmptyState(variant: EmptyStateVariant.generic),
+        ),
+        data: _list,
+      );
+    }
+    return _list(ref.watch(searchRepositoryProvider).searchUsers(query));
+  }
+
+  Widget _list(List<KkUser> list) {
     if (list.isEmpty) {
       return const Center(
         child: EmptyState(variant: EmptyStateVariant.generic),
@@ -741,8 +743,7 @@ class _UsersTab extends ConsumerWidget {
     }
     return ListView.builder(
       itemCount: list.length,
-      itemBuilder: (context, i) =>
-          _UserRow(user: list[i], query: query),
+      itemBuilder: (context, i) => _UserRow(user: list[i], query: query),
     );
   }
 }
@@ -763,8 +764,7 @@ class _UserRow extends ConsumerWidget {
         ),
         decoration: const BoxDecoration(
           color: KkColors.bgCard,
-          border:
-              Border(bottom: BorderSide(color: KkColors.divider)),
+          border: Border(bottom: BorderSide(color: KkColors.divider)),
         ),
         child: Row(
           children: [
@@ -778,16 +778,27 @@ class _UserRow extends ConsumerWidget {
                   HighlightedText(
                     text: user.name,
                     query: query,
-                    baseStyle: KkType.body
-                        .copyWith(fontWeight: FontWeight.w600),
+                    baseStyle:
+                        KkType.body.copyWith(fontWeight: FontWeight.w600),
                   ),
+                  // @handle：稳定用户名，改名也能靠它搜到人（搜索命中时高亮）。
+                  if (user.handle != null && user.handle!.isNotEmpty) ...[
+                    const SizedBox(height: 1),
+                    HighlightedText(
+                      text: '@${user.handle!}',
+                      query: query.replaceAll('@', ''),
+                      baseStyle: KkType.mono
+                          .copyWith(fontSize: 11, color: KkColors.t3),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   if (user.bio != null) ...[
                     const SizedBox(height: 2),
                     HighlightedText(
                       text: user.bio!,
                       query: query,
-                      baseStyle: KkType.bodySm
-                          .copyWith(color: KkColors.t3),
+                      baseStyle: KkType.bodySm.copyWith(color: KkColors.t3),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -818,13 +829,10 @@ class _FollowButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final following = ref
-        .watch(appStateProvider)
-        .followedUserIds
-        .contains(userId);
+    final following =
+        ref.watch(appStateProvider).followedUserIds.contains(userId);
     return Tappable(
-      onTap: () =>
-          ref.read(appStateProvider.notifier).toggleFollow(userId),
+      onTap: () => ref.read(appStateProvider.notifier).toggleFollow(userId),
       borderRadius: BorderRadius.circular(KkRadius.pill),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -861,8 +869,21 @@ class _TopicsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(searchRepositoryProvider);
-    final list = repo.searchTopics(query);
+    // 远端模式：/topics 全量后按子串筛。demo/本地：内存聚合搜索。
+    if (AppConfig.useRemote) {
+      final async = ref.watch(searchTopicsProvider(query));
+      return async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(
+          child: EmptyState(variant: EmptyStateVariant.generic),
+        ),
+        data: _list,
+      );
+    }
+    return _list(ref.watch(searchRepositoryProvider).searchTopics(query));
+  }
+
+  Widget _list(List<Topic> list) {
     if (list.isEmpty) {
       return const Center(
         child: EmptyState(variant: EmptyStateVariant.generic),
@@ -871,8 +892,7 @@ class _TopicsTab extends ConsumerWidget {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: KkSpacing.sm),
       itemCount: list.length,
-      itemBuilder: (context, i) =>
-          _TopicRow(topic: list[i], query: query),
+      itemBuilder: (context, i) => _TopicRow(topic: list[i], query: query),
     );
   }
 }
@@ -894,8 +914,7 @@ class _TopicRow extends StatelessWidget {
         ),
         decoration: const BoxDecoration(
           color: KkColors.bgCard,
-          border:
-              Border(bottom: BorderSide(color: KkColors.divider)),
+          border: Border(bottom: BorderSide(color: KkColors.divider)),
         ),
         child: Row(
           children: [
@@ -923,8 +942,7 @@ class _TopicRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right,
-                size: 18, color: KkColors.t3),
+            const Icon(Icons.chevron_right, size: 18, color: KkColors.t3),
           ],
         ),
       ),
@@ -991,8 +1009,7 @@ class _CorrectionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: KkSpacing.sm),
-            const Icon(Icons.chevron_right,
-                size: 18, color: KkColors.t3),
+            const Icon(Icons.chevron_right, size: 18, color: KkColors.t3),
           ],
         ),
       ),

@@ -58,6 +58,9 @@ class Project(TimestampMixin, Base):
     source_platform: Mapped[Optional[str]] = mapped_column(String(50))
     original_author_name: Mapped[Optional[str]] = mapped_column(String(100))
     original_author_url: Mapped[Optional[str]] = mapped_column(Text)
+    # 体验链接：作者自己作品的可去用地址（网站/app），前端「去体验」直接打开。
+    # 与 source_url（采集源，不留出处、不展示）分开——这是可对外展示的、让人去用的链接。
+    try_url: Mapped[Optional[str]] = mapped_column(Text)
 
     # PRD §8.5：主封面单独一个字段（发布准入要求必有，DB 层放宽以容纳草稿，准入在 API 层校验）
     cover_media_url: Mapped[Optional[str]] = mapped_column(Text)

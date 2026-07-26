@@ -6,27 +6,28 @@ import '../../core/config/app_config.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/utils/time_ago.dart';
-import '../../core/widgets/skeletons.dart';
 import '../../core/widgets/tappable.dart';
+import '../../data/api/interactions_api.dart';
 import '../../domain/models/models.dart';
-import '../../domain/repositories/project_repository.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/remote_project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/empty_state.dart';
+import '../shared/list_state_views.dart';
 import '../shared/project_card.dart';
+import '../shared/remote_error.dart';
 
-/// 收藏屏 — HANDOFF §6.3 双档:收藏 + 我拿走的。
+/// 鏀惰棌灞?鈥?HANDOFF 搂6.3 鍙屾。:鏀惰棌 + 鎴戞嬁璧扮殑銆?
 ///
-/// 双 Tab:
-///   - 收藏  appState.savedProjectIds → ProjectCard.compact
-///   - 我拿走的  appState.savedTakeaways,按 文本/文件/链接 三档子分类
+/// 鍙?Tab:
+///   - 鏀惰棌  appState.savedProjectIds 鈫?ProjectCard.compact
+///   - 鎴戞嬁璧扮殑  appState.savedTakeaways,鎸?鏂囨湰/鏂囦欢/閾炬帴 涓夋。瀛愬垎绫?
 ///
-/// 「我拿走的」是 HANDOFF §6.3 强需求(Web 版完全没有):存下了得有地方找回。
-/// 按 kind 分类展示,点条目能跳回原项目,长按删除。
+/// 銆屾垜鎷胯蛋鐨勩€嶆槸 HANDOFF 搂6.3 寮洪渶姹?Web 鐗堝畬鍏ㄦ病鏈?:瀛樹笅浜嗗緱鏈夊湴鏂规壘鍥炪€?
+/// 鎸?kind 鍒嗙被灞曠ず,鐐规潯鐩兘璺冲洖鍘熼」鐩?闀挎寜鍒犻櫎銆?
 ///
-/// 计数铁律(HANDOFF §6.10):tab 标签上的数字 = 真实数组长度,不放大。
-/// 零旁白(HANDOFF §3):空状态用 EmptyState,无"快去收藏点东西"引导。
+/// 璁℃暟閾佸緥(HANDOFF 搂6.10):tab 鏍囩涓婄殑鏁板瓧 = 鐪熷疄鏁扮粍闀垮害,涓嶆斁澶с€?
+/// 闆舵梺鐧?HANDOFF 搂3):绌虹姸鎬佺敤 EmptyState,鏃?蹇幓鏀惰棌鐐逛笢瑗?寮曞銆?
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -38,8 +39,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabCtrl;
 
-  /// 加载态:Phase 5 接真后端时,把这个 _loading 切到真 await 网络请求即可。
-  /// 现在 mock 数据是同步的,300ms 假延迟让骨架屏有展示机会。
+  /// 鍔犺浇鎬?Phase 5 鎺ョ湡鍚庣鏃?鎶婅繖涓?_loading 鍒囧埌鐪?await 缃戠粶璇锋眰鍗冲彲銆?
+  /// 鐜板湪 mock 鏁版嵁鏄悓姝ョ殑,300ms 鍋囧欢杩熻楠ㄦ灦灞忔湁灞曠ず鏈轰細銆?
   bool _loading = true;
 
   @override
@@ -47,7 +48,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     super.initState();
     _tabCtrl = TabController(length: 2, vsync: this);
     if (AppConfig.useRemote) {
-      // 远端有真实加载态，不摆 300ms 假骨架。
+      // 杩滅鏈夌湡瀹炲姞杞芥€侊紝涓嶆憜 300ms 鍋囬鏋躲€?
       _loading = false;
     } else {
       Future.delayed(const Duration(milliseconds: 300), () {
@@ -66,45 +67,45 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   @override
   Widget build(BuildContext context) {
     final appState = ref.watch(appStateProvider);
-    final repo = ref.watch(projectRepositoryProvider);
-    // 与 _SavedTab 同源计算 effective 列表(真实收藏空 → mock 兜底),
-    // tab 计数取 effective.length,杜绝"收藏 0 但列出多条"矛盾
-    // (HANDOFF §6.10 真实计数 + 列表同源)。
+    // effective = 鍚庣鏉ョ殑鐪熷疄鏀惰棌锛坮emoteFavoritesProvider锛孶UID 瀹屾暣鍗＄墖锛屽惈 author+counts锛夛紝
+    // 鎸?savedIds 杩囨护銆傛敹钘忓繀椤荤櫥褰曪紙product-ia 搂2锛夛紝娓稿/鏈櫥褰?savedIds 涓虹┖ 鈫?鏀惰棌椤典负绌猴紝
+    // **涓嶅洖钀?mock 婕旂ず鏀惰棌**锛堟棭鏈熸浘鏈?mock 鍏滃簳锛屽凡鍘绘帀锛泃ab 璁℃暟涓庡垪琛ㄥ悓婧愶紝鍙?effective.length锛夈€?
+    // 涔愯鍙栨秷鏀惰棌锛堜粠 savedIds 绉婚櫎锛夊嵆鏃堕殣钘忥紝鏃犻渶绛?provider 閲嶆媺銆?
     final savedIds = appState.savedProjectIds;
-    // 真实收藏 = 后端来的 UUID 收藏完整卡片(remoteFavoritesProvider,含 author+counts)
-    //   + mock repo 里命中的短 id 演示收藏。两者不重叠(UUID 不在 mock repo)。
-    // 按 savedIds 过滤远程收藏卡:乐观取消收藏(从 savedIds 移除)即时隐藏,
-    // 无需等 provider 重拉(indexedStack 下收藏屏常驻、autoDispose 不会及时释放)。
-    final remoteFavs = (ref.watch(remoteFavoritesProvider).value ?? const <Project>[])
+    final remoteFavorites = ref.watch(remoteFavoritesProvider);
+    final remoteFavs = (remoteFavorites.value ?? const <Project>[])
         .where((p) => savedIds.contains(p.id));
-    final mockFavs = repo.all().where((p) => savedIds.contains(p.id));
-    final realSaved = <Project>[...remoteFavs, ...mockFavs]
-      ..sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
-    final effective = realSaved.isEmpty
-        ? <Project>[
-            ...repo.byAuthor('chen'),
-            ...repo.byAuthor('lin'),
-          ].take(4).toList()
-        : realSaved;
+    final realSaved = <Project>[...remoteFavs];
+    final effective = realSaved;
 
     return Column(
       children: [
         _topBar(),
-        // loading 时锁住 Tab,避免在骨架屏期间切 Tab。
+        // loading 鏃堕攣浣?Tab,閬垮厤鍦ㄩ鏋跺睆鏈熼棿鍒?Tab銆?
         IgnorePointer(
           ignoring: _loading,
           child: _tabBar(),
         ),
         Expanded(
           child: ColoredBox(
-            // 任务②:列表区 bg2 底,卡片 bgCard "浮"起来
+            // 浠诲姟鈶?鍒楄〃鍖?bg2 搴?鍗＄墖 bgCard "娴?璧锋潵
             color: KkColors.bgSubtle,
             child: _loading
                 ? _skeletonList()
                 : TabBarView(
                     controller: _tabCtrl,
                     children: [
-                      _SavedTab(effective: effective),
+                      _SavedTab(
+                        effective: effective,
+                        loading: AppConfig.useRemote &&
+                            remoteFavorites.isLoading &&
+                            savedIds.isNotEmpty,
+                        error: AppConfig.useRemote && savedIds.isNotEmpty
+                            ? remoteFavorites.error
+                            : null,
+                        onRetry: () async =>
+                            ref.invalidate(remoteFavoritesProvider),
+                      ),
                       const _TakeawayTab(),
                     ],
                   ),
@@ -114,18 +115,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  // ── 加载态骨架屏:3 个 ProjectCardSkeleton,与 _SavedTab 列表边距一致 ──
-  // _SavedTab 的 ProjectCard.compact 自带边距,这里 ProjectCardSkeleton
-  // 外层包 KkSpacing.lg 横向 + sm 顶,3 个之间 md 间距,模拟真实收藏列表观感。
+  // 鈹€鈹€ 鍔犺浇鎬侀鏋跺睆:3 涓?ProjectCardSkeleton,涓?_SavedTab 鍒楄〃杈硅窛涓€鑷?鈹€鈹€
+  // _SavedTab 鐨?ProjectCard.compact 鑷甫杈硅窛,杩欓噷 ProjectCardSkeleton
+  // 澶栧眰鍖?KkSpacing.lg 妯悜 + sm 椤?3 涓箣闂?md 闂磋窛,妯℃嫙鐪熷疄鏀惰棌鍒楄〃瑙傛劅銆?
   Widget _skeletonList() {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(
+    return const ProjectListSkeleton(
+      padding: EdgeInsets.symmetric(
         horizontal: KkSpacing.lg,
         vertical: KkSpacing.sm,
       ),
-      itemCount: 3,
-      separatorBuilder: (_, __) => const SizedBox(height: KkSpacing.lg),
-      itemBuilder: (_, __) => const ProjectCardSkeleton(),
     );
   }
 
@@ -137,7 +135,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ),
       child: Row(
         children: [
-          // 任务②:标题后 6×6 teal 品牌点
+          // 浠诲姟鈶?鏍囬鍚?6脳6 teal 鍝佺墝鐐?
           Text('收藏', style: KkType.h1),
           const SizedBox(width: 7),
           Container(
@@ -182,15 +180,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 }
 
-// ── 收藏 Tab ──
+// 鈹€鈹€ 鏀惰棌 Tab 鈹€鈹€
 class _SavedTab extends StatelessWidget {
-  /// 父级已算好的有效列表(真实收藏或 mock 兜底),与 tab 计数同源。
+  /// 鐖剁骇宸茬畻濂界殑鏈夋晥鍒楄〃(鐪熷疄鏀惰棌鎴?mock 鍏滃簳),涓?tab 璁℃暟鍚屾簮銆?
   final List<Project> effective;
+  final bool loading;
+  final Object? error;
+  final Future<void> Function() onRetry;
 
-  const _SavedTab({required this.effective});
+  const _SavedTab({
+    required this.effective,
+    required this.loading,
+    required this.error,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (loading) {
+      return const ProjectListSkeleton(
+        padding: EdgeInsets.fromLTRB(
+          KkSpacing.lg,
+          KkSpacing.sm,
+          KkSpacing.lg,
+          KkSpacing.xxxl,
+        ),
+      );
+    }
+    if (error != null && effective.isEmpty) {
+      return RemoteError(
+        message: '收藏加载失败',
+        error: error,
+        onRetry: onRetry,
+      );
+    }
     if (effective.isEmpty) {
       return ListView(
         children: const [EmptyState(variant: EmptyStateVariant.saved)],
@@ -199,7 +222,10 @@ class _SavedTab extends StatelessWidget {
 
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(
-        KkSpacing.lg, KkSpacing.sm, KkSpacing.lg, KkSpacing.xxxl + KkSpacing.md,
+        KkSpacing.lg,
+        KkSpacing.sm,
+        KkSpacing.lg,
+        KkSpacing.xxxl + KkSpacing.md,
       ),
       itemCount: effective.length,
       separatorBuilder: (_, __) => const SizedBox(height: KkSpacing.lg),
@@ -208,7 +234,7 @@ class _SavedTab extends StatelessWidget {
   }
 }
 
-// ── 我拿走的 Tab ──
+// 鈹€鈹€ 鎴戞嬁璧扮殑 Tab 鈹€鈹€
 class _TakeawayTab extends ConsumerStatefulWidget {
   const _TakeawayTab();
 
@@ -217,39 +243,73 @@ class _TakeawayTab extends ConsumerStatefulWidget {
 }
 
 class _TakeawayTabState extends ConsumerState<_TakeawayTab> {
-  String _filter = 'all'; // all | text | file | link
+  String _filter = 'all'; // all | visit | material
 
   static const _filters = <(String, String)>[
     ('全部', 'all'),
-    ('文本', 'text'),
-    ('文件', 'file'),
-    ('链接', 'link'),
+    ('去看看', 'visit'),
+    ('存素材', 'material'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final appState = ref.watch(appStateProvider);
-    final all = appState.savedTakeaways;
-    final list = _filter == 'all'
-        ? all
-        : all.where((t) => t.kind == _filter).toList();
+    final remoteTryAsync = ref.watch(remoteTryItemsProvider);
+    final remoteTryProjects = remoteTryAsync.value ?? const <TryProjectItem>[];
+    final remoteTryTakeaways = remoteTryProjects.map((item) {
+      final p = item.project;
+      return SavedTakeaway(
+        id: 'try-${p.id}',
+        projectId: p.id,
+        projectTitle: p.title,
+        domain: p.domain,
+        kind: 'link',
+        source: p.tryUrl?.isNotEmpty == true ? p.tryUrl! : p.summary,
+        label: p.status == 'published' ? '去看看' : '去看看 · 来源不可访问',
+        savedAtMs: item.triedAtMs,
+      );
+    });
+    final byId = <String, SavedTakeaway>{
+      for (final t in remoteTryTakeaways) t.id: t,
+      for (final t in appState.savedTakeaways) t.id: t,
+    };
+    final all = byId.values.toList()
+      ..sort((a, b) => b.savedAtMs.compareTo(a.savedAtMs));
+    final list = switch (_filter) {
+      'visit' => all.where((t) => t.id.startsWith('try-')).toList(),
+      'material' => all.where((t) => !t.id.startsWith('try-')).toList(),
+      _ => all,
+    };
 
     return Column(
       children: [
         _filterBar(),
         Expanded(
-          child: list.isEmpty
-              ? ListView(
-                  children: const [
-                    EmptyState(variant: EmptyStateVariant.takeaway),
-                  ],
-                )
-              : ListView.builder(
-                  itemCount: list.length,
-                  itemBuilder: (context, i) => _TakeawayTile(
-                    takeaway: list[i],
-                  ),
-                ),
+          child: AppConfig.useRemote &&
+                  remoteTryAsync.isLoading &&
+                  appState.savedTakeaways.isEmpty
+              ? const CompactListSkeleton()
+              : AppConfig.useRemote &&
+                      remoteTryAsync.error != null &&
+                      list.isEmpty
+                  ? RemoteError(
+                      message: '素材加载失败',
+                      error: remoteTryAsync.error,
+                      onRetry: () async =>
+                          ref.invalidate(remoteTryItemsProvider),
+                    )
+                  : list.isEmpty
+                      ? ListView(
+                          children: const [
+                            EmptyState(variant: EmptyStateVariant.takeaway),
+                          ],
+                        )
+                      : ListView.builder(
+                          itemCount: list.length,
+                          itemBuilder: (context, i) => _TakeawayTile(
+                            takeaway: list[i],
+                          ),
+                        ),
         ),
       ],
     );
@@ -278,7 +338,7 @@ class _TakeawayTabState extends ConsumerState<_TakeawayTab> {
                 vertical: KkSpacing.sm,
               ),
               decoration: BoxDecoration(
-                // 任务②:激活态 bg2 底 + bd 边框 + t1 加粗(原型克制风)
+                // 浠诲姟鈶?婵€娲绘€?bg2 搴?+ bd 杈规 + t1 鍔犵矖(鍘熷瀷鍏嬪埗椋?
                 color: selected ? KkColors.bgSubtle : Colors.transparent,
                 borderRadius: BorderRadius.circular(KkRadius.pill),
                 border: Border.all(color: KkColors.bd),
@@ -288,8 +348,7 @@ class _TakeawayTabState extends ConsumerState<_TakeawayTab> {
                   label,
                   style: KkType.bodySm.copyWith(
                     color: selected ? KkColors.t1 : KkColors.t2,
-                    fontWeight:
-                        selected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),
@@ -301,7 +360,7 @@ class _TakeawayTabState extends ConsumerState<_TakeawayTab> {
   }
 }
 
-// ── 拿走条目 ──
+// 鈹€鈹€ 鎷胯蛋鏉＄洰 鈹€鈹€
 class _TakeawayTile extends ConsumerWidget {
   final SavedTakeaway takeaway;
 
@@ -310,9 +369,18 @@ class _TakeawayTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (icon, kindLabel, color) = _meta(takeaway.kind);
+    final unavailable = takeaway.label?.contains('来源不可访问') == true;
 
     return Tappable(
-      onTap: () => context.push(KkRoutes.detail(takeaway.projectId)),
+      onTap: () {
+        if (unavailable) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(content: Text('来源作品已不可访问')),
+          );
+          return;
+        }
+        context.push(KkRoutes.detail(takeaway.projectId));
+      },
       onLongPress: () => _showDeleteMenu(context, ref),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -326,7 +394,7 @@ class _TakeawayTile extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // kind 图标
+            // kind 鍥炬爣
             Container(
               width: 36,
               height: 36,
@@ -337,13 +405,13 @@ class _TakeawayTile extends ConsumerWidget {
               child: Icon(icon, size: 18, color: color),
             ),
             const SizedBox(width: KkSpacing.md),
-            // 内容
+            // 鍐呭
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 项目标题 + kind 标签
+                  // 椤圭洰鏍囬 + kind 鏍囩
                   Row(
                     children: [
                       Expanded(
@@ -377,20 +445,19 @@ class _TakeawayTile extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // source 预览
+                  // source 棰勮
                   Text(
                     takeaway.source,
                     style: KkType.bodySm.copyWith(
                       color: KkColors.t3,
-                      fontFamily: takeaway.kind == 'text'
-                          ? 'JetBrainsMono'
-                          : null,
+                      fontFamily:
+                          takeaway.kind == 'text' ? 'JetBrainsMono' : null,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  // label + 时间
+                  // label + 鏃堕棿
                   Row(
                     children: [
                       if (takeaway.label != null) ...[
@@ -428,9 +495,7 @@ class _TakeawayTile extends ConsumerWidget {
           children: [
             Tappable(
               onTap: () {
-                ref
-                    .read(appStateProvider.notifier)
-                    .removeTakeaway(takeaway.id);
+                ref.read(appStateProvider.notifier).removeTakeaway(takeaway.id);
                 Navigator.pop(context);
               },
               child: Container(

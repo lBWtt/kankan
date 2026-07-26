@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.utils import log_business
 from app.models import HowToInterest, Notification, Project, ProjectReaction, User
+from app.services.notify import push_interaction
 
 logger = logging.getLogger("app.interactions")
 
@@ -72,9 +73,16 @@ def remove_user_link(db: Session, model: Type, user: User, project_id: uuid.UUID
 # ---------- 创意反馈（user+project+type 唯一，可取消 toggle） ----------
 
 
+_REACTION_LABEL = {
+    "creative": "觉得你的作品很有创意",
+    "big_brain": "觉得你的作品很有脑洞",
+    "cool": "觉得你的作品很酷",
+}
+
+
 def add_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: str) -> uuid.UUID:
     """幂等新增创意反馈：返回记录 ID。"""
-    get_published_project(db, project_id)
+    project = get_published_project(db, project_id)
     exists = db.scalar(
         select(ProjectReaction.id)
         .where(
@@ -88,6 +96,12 @@ def add_reaction(db: Session, user: User, project_id: uuid.UUID, reaction_type: 
         return exists
     row = ProjectReaction(user_id=user.id, project_id=project_id, reaction_type=reaction_type)
     db.add(row)
+    # 互动通知：新反馈才通知作者（与 row 同事务，并发撞唯一约束回滚时通知一并作废）。
+    push_interaction(
+        db, recipient_id=project.author_user_id, actor=user,
+        title=f"{user.nickname} {_REACTION_LABEL.get(reaction_type, '赞了你的作品')}",
+        body=f"《{project.title}》", project_id=project.id,
+    )
     try:
         db.commit()
     except IntegrityError as e:
@@ -194,14 +208,14 @@ def _route_demand(db: Session, project: Project, actor: Optional[User], count: i
     if actor is not None and actor.id == project.author_user_id:
         return  # 作者点自己的项目不通知自己
 
-    title = "有人想看你怎么做"
-    body = f"《{project.title}》已累计 {count} 人想看怎么做"
+    title = "有人想试你的作品"
+    body = f"《{project.title}》已累计 {count} 人想试"
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     existing = db.scalar(
         select(Notification)
         .where(
             Notification.user_id == project.author_user_id,
-            Notification.type == "how_to_interest",
+            Notification.type == "want_to_try",
             Notification.project_id == project.id,
             Notification.created_at >= today_start,
         )
@@ -216,7 +230,7 @@ def _route_demand(db: Session, project: Project, actor: Optional[User], count: i
         db.add(
             Notification(
                 user_id=project.author_user_id,
-                type="how_to_interest",
+                type="want_to_try",
                 title=title,
                 body=body,
                 project_id=project.id,

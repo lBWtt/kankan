@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -6,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/pagination/infinite_scroll.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
+import '../../core/utils/login_gate.dart';
 import '../../core/utils/parse_count.dart';
 import '../../core/widgets/cover_art.dart';
 import '../../core/widgets/tappable.dart';
@@ -17,7 +20,6 @@ import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
 import '../shared/empty_state.dart';
-import '../shared/project_card.dart';
 import '../shared/remote_error.dart';
 
 /// 看看「推荐」Tab —— 小红书式双栏瀑布流。
@@ -37,9 +39,8 @@ class RecommendMasonry extends ConsumerStatefulWidget {
 
 class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
   late final ScrollController _scrollCtrl;
-
-  // 全宽大卡数量上限（「极少数」）。
-  static const _heroMax = 2;
+  // 推荐排序种子：每次下拉刷新变一次 → 重排一批，逛起来有新鲜感（不是固定榜单）。
+  int _seed = DateTime.now().microsecondsSinceEpoch & 0x7fffffff;
 
   @override
   void initState() {
@@ -72,7 +73,8 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
     }
     if (state.error != null && state.items.isEmpty) {
       return RemoteError(
-        message: '连不上服务器',
+        message: '加载失败',
+        error: state.error,
         onRetry: () async =>
             ref.read(paginatedProjectsProvider.notifier).refresh(),
       );
@@ -83,11 +85,15 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
     if (widget.domain != null) {
       list = list.where((p) => p.domain == widget.domain).toList();
     }
-    // 推荐排序：按热度（拿走数）降序，其次新→旧。
-    list.sort((a, b) {
-      final c = b.takeawayCount.compareTo(a.takeawayCount);
-      return c != 0 ? c : b.createdAtMs.compareTo(a.createdAtMs);
-    });
+    // 推荐 = 每次下拉都换一批顺序（不是固定榜单）。随机抖动**占主导**（rng*100），
+    // 拿走数/点赞只做很轻的加权——否则高赞项目永远压在最上面、看着「刷新没换」。
+    // _seed 每次刷新变→整批重排，视觉上明显换一批。
+    final rng = Random(_seed);
+    final score = <String, double>{
+      for (final p in list)
+        p.id: rng.nextDouble() * 100.0 + p.takeawayCount * 0.6 + p.likes * 0.1,
+    };
+    list.sort((a, b) => score[b.id]!.compareTo(score[a.id]!));
 
     if (list.isEmpty) {
       return ListView(
@@ -95,51 +101,31 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
       );
     }
 
-    // 「极少数高价值」= 有拿走数的头部若干条走全宽大卡，其余进双栏瀑布流。
-    final heroes = <Project>[];
-    for (final p in list) {
-      if (heroes.length >= _heroMax) break;
-      if (p.takeawayCount > 0) heroes.add(p);
-    }
-    final rest = list.where((p) => !heroes.contains(p)).toList();
-
+    // 推荐 = 纯双栏瀑布流（决策：不再抽头部全宽大卡，所有项目一视同仁进双栏）。
     return RefreshIndicator(
       color: KkColors.teal,
       onRefresh: () async {
+        // 下拉刷新：换种子 → 重排一批（这就是「刷新换内容」）；同时重拉后端拿新增。
+        setState(() => _seed = DateTime.now().microsecondsSinceEpoch & 0x7fffffff);
         await ref.read(paginatedProjectsProvider.notifier).refresh();
       },
       child: CustomScrollView(
         controller: _scrollCtrl,
         slivers: [
-          // 全宽大卡（极少数高价值）
-          if (heroes.isNotEmpty)
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                  KkSpacing.lg, KkSpacing.sm, KkSpacing.lg, 0),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) => Padding(
-                    padding: const EdgeInsets.only(bottom: KkSpacing.lg),
-                    child: ProjectCard(project: heroes[i], showAuthor: true),
-                  ),
-                  childCount: heroes.length,
-                ),
-              ),
-            ),
           // 双栏瀑布流
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
-                KkSpacing.md, KkSpacing.xs, KkSpacing.md, KkSpacing.xxl),
+                KkSpacing.md, KkSpacing.sm, KkSpacing.md, KkSpacing.xxl),
             sliver: SliverMasonryGrid.count(
               crossAxisCount: 2,
               mainAxisSpacing: KkSpacing.md,
               crossAxisSpacing: KkSpacing.md,
-              childCount: rest.length + 1,
+              childCount: list.length + 1,
               itemBuilder: (context, i) {
-                if (i == rest.length) {
+                if (i == list.length) {
                   return LoadMoreIndicator(enabled: state.isLoadingMore);
                 }
-                return _MasonryCard(project: rest[i]);
+                return _MasonryCard(project: list[i]);
               },
             ),
           ),
@@ -233,16 +219,29 @@ class _MasonryCard extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Icon(
-                        isLiked ? Icons.favorite : Icons.favorite_border,
-                        size: 13,
-                        color: isLiked ? KkColors.like : KkColors.t3,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        formatCount(likeCount),
-                        style: KkType.mono.copyWith(
-                            fontSize: 11, color: KkColors.t3),
+                      // 直接点赞：点卡片右下角爱心即赞/取消（乐观本地 toggle），不用进详情。
+                      GestureDetector(
+                        onTap: () {
+                          if (!guardLogin(context, ref)) return;
+                          ref.read(appStateProvider.notifier).toggleLike(project.id);
+                        },
+                        behavior: HitTestBehavior.opaque,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              size: 15,
+                              color: isLiked ? KkColors.like : KkColors.t3,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              formatCount(likeCount),
+                              style: KkType.mono.copyWith(
+                                  fontSize: 11, color: KkColors.t3),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

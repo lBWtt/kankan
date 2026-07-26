@@ -90,6 +90,17 @@ app.include_router(api_v1_router)
 os.makedirs(settings.upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
+# 内部内容审核台（Web）：纯静态单页，同源托管，只调 /api/v1/admin/* 现成接口。
+# 单独做成网页而非塞进 App——审核是运营工具，不该跟着用户包发出去（安全 + 迭代节奏）。
+# 打开 http://<host>/admin-web/ ；接口本身有 admin_required 兜底，页面可见不等于可操作。
+# 生产默认关闭：dev 下默认挂出方便本地审核；非 dev（prod）默认**不挂**，必须显式
+# ADMIN_WEB_ENABLED=1 才挂——避免"忘了关"让审核台公网可见（接口有 admin_required 兜底，
+# 但页面本身不该裸露）。要在生产开放，请配合 IP 白名单/内网/Cloudflare Access。
+_admin_web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "admin_web")
+_admin_web_default = "1" if settings.app_env == "dev" else "0"
+if os.getenv("ADMIN_WEB_ENABLED", _admin_web_default) == "1" and os.path.isdir(_admin_web_dir):
+    app.mount("/admin-web", StaticFiles(directory=_admin_web_dir, html=True), name="admin-web")
+
 
 @app.get("/health", tags=["运维"])
 def health():

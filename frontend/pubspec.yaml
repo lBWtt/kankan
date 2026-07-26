@@ -3,7 +3,7 @@
 name: kankan_flutter
 description: 看看 — 看 AI 做出的有意思的东西 + 心得。Flutter 原生版。
 publish_to: 'none'
-version: 0.2.0+1
+version: 0.2.1+2
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -105,6 +105,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # 本地 mock 封面图（demo/非 remote 模式用；远端模式走后端 /uploads，不用这些）。
+  # 断网也能显示，避免旧的 picsum/chatglm 外链破图 + 图文不符。
+  assets:
+    - assets/mock/
+
   # P2-i18n:启用 flutter gen-l10n(配合 l10n.yaml)。
   # 当前 app 文案由 lib/l10n/kk_strings.dart 手写(免 codegen,沙箱无 flutter SDK 也能编译);
   # 同时保留 lib/l10n/app_zh.arb / app_en.arb 作为切 gen-l10n 时的源(两路并行维护)。

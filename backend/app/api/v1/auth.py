@@ -14,6 +14,7 @@ from app.api.deps import ERRORS_PUBLIC
 from app.core.config import dev_login_enabled
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.handle import generate_handle
 from app.core.net import client_ip
 from app.core.ratelimit import rate_limit
 from app.core.redis import redis_client
@@ -31,6 +32,20 @@ RESEND_INTERVAL_SECONDS = 60  # 同一标识 60 秒只能发一条
 MAX_CODE_ATTEMPTS = 5         # 同一标识连续验证码错误上限，超出锁定（防 6 位码撞库）
 CODE_ATTEMPT_WINDOW_SECONDS = 600  # 锁定/计数窗口 10 分钟
 DEV_UNIVERSAL_CODE = "888888"  # 仅 dev 且 JWT 为默认密钥时接受（见 config.dev_login_enabled）
+# dev 便捷登录：任意手机号 + 888 直接进管理员、+ 777 进普通用户（免记专用管理员账号）。
+# 与 888888 同门槛（仅 dev + 默认 JWT 密钥），换过 JWT_SECRET 或上 prod 立即失效。
+DEV_ADMIN_CODE = "888"
+DEV_NORMAL_CODE = "777"
+DEV_TEST_ACCOUNTS = {
+    "1": ("phone", "17700000001", "测试用户一", False),
+    "2": ("phone", "17700000002", "测试用户二", False),
+    "3": ("phone", "17700000003", "测试用户三", False),
+    "4": ("phone", "17700000004", "测试用户四", False),
+    "5": ("phone", "17700000005", "测试用户五", False),
+    "6": ("phone", "17700000006", "测试用户六", False),
+    "777": ("phone", "17700000777", "测试用户", False),
+    "888": ("phone", "18800000888", "测试管理员", True),
+}
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _PHONE_RE = re.compile(r"^\+?\d{5,20}$")
@@ -116,7 +131,10 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         raise AppError(429, "RATE_LIMITED", "验证码尝试次数过多，请 10 分钟后再试")
 
     stored = redis_client.get(code_key)
-    dev_ok = dev_login_enabled() and body.code == DEV_UNIVERSAL_CODE
+    dev_account = DEV_TEST_ACCOUNTS.get(body.code)
+    dev_ok = dev_login_enabled() and (
+        body.code == DEV_UNIVERSAL_CODE or dev_account is not None
+    )
     # compare_digest：常量时间比较，杜绝逐位试探的时序侧信道（配合 5 次锁是双保险）
     code_ok = stored is not None and secrets.compare_digest(str(stored), body.code)
     if not dev_ok and not code_ok:
@@ -129,23 +147,45 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     redis_client.delete(code_key)
     redis_client.delete(fail_key)  # 登录成功清空失败计数
 
-    field = User.email if body.identifier_type.value == "email" else User.phone
+    # dev 便捷登录：888/777 固定映射到同一个测试账号——不管你填什么手机号，888 永远是同一个
+    # 管理员、777 永远是同一个普通用户。避免"换个手机号就变成新用户、看不到自己刚发的内容"。
+    login_type = body.identifier_type.value
+    login_identifier = body.identifier
+    dev_nickname = None
+    dev_is_admin = None
+    if dev_login_enabled() and dev_account is not None:
+        login_type, login_identifier, dev_nickname, dev_is_admin = dev_account
+
+    field = User.email if login_type == "email" else User.phone
     # 不带 deleted_at 过滤地查：若该手机号/邮箱属于一个已注销账号，直接恢复（清 deleted_at），
     # 而不是新建——否则会撞 email/phone 的唯一约束抛 IntegrityError → 500。
-    user = db.scalar(select(User).where(field == body.identifier))
+    user = db.scalar(select(User).where(field == login_identifier))
     if user is not None and user.deleted_at is not None:
         user.deleted_at = None
         is_new_user = False
     else:
         is_new_user = user is None
         if is_new_user:
+            default_nick = (
+                dev_nickname if dev_nickname is not None
+                else f"创意客{secrets.randbelow(10000):04d}"
+            )
             user = User(
-                email=body.identifier if body.identifier_type.value == "email" else None,
-                phone=body.identifier if body.identifier_type.value == "phone" else None,
-                nickname=f"创意客{secrets.randbelow(10000):04d}",
+                email=login_identifier if login_type == "email" else None,
+                phone=login_identifier if login_type == "phone" else None,
+                nickname=default_nick,
             )
             db.add(user)
             db.flush()
+            # 注册即发默认 @handle（u + uuid 前 8 位）；用户可在编辑资料改成好记的。
+            if not user.handle:
+                user.handle = generate_handle(user.id)
+
+    # 固定测试账号的角色每次登录都对齐（888 管理员 / 777 普通）。
+    if dev_nickname is not None:
+        user.nickname = dev_nickname
+    if dev_is_admin is not None:
+        user.is_admin = dev_is_admin
 
     if body.anon_client_id:
         _merge_anon_records(db, user, body.anon_client_id)

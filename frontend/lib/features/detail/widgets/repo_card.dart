@@ -52,19 +52,10 @@ class RepoCard extends StatelessWidget {
                     Text(repo.description!, style: KkType.bodySm),
                     const SizedBox(height: KkSpacing.sm),
                   ],
-                  // stars + language
-                  Row(
-                    children: [
-                      const Icon(Icons.star_outline,
-                          size: 14, color: KkColors.t3),
-                      const SizedBox(width: 3),
-                      Text(
-                        _fmtStars(repo.stars),
-                        style: KkType.mono.copyWith(fontSize: 12),
-                      ),
-                      // 语言为空(后端不返回主语言时)不显示那段圆点+文字。
-                      if (repo.language.isNotEmpty) ...[
-                        const SizedBox(width: KkSpacing.lg),
+                  // 语言（GitHub star 数在 App 里不刷新、恒为 0，按用户反馈直接不显示；只留语言）
+                  if (repo.language.isNotEmpty)
+                    Row(
+                      children: [
                         Container(
                           width: 8,
                           height: 8,
@@ -79,8 +70,7 @@ class RepoCard extends StatelessWidget {
                           style: KkType.mono.copyWith(fontSize: 12),
                         ),
                       ],
-                    ],
-                  ),
+                    ),
                 ],
               ),
             ),
@@ -91,11 +81,6 @@ class RepoCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _fmtStars(int n) {
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
-    return n.toString();
   }
 
   Future<void> _openUrl(String url) async {

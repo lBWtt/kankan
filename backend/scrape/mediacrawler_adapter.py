@@ -22,13 +22,47 @@ import glob
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
+
+from collection_standard import parse_count  # 同目录，脚本运行时 scrape/ 在 sys.path
 
 # MediaCrawler 的 PLATFORM 目录名 → 我们候选池里的 source_platform 友好名
 PLATFORM_SOURCE_NAME = {
     "xhs": "xiaohongshu",
     "dy": "douyin",
 }
+
+# MediaCrawler 存数据的目录名：xhs 用缩写 "xhs"，但抖音用全名 "douyin"（不是 config 的 "dy"）——
+# 两边不一致，这里显式映射，否则 --platform dy 会去空的 data/dy/ 找不到文件。
+PLATFORM_STORE_DIR = {
+    "xhs": "xhs",
+    "dy": "douyin",
+}
+
+
+def _ms_to_iso(ts) -> Optional[str]:
+    """时间戳 → ISO 字符串（发布时间，供时效判断/排序）。兼容毫秒（小红书，13位）
+    和秒（抖音 create_time，10位）：>1e12 视为毫秒。拿不到就 None。"""
+    try:
+        n = int(ts)
+    except (TypeError, ValueError):
+        return None
+    try:
+        return datetime.fromtimestamp(n / 1000 if n > 1_000_000_000_000 else n,
+                                      tz=timezone.utc).isoformat()
+    except (ValueError, OSError):
+        return None
+
+
+def _engagement(row: Dict, likes_key: str, collects_key: str) -> dict:
+    """抽取互动数（原始串照传，parse_count 在标准里统一解析'10万+'这类）。"""
+    return {
+        "likes": parse_count(row.get(likes_key)),
+        "collects": parse_count(row.get(collects_key)),
+        "comments": parse_count(row.get("comment_count")),
+        "shares": parse_count(row.get("share_count")),
+    }
 
 
 def _split_urls(value) -> List[str]:
@@ -64,6 +98,8 @@ def map_xhs(row: Dict) -> Optional[dict]:
         "source_platform": "xiaohongshu",
         "original_author_name": row.get("nickname") or None,  # 该版 MediaCrawler 已脱敏
         "media": _media(_split_urls(row.get("image_list")), _split_urls(row.get("video_url"))),
+        "engagement": _engagement(row, "liked_count", "collected_count"),
+        "published_at": _ms_to_iso(row.get("time")),
     }
 
 
@@ -73,14 +109,23 @@ def map_dy(row: Dict) -> Optional[dict]:
     title = (row.get("title") or "").strip() or desc.strip()[:40]
     if not url or not title:
         return None
+    # 抖音媒体字段：图文用 note_download_url，视频用 **video_download_url**（不是 video_url），
+    # 封面在 cover_url。视频没图，把封面当第一张图 → 有封面可展示、也让 approve 转存能出封面。
+    images = _split_urls(row.get("note_download_url"))
+    cover = (row.get("cover_url") or "").strip()
+    if cover and cover not in images:
+        images = [cover] + images
+    videos = _split_urls(row.get("video_download_url"))
     return {
         "source_url": url,
         "title": title,
         "text": desc,
         "source_platform": "douyin",
         "original_author_name": row.get("nickname") or None,
-        # 抖音图文用 note_download_url，视频用 video_url
-        "media": _media(_split_urls(row.get("note_download_url")), _split_urls(row.get("video_url"))),
+        "media": _media(images, videos),
+        # 抖音 store 已把 digg_count→liked_count、collect_count→collected_count（与小红书同名）
+        "engagement": _engagement(row, "liked_count", "collected_count"),
+        "published_at": _ms_to_iso(row.get("create_time") or row.get("time")),
     }
 
 
@@ -88,8 +133,9 @@ MAPPERS = {"xhs": map_xhs, "dy": map_dy}
 
 
 def _read_jsonl_files(mc_dir: str, platform: str):
-    """读 MediaCrawler 的内容 jsonl：data/{platform}/jsonl/*_contents_*.jsonl。返回 (rows, files)。"""
-    pattern = os.path.join(mc_dir, "data", platform, "jsonl", "*_contents_*.jsonl")
+    """读 MediaCrawler 的内容 jsonl：data/{存储目录}/jsonl/*_contents_*.jsonl。返回 (rows, files)。"""
+    store_dir = PLATFORM_STORE_DIR.get(platform, platform)
+    pattern = os.path.join(mc_dir, "data", store_dir, "jsonl", "*_contents_*.jsonl")
     files = sorted(glob.glob(pattern))
     rows: List[Dict] = []
     for fp in files:

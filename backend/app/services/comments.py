@@ -17,8 +17,15 @@ from app.core.utils import parse_datetime_cursor
 from app.models import Comment, CommentLike, Post, Project, User
 from app.schemas.comment import CommentOut
 from app.schemas.user import UserBrief
+from app.services.notify import push_interaction
 
 _HOST_TYPES = ("project", "post")
+
+
+def _host_author_id(db: Session, host_type: str, host_id: uuid.UUID) -> Optional[uuid.UUID]:
+    """评论宿主（项目/动态）的作者 id，用于评论通知。"""
+    host = db.get(Project if host_type == "project" else Post, host_id)
+    return host.author_user_id if host is not None else None
 
 
 def _validate_host(db: Session, host_type: str, host_id: uuid.UUID) -> None:
@@ -54,12 +61,22 @@ def _liked_set(db: Session, viewer: Optional[User], comment_ids: List[uuid.UUID]
 
 
 def _to_out(c: Comment, authors: Dict, liked: set, replies: List[CommentOut]) -> CommentOut:
+    if c.deleted_at is not None:
+        return CommentOut(
+            id=c.id, host_type=c.host_type, host_id=c.host_id,
+            author=None,
+            content="内容已删除", likes=0,
+            replies=replies, created_at=c.created_at,
+            is_liked=False,
+            is_deleted=True,
+        )
     return CommentOut(
         id=c.id, host_type=c.host_type, host_id=c.host_id,
         author=authors.get(c.author_user_id),
         content=c.content, likes=c.like_count or 0,
         replies=replies, created_at=c.created_at,
         is_liked=c.id in liked,
+        is_deleted=False,
     )
 
 
@@ -79,6 +96,25 @@ def create_comment(db: Session, user: User, host_type: str, host_id: uuid.UUID,
         content=content, parent_comment_id=parent_comment_id,
     )
     db.add(c)
+
+    # 互动通知（与评论同事务）：通知宿主作者「评论了你的作品/动态」；若是回复，另通知被回复的评论作者。
+    # 用 set 去重：同一个人既是宿主作者又是被回复者时只发一条；push_interaction 内部再滤掉自己。
+    kind_word = "作品" if host_type == "project" else "动态"
+    # 深链落点：项目评论 → project_id；动态评论 → post_id。
+    link_pid = host_id if host_type == "project" else None
+    link_post = host_id if host_type == "post" else None
+    notified: set = set()
+    host_author = _host_author_id(db, host_type, host_id)
+    if host_author is not None:
+        push_interaction(db, recipient_id=host_author, actor=user,
+                         title=f"{user.nickname} 评论了你的{kind_word}",
+                         body=content[:40], project_id=link_pid, post_id=link_post)
+        notified.add(host_author)
+    if parent_comment_id is not None and parent is not None and parent.author_user_id not in notified:
+        push_interaction(db, recipient_id=parent.author_user_id, actor=user,
+                         title=f"{user.nickname} 回复了你的评论",
+                         body=content[:40], project_id=link_pid, post_id=link_post)
+
     db.commit()
     db.refresh(c)
     authors = _authors_map(db, [c.author_user_id])
@@ -139,7 +175,7 @@ def list_comments(db: Session, host_type: str, host_id: uuid.UUID, viewer: Optio
         select(Comment)
         .where(
             Comment.host_type == host_type, Comment.host_id == host_id,
-            Comment.parent_comment_id.is_(None), Comment.deleted_at.is_(None),
+            Comment.parent_comment_id.is_(None),
         )
         .order_by(Comment.created_at.desc(), Comment.id.desc())
     )
@@ -159,7 +195,7 @@ def list_comments(db: Session, host_type: str, host_id: uuid.UUID, viewer: Optio
     if top_ids:
         rep_rows = db.scalars(
             select(Comment).where(
-                Comment.parent_comment_id.in_(top_ids), Comment.deleted_at.is_(None)
+                Comment.parent_comment_id.in_(top_ids)
             ).order_by(Comment.created_at.asc())
         ).all()
         for r in rep_rows:

@@ -24,6 +24,9 @@ abstract class Comment with _$Comment {
     /// 正文
     required String content,
 
+    /// Soft-deleted comments stay visible as a placeholder to preserve context.
+    @Default(false) bool isDeleted,
+
     /// 点赞数(真实)
     @Default(0) int likes,
 

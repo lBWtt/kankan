@@ -63,8 +63,7 @@ class ActionRow extends StatelessWidget {
   /// 编译器强制覆盖,不会漏。
   Widget _render(ActionItem a) {
     return switch (a) {
-      TakeAction(:final source, :final takeKind, :final label) =>
-        _TakeButton(
+      TakeAction(:final source, :final takeKind, :final label) => _TakeButton(
           source: source,
           takeKind: takeKind,
           label: label,
@@ -217,7 +216,7 @@ class _GoButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = label ?? _defaultLabel(url);
     return Tappable(
-      onTap: () => _openUrl(url),
+      onTap: () => _openUrl(context, url),
       borderRadius: BorderRadius.circular(KkRadius.md),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -267,9 +266,28 @@ class _GoButton extends StatelessWidget {
     return '访问';
   }
 
-  Future<void> _openUrl(String url) async {
+  Future<void> _openUrl(BuildContext context, String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
+    final host = uri.host.isNotEmpty ? uri.host : url;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('打开外部链接？'),
+        content: Text(host),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('打开'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
@@ -344,12 +362,10 @@ class _HowButtonState extends State<_HowButton> {
                     child: workflow == null
                         ? Text(
                             '工作流详情暂未提供',
-                            style: KkType.bodySm
-                                .copyWith(color: KkColors.t3),
+                            style: KkType.bodySm.copyWith(color: KkColors.t3),
                           )
                         : Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.stretch,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               // 任务⑤:旧→新流程 + 省下时间叙事对比
@@ -535,8 +551,7 @@ class _FlowSection extends StatelessWidget {
                     style: KkType.bodySm.copyWith(
                       fontSize: 13,
                       color: stepColor,
-                      fontWeight:
-                          stepBold ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: stepBold ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),

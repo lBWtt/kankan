@@ -9,7 +9,11 @@ import '../core/widgets/kk_tab_bar.dart';
 import '../core/widgets/tappable.dart';
 import '../providers/auth_provider.dart';
 import '../features/activity/activity_screen.dart';
+import '../features/admin/admin_candidate_detail_screen.dart';
+import '../features/admin/admin_review_screen.dart';
 import '../features/auth/login_screen.dart';
+import '../features/legal/legal_docs.dart';
+import '../features/legal/legal_screen.dart';
 import '../features/comments/comments_screen.dart';
 import '../features/clue/implementation_clue_screen.dart';
 import '../features/detail/detail_screen.dart';
@@ -65,8 +69,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     // 路由守卫：未登录访问写操作路由 → 跳登录并带 from，登录成功后跳回目标。
     redirect: (context, state) {
       final loc = state.matchedLocation;
-      if (_authRequiredRoutes.contains(loc) &&
-          !ref.read(authProvider).isLoggedIn) {
+      final auth = ref.read(authProvider);
+      if (loc == KkRoutes.login && auth.isLoggedIn) {
+        final from = state.uri.queryParameters['from'];
+        return from != null && from.isNotEmpty ? from : KkRoutes.me;
+      }
+      if (loc.startsWith('/admin') && !auth.isLoggedIn) {
+        final from = Uri.encodeComponent(state.uri.toString());
+        return '${KkRoutes.login}?from=$from';
+      }
+      if (loc.startsWith('/admin') && !auth.isAdmin) {
+        return KkRoutes.me;
+      }
+      if (_authRequiredRoutes.contains(loc) && !auth.isLoggedIn) {
         final from = Uri.encodeComponent(state.uri.toString());
         return '${KkRoutes.login}?from=$from';
       }
@@ -134,7 +149,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: SearchResultsScreen(
-            query: Uri.decodeComponent(state.pathParameters['query']!),
+            // go_router 已对 pathParameters 做过 percent 解码，这里不能再 decode 一次
+            // （二次解码：若 tag/query 含字面 % 会抛 "Illegal percent encoding" 崩溃）。
+            query: state.pathParameters['query']!,
           ),
         ),
       ),
@@ -147,6 +164,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           state: state,
           child: ProfileScreen(
             userId: state.pathParameters['userId']!,
+            // ?tab=projects → 直接落在「项目」tab（我发布的→查看全部 用）。
+            initialTabIndex:
+                state.uri.queryParameters['tab'] == 'projects' ? 1 : 0,
           ),
         ),
       ),
@@ -230,7 +250,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: TopicScreen(
-            tag: Uri.decodeComponent(state.pathParameters['tag']!),
+            // go_router 已解码 pathParameters；不能再 decode（二次解码遇字面 % 会崩溃）。
+            tag: state.pathParameters['tag']!,
           ),
         ),
       ),
@@ -275,6 +296,50 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+      // 用户协议 / 隐私政策（登录页链接 + 设置「关于」入口；上架合规必需）
+      GoRoute(
+        path: KkRoutes.userAgreement,
+        pageBuilder: (context, state) => _kkPage(
+          context: context,
+          state: state,
+          child: const LegalScreen(
+            title: kUserAgreementTitle,
+            body: kUserAgreement,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: KkRoutes.privacyPolicy,
+        pageBuilder: (context, state) => _kkPage(
+          context: context,
+          state: state,
+          child: const LegalScreen(
+            title: kPrivacyPolicyTitle,
+            body: kPrivacyPolicy,
+          ),
+        ),
+      ),
+
+      // 管理员路由始终注册；是否可达由登录态 isAdmin 守卫决定。
+      GoRoute(
+        path: KkRoutes.adminReview,
+        pageBuilder: (context, state) => _kkPage(
+          context: context,
+          state: state,
+          child: const AdminReviewScreen(),
+        ),
+      ),
+      GoRoute(
+        path: KkRoutes.adminCandidatePattern,
+        pageBuilder: (context, state) => _kkPage(
+          context: context,
+          state: state,
+          child: AdminCandidateDetailScreen(
+            candidateId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
       // ── Tab shell(4 branches + FAB)──
       // 不加过渡动画:StatefulShellRoute.indexedStack 靠 builder 保活,
       // 改过渡方式会破坏 indexedStack 的保活机制(HANDOFF §5)。
@@ -291,7 +356,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: KkRoutes.discover,
-                builder: (context, state) => const DiscoverScreen(),
+                builder: (context, state) => DiscoverScreen(
+                  initialTabIndex:
+                      state.uri.queryParameters['tab'] == 'following' ? 1 : 0,
+                ),
               ),
             ],
           ),
@@ -299,7 +367,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: KkRoutes.kankan,
-                builder: (context, state) => const KankanScreen(),
+                builder: (context, state) => KankanScreen(
+                  initialTabIndex:
+                      state.uri.queryParameters['tab'] == 'latest' ? 2 : 1,
+                ),
               ),
             ],
           ),
@@ -410,7 +481,8 @@ class _NotFoundScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.explore_off_outlined, size: 48, color: KkColors.t3),
+              const Icon(Icons.explore_off_outlined,
+                  size: 48, color: KkColors.t3),
               const SizedBox(height: KkSpacing.md),
               Text('页面不存在', style: KkType.body.copyWith(color: KkColors.t2)),
               const SizedBox(height: KkSpacing.lg),

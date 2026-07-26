@@ -14,7 +14,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kankan_flutter/data/dto/project_card_dto.dart';
 import 'package:kankan_flutter/data/remote_user_cache.dart';
-import 'package:kankan_flutter/domain/models/models.dart';
 
 void main() {
   group('projectFromCardJson · 完整 payload', () {

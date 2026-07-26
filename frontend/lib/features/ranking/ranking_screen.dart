@@ -280,9 +280,9 @@ class _RankingScreenState extends ConsumerState<RankingScreen>
   Widget _basisAndFreshnessBar() {
     // 三 Tab 排名依据(如实,与代码排序口径一致)
     const basis = [
-      '大家最认可的 · 按点赞热度', // 0 项目:projectRepository.sorted('hot') 按 likes 降序
-      '聊得最热的 · 按点赞热度', // 1 动态:postRepository.all()..sort likes 降序
-      '最受认可的创作者 · 按累计获赞', // 2 作者:mockAuthorRanking 按总获赞聚合
+      '大家最认可的 · 按点赞热度', // 0 项目:远端 remoteWeeklyHotProvider / mock 按热度
+      '聊得最热的 · 按点赞热度', // 1 动态:按点赞降序
+      '最受认可的创作者 · 按累计获赞', // 2 作者:按总获赞聚合
     ];
     final idx = _tabCtrl.index.clamp(0, 2);
     return Container(
@@ -323,14 +323,15 @@ class _RankingScreenState extends ConsumerState<RankingScreen>
 class _ProjectRankingList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 真数据模式:项目榜读 GET /rankings?type=weekly_hot(埋点→hot_score→真热度)。
-    // 动态榜/作者榜后端暂无(Post/关注是阶段3),仍走 mock。
+    // 真数据模式:三个榜都走后端——项目榜 GET /rankings、动态榜 /rankings/posts、
+    // 作者榜 /rankings/authors（见 rankingsApi）。mock 仅用于未登录/demo 兜底。
     if (AppConfig.useRemote) {
       final async = ref.watch(remoteWeeklyHotProvider);
       return async.when(
         loading: () => const _RankingLoading(),
         error: (e, _) => RemoteError(
           message: '榜单加载失败',
+          error: e,
           onRetry: () async {
             ref.invalidate(remoteWeeklyHotProvider);
           },
@@ -390,9 +391,28 @@ class _RankingLoading extends StatelessWidget {
 class _PostRankingList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 真数据模式：动态榜读 GET /rankings/posts（按赞降序）。
+    if (AppConfig.useRemote) {
+      final async = ref.watch(remoteHotPostsProvider);
+      return async.when(
+        loading: () => const _RankingLoading(),
+        error: (e, _) => RemoteError(
+          message: '动态榜加载失败',
+          error: e,
+          onRetry: () async {
+            ref.invalidate(remoteHotPostsProvider);
+          },
+        ),
+        data: (posts) => _list(context, posts),
+      );
+    }
     // all() 返回 unmodifiable,需 toList() 复制再排序
     final posts = ref.watch(postRepositoryProvider).all().toList()
       ..sort((a, b) => b.likes.compareTo(a.likes));
+    return _list(context, posts);
+  }
+
+  Widget _list(BuildContext context, List<Post> posts) {
     if (posts.isEmpty) {
       return ListView(
         children: const [EmptyState(variant: EmptyStateVariant.generic)],
@@ -408,7 +428,7 @@ class _PostRankingList extends ConsumerWidget {
         final post = posts[i];
         return _RankRow(
           rank: i + 1,
-          rankChange: mockPostRankChange(post.id),
+          rankChange: AppConfig.useRemote ? 0 : mockPostRankChange(post.id),
           child: PostCard(
             post: post,
             onTap: () => context.push(KkRoutes.postDetail(post.id)),
@@ -425,7 +445,25 @@ class _PostRankingList extends ConsumerWidget {
 class _AuthorRanking extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final list = mockAuthorRanking;
+    // 真数据模式：作者榜读 GET /rankings/authors（总获赞 = 项目反应 + 动态赞）。
+    if (AppConfig.useRemote) {
+      final async = ref.watch(remoteTopAuthorsProvider);
+      return async.when(
+        loading: () => const _RankingLoading(),
+        error: (e, _) => RemoteError(
+          message: '作者榜加载失败',
+          error: e,
+          onRetry: () async {
+            ref.invalidate(remoteTopAuthorsProvider);
+          },
+        ),
+        data: _content,
+      );
+    }
+    return _content(mockAuthorRanking);
+  }
+
+  Widget _content(List<AuthorRankingEntry> list) {
     if (list.isEmpty) {
       return ListView(
         children: const [EmptyState(variant: EmptyStateVariant.generic)],
@@ -615,6 +653,10 @@ class _RankChangeChip extends StatelessWidget {
         ),
       );
     }
+
+    // 无升降(change==0，真数据榜没有名次变化数据时恒为 0)→ 不显示 chip，
+    // 避免每行右侧都挂一个没意义的「— 0」噪点。
+    if (change == 0) return const SizedBox.shrink();
 
     final isUp = change > 0;
     final isDown = change < 0;

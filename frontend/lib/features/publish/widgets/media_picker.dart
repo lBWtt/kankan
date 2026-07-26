@@ -48,6 +48,17 @@ class MediaPicker extends StatelessWidget {
           maxDuration: const Duration(minutes: 1),
         );
         if (f != null) {
+          // 先查文件大小再读字节，避免 4K/长视频 readAsBytes 直接 OOM。
+          const maxVideoBytes = 80 * 1024 * 1024; // 80MB
+          final size = await f.length();
+          if (size > maxVideoBytes) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('视频太大（上限 80MB），请压缩后再传')),
+              );
+            }
+            return;
+          }
           final bytes = await f.readAsBytes();
           onPicked(
             MediaItem(
@@ -69,48 +80,111 @@ class MediaPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 空态：大号「画布」主角——薄荷底 + 圆形图标 + 邀请文案（视觉优先，先给作品一个大位置）。
+    if (current.isEmpty) {
+      return GestureDetector(
+        onTap: () => _showPickSheet(context),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          width: double.infinity,
+          height: 216,
+          decoration: BoxDecoration(
+            color: KkColors.mint.withAlpha(90),
+            borderRadius: BorderRadius.circular(KkRadius.lg),
+            border: Border.all(color: KkColors.teal.withAlpha(70), width: 1.4),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: KkColors.teal.withAlpha(30),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add_photo_alternate_outlined,
+                    size: 30, color: KkColors.teal),
+              ),
+              const SizedBox(height: KkSpacing.md),
+              Text('放上你的作品',
+                  style: KkType.body.copyWith(
+                      color: KkColors.teal, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text('图片 · 视频',
+                  style: KkType.bodySm.copyWith(color: KkColors.t3)),
+            ],
+          ),
+        ),
+      );
+    }
+    // 有内容：横向缩略图 + 末尾小加号入口。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 已选媒体预览(视频在前 — toProject 时排序,这里按选择顺序显示)
-        if (current.isNotEmpty) ...[
-          SizedBox(
-            height: 100,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: current.length,
-              separatorBuilder: (_, __) => const SizedBox(width: KkSpacing.sm),
-              itemBuilder: (context, i) {
-                final m = current[i];
-                return _MediaThumb(
-                  media: m,
-                  onRemove: () => onRemoved(i),
-                );
-              },
-            ),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: current.length,
+            separatorBuilder: (_, __) => const SizedBox(width: KkSpacing.sm),
+            itemBuilder: (context, i) {
+              final m = current[i];
+              return _MediaThumb(media: m, onRemove: () => onRemoved(i));
+            },
           ),
-          const SizedBox(height: KkSpacing.md),
-        ],
-
-        // 添加按钮(两个:图 / 视频)
-        Row(
-          children: [
-            _addButton(
-              context,
-              icon: Icons.image_outlined,
-              label: '图片',
-              onTap: () => _pick(context, 'image'),
-            ),
-            const SizedBox(width: KkSpacing.sm),
-            _addButton(
-              context,
-              icon: Icons.video_library_outlined,
-              label: '视频',
-              onTap: () => _pick(context, 'video'),
-            ),
-          ],
+        ),
+        const SizedBox(height: KkSpacing.md),
+        _addButton(
+          context,
+          icon: Icons.add_photo_alternate_outlined,
+          label: '加图片 / 视频',
+          onTap: () => _showPickSheet(context),
         ),
       ],
+    );
+  }
+
+  // 一个入口 → 底部选「图片 / 视频」。
+  void _showPickSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KkColors.bgCard,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _pickSheetItem(sheetCtx, Icons.image_outlined, '图片', 'image'),
+            const Divider(height: 1, color: KkColors.divider, indent: 56),
+            _pickSheetItem(sheetCtx, Icons.video_library_outlined, '视频', 'video'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pickSheetItem(
+      BuildContext sheetCtx, IconData icon, String label, String type) {
+    return Tappable(
+      onTap: () {
+        Navigator.pop(sheetCtx);
+        _pick(sheetCtx, type);
+      },
+      borderRadius: BorderRadius.zero,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          horizontal: KkSpacing.md,
+          vertical: KkSpacing.md,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: KkColors.teal),
+            const SizedBox(width: KkSpacing.md),
+            Text(label, style: KkType.body.copyWith(color: KkColors.t1)),
+          ],
+        ),
+      ),
     );
   }
 

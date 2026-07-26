@@ -13,11 +13,18 @@ abstract class KkUser with _$KkUser {
     required String id,
     required String name,
 
+    /// 稳定用户名 @handle(注册即定、可改;搜索/@/分享用)。改名后仍能靠它搜到人。
+    String? handle,
+
     /// 头像 URL(null 用首字母 fallback)
     String? avatar,
 
     /// 一句话简介
     String? bio,
+
+    String? school,
+
+    int? age,
 
     /// 关注的人 ID 列表
     @Default([]) List<String> followingIds,

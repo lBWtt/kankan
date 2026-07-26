@@ -79,6 +79,8 @@ class _ImageLightboxState extends State<_ImageLightbox> {
                   imageProvider: NetworkImage(widget.urls[index]),
                   minScale: PhotoViewComputedScale.contained,
                   maxScale: PhotoViewComputedScale.covered * 2,
+                  // 单击图片任意处即退出(不用非得点右上角叉叉)。微信/主流图库同款。
+                  onTapUp: (_, __, ___) => Navigator.pop(context),
                   errorBuilder: (_, __, ___) => Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,

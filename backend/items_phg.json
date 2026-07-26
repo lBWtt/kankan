@@ -1,0 +1,662 @@
+[
+  {
+    "source_url": "https://www.producthunt.com/products/acti-2/launches/acti-3?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Acti",
+    "text": "Agentic keyboard for mobile commands and search Type what you need. Hold Acti Bar. Acti understands your intent and brings back the right result, link, or action - right where you are. Use Acti for live sports schedules, nearby restaurants, Notion docs, LinkedIn profiles, Meet links, Calendar actions, and custom workflows - without leaving the conversation.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://openacti.com:443/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 1499,
+      "comments": 271
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/5ccc5e0b-77d9-45f8-bafe-ec081a905348.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/bee48359-0b85-4051-aa10-344d192062bf.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/7dccece5-1fe2-4404-a9d8-4754a70510e2.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/a5695e63-0652-4065-b92a-ba474e5cf429.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "Young",
+    "original_author_url": "https://www.producthunt.com/@call_me_young"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/tencent-edgeone-2/launches/tencent-edgeone-makers?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Tencent EdgeOne Makers",
+    "text": "Ship AI agents like web apps, in minutes. Tencent EdgeOne Makers is an edge platform for modern web apps and AI agents. Build with your preferred frameworks and deploy through familiar CLI, Git, and CI/CD workflows. Get built-in agent runtime, sandboxed tools, memory, observability, model gateway support, serverless functions, and storage—without stitching together complex infrastructure. Add AI agents to existing products or launch new AI applications in minutes. Deploy AI agents like web apps.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://pages.edgeone.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 1258,
+      "comments": 164
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/c11fffc5-d44a-45f8-a3a3-67a0f5f6ef17.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/693d0df2-dfcb-4422-bc89-c6a86a5f120a.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/a4f3af60-a6e7-4410-ba95-839c566e60b9.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/9e6ffbe8-2999-4c04-8824-d320f59b9d99.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/context-dev/launches/context-dev-2?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Context.dev",
+    "text": "One API to scrape, enrich, and extract the internet Context.dev is the web context API for AI products and agents. Scrape any URL, crawl sites, turn pages into LLM-ready Markdown, extract structured data into your own schema, capture screenshots, and retrieve logos, colors, fonts, styleguides, company data, and transaction enrichment through one API. YC-backed, no card required, and built so developers or coding agents can integrate in minutes.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.context.dev/?utm_source=producthunt&utm_campaign=producthunt&utm_term=producthunt&utm_content=producthunt&ref=producthunt&dub_id=pj8d5i92FA3kG9Ie",
+    "language": "en-US",
+    "engagement": {
+      "likes": 1185,
+      "comments": 140
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/e4e57b87-7bf9-4662-93d2-30c9f778eb68.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/32a94a26-3db3-49c0-8b04-6ddd8ce5b479.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/2770333d-7095-4af0-87a3-a0e0680061ef.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/5c310164-a94e-4989-80f4-2ee62c41638d.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/anysearch/launches/anysearch-3?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "AnySearch",
+    "text": "Real-time structured search trusted by agents and developers A search tool for agents, not a search box. AI agents are only as good as the information they receive. When connected to AnySearch, your agent gets filtered, de-duplicated, and structured information from trusted sources searched in parallel, helping it produce more reliable results. Free to start.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.anysearch.com/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 976,
+      "comments": 122
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/d7e5bffe-bacb-4118-a8e4-1bfbdf7c531e.x-icon?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/3434d483-2790-4082-aa8f-25efb86abf44.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/1f7cba0a-7281-40c6-b8fa-bc2e7d41faeb.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/7b58e531-ca9a-469b-9ee9-bc59d5f66318.jpeg?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/clawteams?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "ClawTeams",
+    "text": "The first goal-driven, proactive AI team for e-commerce ClawTeams is an AI employee platform for e-commerce sellers. Instead of hiring specialists—or doing everything yourself—you get a coordinated AI team that thinks, plans, and executes like real employees. One goal. One team. Zero micromanagement. Tell your team lead what you want—\"Increase Q4 revenue by 20%\"—and they break it down, assign specialists, and run the plan. You get updates in Slack or Discord. High-stakes decisions wait for your approval. Everything else just happens.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://clawteams.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 973,
+      "comments": 91
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/8cf8434d-e4fd-48c3-8654-af7f9e5bc2d5.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/979edc63-1ca3-45b2-a5e9-12171aa60b01.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/f04219a7-d67c-46f3-81df-29c2b27d0df4.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/789420eb-fba8-4d80-87e1-05a1eba58a86.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/paradigm-3?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Paradigm",
+    "text": "Turn any goal into a personalized, adaptive learning path. Paradigm reimagines education around the individual, taking any learning goal and turning it into a step-by-step path that evolves with your progress, helping you move steadily from curiosity to mastery without getting lost.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.paradigm.study/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 944,
+      "comments": 130
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/7c1bc3e9-098d-4b10-9e5b-704460691d83.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/a77258f0-dc12-4465-b009-725138372fe3.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/b871a7af-7744-4bc2-84b0-5a8f9a8aa7c8.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/a843c181-f85c-4680-a490-44763365172a.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/yc-company-explorer?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "ExploreYC",
+    "text": "Open-source API for Y Combinator & a16z company data One open-source API for startup data across Y Combinator AND a16z - 6,600+ companies with funding, stage, IPO/M&A exits, and founders. Filter by VC (yc/a16z/all), batch, industry, country, or search. Grab a free API key, read the docs (curl/Node/Python + Swagger), and build in 30 seconds. Plus the full web app: map, analytics, funding data, a live hiring board, and AI tools.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://exploreyc.com/api-docs?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 918,
+      "comments": 68
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/0affb3fc-9a19-4185-9db7-b6ff3aa445ed.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/baea8039-95b0-4f47-98fb-67956e53cf41.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/8cba1952-ee6d-49ac-bfee-b1b5edf019ec.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/64a4d976-acfc-4b39-9ee3-d5ca21fa45fd.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "Konstantin Borimechkov",
+    "original_author_url": "https://www.producthunt.com/@konstantimb"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/pazi?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Pazi",
+    "text": "Vibe code business operations Pazi is an AI team for that idea you keep coming back to — a book, a shop, an app, a skill you want to sell. Tell Pazi what you're trying to do and it builds a team of agents around your idea and starts making things happen: a website, first outreach, content, the next step. Every time you come back, something has moved. You stay in control; your team does the rest alongside you, one real step at a time. Like vibe coding but for business operations.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://pazi.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 894,
+      "comments": 104
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/0cc238aa-08c3-4d44-a509-0289f8806019.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/894cbea0-4ac1-4225-b2a8-95f7f1947f3f.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/19c2f196-01e1-4e04-83c7-4aaeb4544db5.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/306bce7a-d6a4-4016-ad89-6c14966b525b.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/chatcut-ai-video-editor?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "ChatCut",
+    "text": "Your AI video editor in ChatGPT, desktop, and web ChatCut is a lightweight, professional-grade AI video editor anyone can use, even without editing experience. It’s like having a personal video editing assistant that understands your footage, intent, and timeline. Make structural edits, fine-tune cuts, add captions, B-roll, music, voiceover, motion graphics, stock footage, and AI-generated video in one place. Every edit stays editable on a real timeline, with XML export when you want to keep working elsewhere.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://chatcut.io/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 824,
+      "comments": 107
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/1d15a575-7af7-4a02-8a77-6ef871232720.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/63e46d86-91c2-47ce-b208-78eae05d1ea2.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/b95cc8c8-c923-466a-8873-20222a732771.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/d94c661a-ce70-452e-acdd-2ef7046fa3af.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/openseo?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "OpenSEO",
+    "text": "The open source Ahrefs alternative Without good data, your agent gives generic advice. Keyword research, competitor research, backlinks and site audits, starting at $10/month instead of a $100-plus monthly subscription. Connect with MCP so that you can work with your agent to build an SEO strategy and write content tailored to your company.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://openseo.so/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 798,
+      "comments": 69
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/bddfb6ed-475f-4cc7-adbc-c28b77be18d8.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/4e9ba10f-3997-42e5-8606-664347937ec5.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/9ecd33cf-73e2-461b-b5a4-61f909aa022c.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/d954eb46-715f-46e3-9ed6-6583f8f0464b.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "Ben Senescu",
+    "original_author_url": "https://www.producthunt.com/@bensenescu"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/auriko?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Auriko ",
+    "text": "Trading desk for LLM calls Auriko treats LLM providers as trading venues and arbitrages the spread. Built by ex-quant traders, Auriko’s cost-arbitrage engine calibrates to each user’s request patterns and selects optimized inference paths based on token price, cache behavior, latency, reliability, and request quality. Auriko benchmarks show average 30% cost reduction against industry peers and direct providers. See the source: https://www.auriko.ai/reports/llm-cost-arbitrage",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.auriko.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 793,
+      "comments": 79
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/38ee31cc-b90f-4e48-b1bf-1f7c4194672a.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/1a860255-a7b5-4306-b74c-51b644cb42db.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/ae3f2873-a590-4e4b-ba82-fa9aecdccd69.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/6b9a6992-3259-4577-a458-f8182e87918f.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/v2fun?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "V2Fun",
+    "text": "Generate 3D character with 8K textures and AI motion capture V2Fun is an AI 3D creation platform built with self-developed 3D modeling and AI motion capture models. It helps creators turn images, prompts, and videos into high-quality 3D models, enhance assets with advanced 8K texture generation, and create motion-ready characters without switching between separate modeling, texturing, and mocap tools. V2Fun also supports image generation through models including Nano Banana and others, so creators can explore visual concepts and bring them into 3D faster.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://v2fun.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 781,
+      "comments": 190
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/1ae953dd-1691-4d3d-8eed-f970b24c8131.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/0277dfe3-ea5c-459f-80a2-611d3d8f8fe5.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/9f40c15c-88e8-4670-81c2-d771713bfa57.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/53bb0970-5987-4a39-a35b-a7d823674010.jpeg?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/fypro/launches/fypro?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Fypro",
+    "text": "Convert your TikTok followers into paying customers You built a TikTok following that trusts you. Fypro turns those followers into paying customers you actually own. Drop your handle and it reads your account, then builds the whole thing for you: a site from your content, a store stocked with products matched to your niche, videos in your own voice, and a customer and email list that's yours to keep. Trained on 4M+ viral TikToks. Used by 2,000+ creators.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.fypro.ai/?utm_source=ph&utm_medium=mkt&utm_campaign=visitwebsite&ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 773,
+      "comments": 255
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/cf32ce10-fb31-4842-9925-1d8bab906626.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/a04068cb-a396-4975-a747-55c0575a750f.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/95c89492-b1c4-4b2e-beb6-c273a7a97eec.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/a4381e27-6fa9-40a5-b606-69fbea177bdb.jpeg?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/browseract/launches/browseract?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "BrowserAct",
+    "text": "Web browser automation for AI agents BrowserAct is built for agents using the web. It gives agents a browser layer for real websites, so they can pass blocked pages, adapt to real scenarios, run multiple tasks safely, and return clean web data for reasoning. Use BrowserAct when an agent needs to browse, click, extract, fill forms, upload files, work inside logged-in sites, handle verification, or run repeatable browser workflows.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.browseract.com/?co-from=PH&ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 760,
+      "comments": 124
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/c9e555c2-6581-437c-ae70-c96d62b3ee48.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/249e2a89-5b62-48fa-b4fb-48b47cf2b4cd.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/bc117755-53f6-45ad-829c-09b9cb6203d0.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/7198ffae-2af3-4698-85e7-c787fc2f4ad0.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/agentkey?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "AgentKey",
+    "text": "One-stop live data marketplace for your agent AgentKey is a plugin that connects your agent to live external data in one command. Install it into Claude Code, Codex, OpenClaw, or any MCP-based agent and instantly unlock access to search, web pages, social platforms, finance, e-commerce, business and crypto data. No integrations. No setup. Auto failover keeps workflows running.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://agentkey.app/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 741,
+      "comments": 129
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/32195c39-aa7c-4a77-ab44-99d4b66f866e.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/cbbf9bc2-c528-40b1-b606-d58313bce23d.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/7ec19346-abba-4cd0-9038-a646f22a886d.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/34e2af76-43a1-468a-b5da-26da11c08c7c.jpeg?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/bluerails-discovery/launches/bluerails-discovery-3?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Bluerails Discovery ",
+    "text": "The rails AI agents use to find and pay you Most \"AI visibility\" tools stop at telling you if AI mentions your brand. Bluerails goes further. We make you discoverable to AI agents and ready to get paid by them, on the rails we already run for marketplaces. What stands out: • Discovery: a peer-reviewed AI-visibility score from 400 samples, not a one-off guess. Free, no signup. • Agent-ready checkout + global settlement • Compliance built in Try your free Discovery report today; agent payments roll out next.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.bluerails.com/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 706,
+      "comments": 193
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/8b88d8fa-e999-4fcf-8cf9-b650f350d9c9.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/c7a4fc3e-dc24-4e20-8b1f-c75e1c447c79.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/96f84734-af81-4cb6-9c63-f1f16549610b.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/ce569827-899c-4243-ae83-7a1dbdaa2d89.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/osaurus?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Osaurus",
+    "text": "Open source agents that run 100% locally on your Mac The native macOS harness for AI agents. Any model, persistent memory, autonomous execution, cryptographic identity. Built in Swift. Fully offline. Open source.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://osaurus.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 703,
+      "comments": 104
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/c784cd19-34af-4e58-bca7-584c59e1a47b.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/120c2151-01e1-4467-8d5c-3cbf5ec09821.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/683f5d15-28f7-4653-aeb1-09d8005f7dc7.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/f3684fa1-971c-4f52-ba61-d89d3d607720.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/sim-studio?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Sim",
+    "text": "Open-source workspace for AI agents and workflows Sim is an open-source workspace to build agentic workflows. Connect your AI agents and workflows to 1,000+ integrations and LLMs.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.sim.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 691,
+      "comments": 111
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/5029d16f-7b85-4364-aae4-f770cfab1fc1.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/0b90e707-2674-4c35-9085-14d354983621.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/aba2e62a-ee19-4b63-a384-cc811a8d72e0.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/e164bc94-21fb-48d8-b776-c9d391a7f800.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "Emir Karabeg",
+    "original_author_url": "https://www.producthunt.com/@emirkarabeg"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/velo-4?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Velo 3.0",
+    "text": "AI video infrastructure to explain, train, and sell faster. Velo 3.0 is here, our third and biggest launch yet. Start with a screen recording or a prompt. Describe the video you need, and Velo writes the script, narrates it in your own voice, and builds the finished cut. It stays grounded in your company knowledge, from your docs and tools you connect through connectors and MCP. Edit by typing changes. Localize the finished video into 25+ languages in one click. Recording or prompt, Velo turns either into a polished video you can ship anywhere.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://usevelo.ai/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 680,
+      "comments": 150
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/5a395b78-27ac-4662-9eac-cb5ce89d165c.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/080a8ea7-9366-4e90-bf2d-871ca5f9a7d2.gif?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/b76d824f-a6e1-4687-b8df-56a1535be6cb.jpeg?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/35b2d21d-5db2-4d01-8c0b-c4d1d8a80a26.jpeg?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/glaze-4/launches/glaze-by-raycast-2?utm_campaign=producthunt-api&utm_medium=api-v2&utm_source=Application%3A+kankan+%28ID%3A+294123%29",
+    "title": "Glaze by Raycast",
+    "text": "Create your own Mac apps by chatting with AI Glaze is the easiest way to go from an idea to a Mac app. Describe what you want, and it builds a real app that lives in your dock, launches instantly, works offline, and taps into the full power of your computer. Software that's finally personal, shaped around you. From the makers of Raycast.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.glaze.app/?ref=producthunt",
+    "language": "en-US",
+    "engagement": {
+      "likes": 678,
+      "comments": 108
+    },
+    "media": [
+      {
+        "url": "https://ph-files.imgix.net/85150caf-3a40-490f-ad86-32e3e5a88afa.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/2375fc04-8d88-4b49-9412-58872203cbe8.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/b342d5bb-c6ed-499d-93ea-0f3b77150c08.png?auto=format",
+        "media_type": "image"
+      },
+      {
+        "url": "https://ph-files.imgix.net/ff6eee7a-b0dc-4d4f-8b60-acac880822b7.png?auto=format",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "[REDACTED]",
+    "original_author_url": "https://www.producthunt.com/@[REDACTED]"
+  }
+]

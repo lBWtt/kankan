@@ -43,6 +43,7 @@ class CommentOut(BaseModel):
     replies: List["CommentOut"] = []
     created_at: datetime
     is_liked: bool = False  # 登录时=当前用户是否已赞该评论；游客 false
+    is_deleted: bool = False
 
 
 CommentOut.model_rebuild()  # 解析自引用 List["CommentOut"]

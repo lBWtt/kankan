@@ -50,7 +50,7 @@ class LoginRequest(BaseModel):
 
     identifier_type: IdentifierType
     identifier: str = Field(max_length=255)
-    code: str = Field(min_length=4, max_length=8, description="验证码")
+    code: str = Field(min_length=1, max_length=8, description="验证码（真实 6 位；dev 便捷码 888/777/1-6）")
     anon_client_id: Optional[str] = Field(
         None, max_length=64, description="登录前的游客 ID；带上后服务端把游客的想看怎么做记录归并到账号"
     )

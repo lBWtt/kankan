@@ -4,22 +4,26 @@
 /// HANDOFF §6.10:禁止 ×200、×8+30 之类编造公式——所有计数取真实来源,
 /// 这个 helper 只做字符串↔数字的机械转换,不做任何放大。
 
-/// "1.2k" → 1200,"3.5w" → 35000,"200" → 200,"1,234" → 1234,null/空 → 0
+/// "1.2k"→1200,"3.5w"→35000,"1.2万"→12000,"10万+"→100000,"1亿"→1e8,"200"→200,null/空→0。
+/// 与后端 collection_standard.parse_count 对齐(后端会返回"10万+"这种中文串)。
 int parseCount(dynamic value) {
   if (value == null) return 0;
   if (value is int) return value;
   if (value is num) return value.toInt();
-  var s = value.toString().trim().toLowerCase().replaceAll(',', '');
+  final s =
+      value.toString().trim().toLowerCase().replaceAll(',', '').replaceAll('+', '');
   if (s.isEmpty) return 0;
-  var mult = 1;
-  if (s.endsWith('k')) {
+  double mult = 1;
+  if (s.contains('亿')) {
+    mult = 1e8;
+  } else if (s.contains('万') || s.endsWith('w')) {
+    mult = 1e4;
+  } else if (s.endsWith('k')) {
     mult = 1000;
-    s = s.substring(0, s.length - 1);
-  } else if (s.endsWith('w')) {
-    mult = 10000;
-    s = s.substring(0, s.length - 1);
   }
-  final n = double.tryParse(s);
+  final m = RegExp(r'[\d.]+').firstMatch(s); // 抽数字部分,单位/加号已在上面识别
+  if (m == null) return 0;
+  final n = double.tryParse(m.group(0)!);
   return n == null ? 0 : (n * mult).round();
 }
 

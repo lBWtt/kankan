@@ -71,7 +71,9 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   void initState() {
     super.initState();
     // 埋点:详情打开(漏斗 detail_view + hot_score 详情权重)。真后端项目(UUID)才发。
-    ref.read(analyticsProvider).track('detail_view', projectId: widget.projectId);
+    ref
+        .read(analyticsProvider)
+        .track('detail_view', projectId: widget.projectId);
   }
 
   void _scrollToComments() {
@@ -109,7 +111,12 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             ),
             data: (project) {
               if (project == null) {
-                return const Center(child: Text('项目不存在'));
+                return Center(
+                  child: Text(
+                    '内容不可访问',
+                    style: KkType.body.copyWith(color: KkColors.t3),
+                  ),
+                );
               }
               return _body(context, project);
             },
@@ -140,8 +147,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             // 成果区(可组合渲染核心)
             SliverToBoxAdapter(child: _results(project)),
             // 作者的话(空 → 整块隐藏)
-            if (project.authorNote != null &&
-                project.authorNote!.isNotEmpty)
+            if (project.authorNote != null && project.authorNote!.isNotEmpty)
               SliverToBoxAdapter(child: AuthorNote(note: project.authorNote!)),
             // 动作区(空 → 整块不显示)
             if (project.actions.isNotEmpty)
@@ -332,7 +338,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           Text(project.title, style: KkType.h1),
           const SizedBox(height: KkSpacing.sm),
           // 一句话价值
-          Text(project.summary, style: KkType.body.copyWith(color: KkColors.t2)),
+          Text(project.summary,
+              style: KkType.body.copyWith(color: KkColors.t2)),
           const SizedBox(height: KkSpacing.lg),
           // 作者 + 关注
           Row(
@@ -357,7 +364,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
               ),
               // 关注按钮(任务 C:接全局 appStateProvider.followedUserIds,
               // 与 post_card / post_detail / profile 同源,A 屏点 B 屏同步)。
-              if (project.authorId != 'me') _FollowButton(userId: project.authorId),
+              if (project.authorId != 'me')
+                _FollowButton(userId: project.authorId),
             ],
           ),
           const SizedBox(height: KkSpacing.lg),
@@ -385,17 +393,20 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     }
     // repo(仓库卡)
     if (rd.repo != null) {
-      if (children.isNotEmpty) children.add(const SizedBox(height: KkSpacing.md));
+      if (children.isNotEmpty)
+        children.add(const SizedBox(height: KkSpacing.md));
       children.add(RepoCard(repo: rd.repo!));
     }
     // io(输入→输出效果)
     if (rd.io != null) {
-      if (children.isNotEmpty) children.add(const SizedBox(height: KkSpacing.md));
+      if (children.isNotEmpty)
+        children.add(const SizedBox(height: KkSpacing.md));
       children.add(IoBlockView(io: rd.io!));
     }
     // text(纯正文,无 media/repo/io 时)
     if (rd.text != null && rd.text!.isNotEmpty) {
-      if (children.isNotEmpty) children.add(const SizedBox(height: KkSpacing.md));
+      if (children.isNotEmpty)
+        children.add(const SizedBox(height: KkSpacing.md));
       children.add(
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
@@ -533,7 +544,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                             size: 16, color: KkColors.t3),
                         const SizedBox(width: KkSpacing.sm),
                         Text(
-                          '心得 ${comments.length}',
+                          '评论 ${comments.length}',
                           style: KkType.bodySm,
                         ),
                       ],
@@ -549,9 +560,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                 value: _fmtCount(likeCount),
                 color: isLiked ? KkColors.like : KkColors.t2,
                 isLit: isLiked,
-                onTap: () => ref
-                    .read(appStateProvider.notifier)
-                    .toggleLike(project.id),
+                onTap: () =>
+                    ref.read(appStateProvider.notifier).toggleLike(project.id),
               ),
               const SizedBox(width: KkSpacing.sm),
               // 拿走计数(若有 take 动作):F-6 点击滚动到动作区(拿走按钮所在)
@@ -605,9 +615,7 @@ class _DetailCover extends StatelessWidget {
     final isImage = hasMedia && first!.type == 'image';
     final isVideo = hasMedia && first!.type == 'video';
     // 封面 URL:与 ProjectCard._Cover 同源(image→url, video→poster, 无→null)
-    final coverUrl = isImage
-        ? first.url
-        : (isVideo ? first.poster : null);
+    final coverUrl = isImage ? first.url : (isVideo ? first.poster : null);
     final pattern = _domainPattern(project.domain);
 
     return SizedBox(
@@ -749,8 +757,7 @@ class _FollowButton extends ConsumerWidget {
     final following =
         ref.watch(appStateProvider).followedUserIds.contains(userId);
     return Tappable(
-      onTap: () =>
-          ref.read(appStateProvider.notifier).toggleFollow(userId),
+      onTap: () => ref.read(appStateProvider.notifier).toggleFollow(userId),
       borderRadius: BorderRadius.circular(KkRadius.pill),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -760,9 +767,7 @@ class _FollowButton extends ConsumerWidget {
         decoration: BoxDecoration(
           color: following ? KkColors.bgSubtle : KkColors.teal,
           borderRadius: BorderRadius.circular(KkRadius.pill),
-          border: following
-              ? Border.all(color: KkColors.bd)
-              : null,
+          border: following ? Border.all(color: KkColors.bd) : null,
         ),
         child: Text(
           following ? '已关注' : '关注',
@@ -785,7 +790,8 @@ class _IconStat extends StatelessWidget {
   // F-6:点赞 / 拿走计数的点击回调(参照 post_detail_screen._IconStat 已接线写法)。
   final VoidCallback? onTap;
 
-  const _IconStat({required this.icon, required this.value, this.color, this.onTap});
+  const _IconStat(
+      {required this.icon, required this.value, this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {

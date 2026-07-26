@@ -96,4 +96,16 @@ class PrefsKeys {
 
   /// 免打扰开关。
   static const kvDndEnabled = 'kv_dnd_enabled';
+
+  /// 「今日话题」横条被手动关掉的日期（yyyy-mm-dd）。当天==此值则隐藏，次日自动再现。
+  static const kvTopicDismissDate = 'kv_topic_dismiss_date';
+
+  /// 上次停留的底部 tab index（重启回到上次那个 tab，不再永远回发现页）。
+  static const kvCurrentTabIndex = 'kv_current_tab_index';
+
+  /// 「我的」页自定义的 banner 背景图地址（移动端是文件路径，重启不丢）。
+  static const kvBannerImageUrl = 'kv_banner_image_url';
+
+  /// Light first-run onboarding for the Kankan value proposition.
+  static const kvKankanOnboardingSeen = 'kv_kankan_onboarding_seen_v1';
 }

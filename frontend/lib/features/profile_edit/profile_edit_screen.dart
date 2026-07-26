@@ -1,30 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/network/app_exception.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
-import '../../core/utils/parse_count.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../data/api/me_api.dart';
+import '../../data/api/media_api.dart';
 import '../../data/api/users_api.dart';
 import '../../domain/models/models.dart';
-import '../../domain/repositories/post_repository.dart';
-import '../../domain/repositories/project_repository.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
 
-/// 资料编辑屏 — 编辑 'me' 的名字 / 简介 / 关注领域 pills + 头像占位 + 真实统计。
+/// 资料编辑屏 — 编辑 'me' 的名字 / 简介 / 学校 / 年龄。
+/// （关注领域已退到后台，不再作为用户可编辑维度。）
 ///
-/// 入口:
-///   - me 屏"编辑资料"按钮(本任务不接线,主 agent 接)
-///   - profile 屏 _isMe 时的"编辑资料"按钮
+/// 入口: me 屏"编辑资料" or profile 屏 _isMe 时的"编辑资料"。
 ///
 /// HANDOFF §3 零旁白:
 ///   - 字段名只 "名字/简介/关注领域",不写"请输入你的…"
@@ -50,37 +48,35 @@ class ProfileEditScreen extends ConsumerStatefulWidget {
   const ProfileEditScreen({super.key});
 
   @override
-  ConsumerState<ProfileEditScreen> createState() =>
-      _ProfileEditScreenState();
+  ConsumerState<ProfileEditScreen> createState() => _ProfileEditScreenState();
 }
 
 class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   late TextEditingController _nameCtrl;
+  late TextEditingController _handleCtrl;
   late TextEditingController _bioCtrl;
+  late TextEditingController _schoolCtrl;
+  late TextEditingController _ageCtrl;
   bool _ctrlsReady = false;
 
-  /// 关注领域本地选中集合(KkUser 无 interests 字段,UI-only)
-  Set<String> _selectedDomains = <String>{};
-  Set<String> _initialDomains = const <String>{};
-  bool _domainsSeeded = false; // 登录+远端时用后端真兴趣初始化一次
-
-  /// 领域 pill 候选 — 对齐 kankan 屏 7 领域(去"全部")
-  static const _domainOptions = <(String label, String value)>[
-    ('AI图', 'ai_image'),
-    ('AI视频', 'ai_video'),
-    ('网页', 'web'),
-    ('App', 'app'),
-    ('工具', 'tool'),
-    ('开源', 'opensource'),
-    ('Prompt', 'prompt'),
-  ];
-
   /// 首次 build 时用 me 数据初始化 controller(避免在 initState 中读 ref)
-  void _ensureCtrls(String? initialName, String? initialBio) {
+  void _ensureCtrls(
+    String? initialName,
+    String? initialHandle,
+    String? initialBio,
+    String? initialSchool,
+    int? initialAge,
+  ) {
     if (_ctrlsReady) return;
     _nameCtrl = TextEditingController(text: initialName ?? '')
       ..addListener(_onCtrlChanged);
+    _handleCtrl = TextEditingController(text: initialHandle ?? '')
+      ..addListener(_onCtrlChanged);
     _bioCtrl = TextEditingController(text: initialBio ?? '')
+      ..addListener(_onCtrlChanged);
+    _schoolCtrl = TextEditingController(text: initialSchool ?? '')
+      ..addListener(_onCtrlChanged);
+    _ageCtrl = TextEditingController(text: initialAge?.toString() ?? '')
       ..addListener(_onCtrlChanged);
     _ctrlsReady = true;
   }
@@ -93,31 +89,57 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   void dispose() {
     if (_ctrlsReady) {
       _nameCtrl.dispose();
+      _handleCtrl.dispose();
       _bioCtrl.dispose();
+      _schoolCtrl.dispose();
+      _ageCtrl.dispose();
     }
     super.dispose();
   }
 
   bool get _hasChanges {
-    final me = ref.read(userByIdProvider('me'));
-    final nameChanged = _nameCtrl.text.trim() != (me?.name ?? '');
-    final bioChanged = _bioCtrl.text.trim() != (me?.bio ?? '');
-    final domainChanged = _selectedDomains.length != _initialDomains.length ||
-        !_selectedDomains.containsAll(_initialDomains);
-    return nameChanged || bioChanged || domainChanged;
+    final current =
+        ref.read(authProvider).currentUser ?? ref.read(userByIdProvider('me'));
+    final nameChanged = _nameCtrl.text.trim() != (current?.name ?? '');
+    final handleChanged =
+        _handleCtrl.text.trim().toLowerCase() != (current?.handle ?? '');
+    final bioChanged = _bioCtrl.text.trim() != (current?.bio ?? '');
+    final schoolChanged = _schoolCtrl.text.trim() != (current?.school ?? '');
+    final ageChanged = _ageCtrl.text.trim() != (current?.age?.toString() ?? '');
+    return nameChanged ||
+        handleChanged ||
+        bioChanged ||
+        schoolChanged ||
+        ageChanged;
   }
 
-  void _toggleDomain(String value) {
-    setState(() {
-      if (!_selectedDomains.add(value)) {
-        _selectedDomains.remove(value);
+  Future<void> _changeAvatar() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 88,
+      maxWidth: 1200,
+    );
+    if (file == null || !mounted) return;
+    try {
+      final uploaded = await ref
+          .read(mediaApiProvider)
+          .uploadRecord(await file.readAsBytes());
+      await ref.read(meApiProvider).updateProfile(avatarUrl: uploaded.url);
+      final current = ref.read(authProvider).currentUser;
+      if (current != null) {
+        ref.read(authProvider.notifier).updateCurrentUser(
+              name: current.name,
+              avatar: uploaded.url,
+              bio: current.bio,
+              school: current.school,
+              age: current.age,
+            );
       }
-    });
-  }
-
-  void _changeAvatar() {
-    // Phase 4 接 image_picker
-    _toast('暂未接入');
+      ref.invalidate(userByIdProvider('me'));
+      if (mounted) _toast('头像已更新');
+    } on AppException catch (e) {
+      if (mounted) _toast('头像更新失败：${e.message}');
+    }
   }
 
   Future<void> _save() async {
@@ -127,19 +149,45 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       return;
     }
     final bio = _bioCtrl.text.trim();
+    final school = _schoolCtrl.text.trim();
+    final ageText = _ageCtrl.text.trim();
+    final age = ageText.isEmpty ? null : int.tryParse(ageText);
+    if (ageText.isNotEmpty && (age == null || age < 1 || age > 120)) {
+      _toast('年龄请输入 1–120');
+      return;
+    }
+    // @handle：规范化（去 @、转小写）+ 前端先做一次格式校验，避免无谓请求。
+    final cur = ref.read(authProvider).currentUser;
+    final handleInput =
+        _handleCtrl.text.trim().replaceAll('@', '').toLowerCase();
+    final handleChanged = handleInput != (cur?.handle ?? '');
+    if (handleChanged && handleInput.isNotEmpty) {
+      final ok = RegExp(r'^[a-z][a-z0-9_]{2,29}$').hasMatch(handleInput);
+      if (!ok) {
+        _toast('用户名：小写字母/数字/下划线，字母开头，3–30 位');
+        return;
+      }
+    }
 
     // 远端模式（useRemote + 已登录）：先 PATCH /me 真落库，失败如实报错、不 pop、不谎称已保存。
-    // 关注领域（内容类型）与后端 content_type 轴 1:1，随此一起落库。
+    // 关注领域已退到后台（不再作为用户可见/可编辑维度），此处不再传 interest_content_types。
     if (AppConfig.useRemote && ref.read(authProvider).isLoggedIn) {
       try {
         await ref.read(meApiProvider).updateProfile(
               nickname: name,
+              // 只在真改了且非空时传 handle（撞名后端回 409 HANDLE_TAKEN）。
+              handle: (handleChanged && handleInput.isNotEmpty)
+                  ? handleInput
+                  : null,
               bio: bio,
-              interestContentTypes: _selectedDomains.toList(),
+              school: school,
+              age: age,
             );
         ref.invalidate(myCountsProvider); // me 页重读真兴趣
       } on AppException catch (e) {
-        if (mounted) _toast('保存失败：${e.message}');
+        if (mounted) {
+          _toast(e.code == 'HANDLE_TAKEN' ? '这个用户名已被占用' : '保存失败：${e.message}');
+        }
         return;
       }
     }
@@ -149,6 +197,17 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     ref
         .read(appStateProvider.notifier)
         .updateProfile(name: name, bio: bio.isEmpty ? null : bio);
+    // 关键修复:me 页头部读的是 auth.currentUser.name,必须同步更新 authProvider,
+    // 否则远程保存成功后名字不刷新(要退出重登才变)。
+    ref.read(authProvider.notifier).updateCurrentUser(
+          name: name,
+          handle: (handleChanged && handleInput.isNotEmpty)
+              ? handleInput
+              : cur?.handle,
+          bio: bio.isEmpty ? null : bio,
+          school: school.isEmpty ? null : school,
+          age: age,
+        );
     // 让依赖 userByIdProvider('me') 的屏(profile / me)重建显示新值。
     ref.invalidate(userByIdProvider('me'));
     _toast('已保存');
@@ -172,33 +231,13 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final me = ref.watch(userByIdProvider('me'));
-    _ensureCtrls(me?.name, me?.bio);
+    // 远端登录用户的资料以 auth 状态为准，避免头像/昵称仍被旧 mock 的 me 覆盖。
+    final me = ref.watch(authProvider).currentUser ??
+        ref.watch(userByIdProvider('me'));
+    _ensureCtrls(me?.name, me?.handle, me?.bio, me?.school, me?.age);
 
-    // 登录+远端：用后端真兴趣（interest_content_types）初始化选中集，数据到位后一次性
-    // （async provider 首帧可能 loading=null，故 seeded 标记只在拿到数据后置位）。
-    if (!_domainsSeeded &&
-        AppConfig.useRemote &&
-        ref.watch(authProvider).isLoggedIn) {
-      final counts = ref.watch(myCountsProvider).value;
-      if (counts != null) {
-        _selectedDomains = counts.interestContentTypes.toSet();
-        _initialDomains = {..._selectedDomains};
-        _domainsSeeded = true;
-      }
-    }
-
-    final projectRepo = ref.watch(projectRepositoryProvider);
-    final postRepo = ref.watch(postRepositoryProvider);
-
-    // 真实计数(HANDOFF §6.10,无 ×N 公式)
-    final following = (me?.followingIds ?? const <String>[]).length;
-    final followers = (me?.followerIds ?? const <String>[]).length;
-    final myProjects = projectRepo.byAuthor('me');
-    final myPosts = postRepo.byAuthor('me');
-    final totalLikes =
-        myProjects.fold<int>(0, (s, p) => s + p.likes) +
-            myPosts.fold<int>(0, (s, p) => s + p.likes);
+    // ── [ZCode] 删掉了 _statsSection（关注/粉丝/获赞是只读信息，不属于编辑页；
+    //   跟 me 页读不同数据源导致数字不一致）。编辑页只保留可编辑字段。──
 
     final hasChanges = _hasChanges;
 
@@ -234,238 +273,148 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           ),
         ],
       ),
+      // ── [ZCode] 整页重排为一张大卡：头像区 + 表单区 合为一体，干净留白 ──
       body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: KkSpacing.xxl),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: KkSpacing.xl),
-            _avatarSection(me),
-            const SizedBox(height: KkSpacing.xl),
-            _formCard(),
-            const SizedBox(height: KkSpacing.lg),
-            _statsSection(following, followers, totalLikes),
-          ],
+        padding: const EdgeInsets.only(bottom: KkSpacing.xxxl),
+        child: Container(
+          margin: const EdgeInsets.all(KkSpacing.lg),
+          decoration: BoxDecoration(
+            color: KkColors.bgCard,
+            borderRadius: BorderRadius.circular(KkRadius.xl),
+            boxShadow: KkElevation.card,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: KkSpacing.xl),
+              _avatarSection(me),
+              const SizedBox(height: KkSpacing.lg),
+              const Divider(
+                  indent: KkSpacing.xl,
+                  endIndent: KkSpacing.xl,
+                  color: KkColors.divider),
+              const SizedBox(height: KkSpacing.lg),
+              _formFields(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ── 头像区 ──
+  // ── [ZCode] 头像（96px）+ 名字 + 换头像 ──
   Widget _avatarSection(KkUser? me) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        KkAvatar(userId: 'me', user: me, size: 80),
+        KkAvatar(userId: 'me', user: me, size: 96),
         const SizedBox(height: KkSpacing.md),
+        Text(me?.name ?? '未设置', style: KkType.h3),
+        const SizedBox(height: 2),
         Tappable(
           onTap: _changeAvatar,
           borderRadius: BorderRadius.circular(KkRadius.pill),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: KkSpacing.md,
-              vertical: KkSpacing.xs,
-            ),
-            child: Text(
-              '更换头像',
-              style: KkType.bodySm.copyWith(color: KkColors.teal),
-            ),
+                horizontal: KkSpacing.md, vertical: KkSpacing.xs),
+            child: Text('更换头像',
+                style: KkType.bodySm.copyWith(color: KkColors.teal)),
           ),
         ),
       ],
     );
   }
 
-  // ── 表单卡 ──
-  Widget _formCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
-      padding: const EdgeInsets.all(KkSpacing.lg),
-      decoration: BoxDecoration(
-        color: KkColors.bgCard,
-        borderRadius: BorderRadius.circular(KkRadius.lg),
-        border: Border.all(color: KkColors.bd),
-      ),
+  // ── [ZCode] 表单字段：填充式输入，label + bgSubtle 圆角底，无硬边框 ──
+  Widget _formFields() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KkSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _label('名字'),
-          const SizedBox(height: KkSpacing.xs),
-          _nameField(),
+          _field('名字', _nameCtrl, hint: '你的名字', maxLength: 20),
           const SizedBox(height: KkSpacing.lg),
-          _label('简介'),
-          const SizedBox(height: KkSpacing.xs),
-          _bioField(),
+          _field('用户名', _handleCtrl, hint: '例如 lin_deep', maxLength: 30),
+          const SizedBox(height: 6),
+          Text(
+            '改名也不丢：别人可用 @用户名 搜到你。小写字母/数字/下划线，字母开头。',
+            style: KkType.bodySm.copyWith(color: KkColors.t4, fontSize: 11),
+          ),
           const SizedBox(height: KkSpacing.lg),
-          _label('关注领域'),
-          const SizedBox(height: KkSpacing.sm),
-          _domainsWrap(),
+          _field('简介', _bioCtrl, hint: '一句话介绍自己', maxLength: 100, maxLines: 2),
+          const SizedBox(height: KkSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _field('学校', _schoolCtrl, hint: '学校或院校', maxLength: 100),
+              ),
+              const SizedBox(width: KkSpacing.md),
+              Expanded(
+                child: _field(
+                  '年龄',
+                  _ageCtrl,
+                  hint: '年龄',
+                  maxLength: 3,
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: KkSpacing.lg),
         ],
+      ),
+    );
+  }
+
+  Widget _field(String label, TextEditingController ctrl,
+      {String? hint,
+      int maxLength = 50,
+      int maxLines = 1,
+      TextInputType? keyboardType}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label(label),
+      const SizedBox(height: KkSpacing.sm),
+      _input(ctrl,
+          hint: hint,
+          maxLength: maxLength,
+          maxLines: maxLines,
+          keyboardType: keyboardType),
+    ]);
+  }
+
+  Widget _input(TextEditingController ctrl,
+      {String? hint,
+      int maxLength = 50,
+      int maxLines = 1,
+      TextInputType? keyboardType}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: KkColors.bgSubtle,
+        borderRadius: BorderRadius.circular(KkRadius.md),
+      ),
+      child: TextField(
+        controller: ctrl,
+        maxLength: maxLength,
+        maxLines: maxLines,
+        minLines: 1,
+        keyboardType: keyboardType,
+        style: KkType.body,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: KkType.body.copyWith(color: KkColors.t4),
+          isDense: true,
+          counterStyle: const TextStyle(
+              color: KkColors.t3, fontSize: 11, fontFamily: 'JetBrainsMono'),
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: KkSpacing.md, vertical: KkSpacing.md),
+          border: InputBorder.none,
+        ),
       ),
     );
   }
 
   Widget _label(String text) {
-    return Text(
-      text,
-      style: KkType.bodySm.copyWith(color: KkColors.t3),
-    );
-  }
-
-  Widget _nameField() {
-    return TextField(
-      controller: _nameCtrl,
-      maxLength: 20,
-      style: KkType.body,
-      decoration: InputDecoration(
-        hintText: '名字',
-        counterStyle: const TextStyle(
-          color: KkColors.t3,
-          fontSize: 11,
-          fontFamily: 'JetBrainsMono',
-        ),
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: KkSpacing.md,
-          vertical: KkSpacing.md,
-        ),
-        border: const OutlineInputBorder(),
-      ),
-    );
-  }
-
-  Widget _bioField() {
-    return TextField(
-      controller: _bioCtrl,
-      maxLength: 100,
-      maxLines: 3,
-      minLines: 2,
-      style: KkType.body,
-      decoration: InputDecoration(
-        hintText: '一句话介绍自己',
-        counterStyle: const TextStyle(
-          color: KkColors.t3,
-          fontSize: 11,
-          fontFamily: 'JetBrainsMono',
-        ),
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: KkSpacing.md,
-          vertical: KkSpacing.md,
-        ),
-        border: const OutlineInputBorder(),
-      ),
-    );
-  }
-
-  Widget _domainsWrap() {
-    return Wrap(
-      spacing: KkSpacing.sm,
-      runSpacing: KkSpacing.sm,
-      children: [
-        for (final (label, value) in _domainOptions)
-          _domainPill(label, value, _selectedDomains.contains(value)),
-      ],
-    );
-  }
-
-  Widget _domainPill(String label, String value, bool selected) {
-    // 修 bug:原用 Tappable(内部 Center+minWidth44)在 Wrap 里撑满整行 →
-    // 7 个领域全宽堆叠成一长条(很丑)。改自适应 InkWell + 去掉 Center,
-    // chip 贴合内容,Wrap 里紧凑多行流式。选中态保留 teal 填充。
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _toggleDomain(value),
-        borderRadius: BorderRadius.circular(KkRadius.pill),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: KkSpacing.md,
-            vertical: KkSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: selected ? KkColors.teal : KkColors.bgSubtle,
-            borderRadius: BorderRadius.circular(KkRadius.pill),
-            border: Border.all(
-              color: selected ? KkColors.teal : KkColors.bd,
-            ),
-          ),
-          child: Text(
-            label,
-            style: KkType.bodySm.copyWith(
-              color: selected ? Colors.white : KkColors.t2,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── 统计区(真实计数,只读,前两项可点跳 follows 屏)──
-  Widget _statsSection(int following, int followers, int totalLikes) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
-      padding: const EdgeInsets.symmetric(
-        horizontal: KkSpacing.lg,
-        vertical: KkSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: KkColors.bgCard,
-        borderRadius: BorderRadius.circular(KkRadius.lg),
-        border: Border.all(color: KkColors.bd),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _statBlock('关注', following, onTap: () {
-              // 接通 follows 屏(?type= 深链到对应 tab,router 已解析 queryParameters['type'])
-              context.push('${KkRoutes.follows('me')}?type=following');
-            }),
-          ),
-          _vDivider(),
-          Expanded(
-            child: _statBlock('粉丝', followers, onTap: () {
-              context.push('${KkRoutes.follows('me')}?type=followers');
-            }),
-          ),
-          _vDivider(),
-          Expanded(
-            child: _statBlock('获赞', totalLikes),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _vDivider() {
-    return Container(
-      width: 1,
-      height: 36,
-      margin: const EdgeInsets.symmetric(horizontal: KkSpacing.sm),
-      color: KkColors.divider,
-    );
-  }
-
-  Widget _statBlock(String label, int value, {VoidCallback? onTap}) {
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(formatCount(value), style: KkType.monoLg),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: KkType.bodySm.copyWith(color: KkColors.t3, fontSize: 11),
-        ),
-      ],
-    );
-    if (onTap == null) {
-      return Center(child: content);
-    }
-    return Tappable(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(KkRadius.md),
-      child: Center(child: content),
-    );
+    return Text(text, style: KkType.bodySm.copyWith(color: KkColors.t3));
   }
 }

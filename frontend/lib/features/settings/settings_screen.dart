@@ -9,6 +9,7 @@ import '../../core/widgets/tappable.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../router/routes.dart';
+import '../feedback/feedback_sheet.dart';
 
 /// 设置页 — HANDOFF §6.10 真实计数 + §3 零旁白 + §5 触控铁律。
 ///
@@ -36,9 +37,9 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // 字号/暖纸底纹/免打扰 已迁到 app_state(真生效),不再用本地 mock state。
 
-  /// 缓存大小(KB)—— 用 'me' 用户 ID 派生(HANDOFF §6.10:禁写死固定值)。
-  /// 范围 1024..5119,稳定确定性。
-  late final int _cacheKb = 1024 + 'me'.hashCode.abs() % 4096;
+  /// 缓存大小(KB)—— 用真实的图片内存缓存字节数(不再用 'me'.hashCode 编造)。
+  int get _cacheKb =>
+      (PaintingBinding.instance.imageCache.currentSizeBytes / 1024).round();
 
   void _toast(String msg) {
     ScaffoldMessenger.of(context)
@@ -72,7 +73,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
     if (ok == true && mounted) {
-      _toast('已清理 $_cacheKb KB');
+      final before = _cacheKb;
+      // 真清:清空图片内存缓存(真实生效,不再只弹 toast)。
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      _toast('已清理 $before KB');
     }
   }
 
@@ -117,9 +122,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: KkSpacing.lg),
             _sectionAccount(),
             const SizedBox(height: KkSpacing.lg),
+            _sectionFeedback(),
+            const SizedBox(height: KkSpacing.lg),
             _sectionNotifications(unreadCount),
             const SizedBox(height: KkSpacing.lg),
-            _sectionAppearance(appState.themeMode),
+            _sectionAppearance(),
             const SizedBox(height: KkSpacing.lg),
             _sectionCache(searchCount),
             const SizedBox(height: KkSpacing.lg),
@@ -191,8 +198,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             if (trailing != null) ...[
               Text(
                 trailing,
-                style:
-                    KkType.mono.copyWith(color: KkColors.t3, fontSize: 12),
+                style: KkType.mono.copyWith(color: KkColors.t3, fontSize: 12),
               ),
               const SizedBox(width: KkSpacing.xs),
             ],
@@ -354,6 +360,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Widget _sectionFeedback() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
+      decoration: BoxDecoration(
+        color: KkColors.mint,
+        borderRadius: BorderRadius.circular(KkRadius.md),
+        border: Border.all(color: KkColors.teal.withAlpha(80)),
+      ),
+      child: _menuRow(
+        icon: Icons.bug_report_outlined,
+        label: '反馈 Bug / 建议',
+        trailing: '优先处理',
+        onTap: _openFeedback,
+      ),
+    );
+  }
+
+  Future<void> _openFeedback() async {
+    // 真提交进后端反馈箱（feedback_sheet）；成功后提示。
+    final ok = await showFeedbackSheet(context);
+    if (ok && mounted) _toast('反馈已提交，谢谢！');
+  }
+
   // ── Section 1: 通知 ──
   Widget _sectionNotifications(int unreadCount) {
     return _card(
@@ -388,22 +417,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   // ── Section 2: 外观 ──
-  Widget _sectionAppearance(ThemeMode themeMode) {
+  Widget _sectionAppearance() {
+    // 主题模式（浅色/深色/跟随系统）暂不接：app 目前只有浅色，深色模式 defer。
+    // 与其给一个点了没反应的假开关，不如先不显示（实现深色后再放回）。
     return _card(
       children: [
-        _segmentedRow<ThemeMode>(
-          icon: Icons.palette_outlined,
-          label: '主题模式',
-          options: const [
-            (value: ThemeMode.light, label: '浅色'),
-            (value: ThemeMode.dark, label: '深色'),
-            (value: ThemeMode.system, label: '跟随系统'),
-          ],
-          selected: themeMode,
-          onChanged: (m) =>
-              ref.read(appStateProvider.notifier).setThemeMode(m),
-        ),
-        _divider(),
         _segmentedRow<String>(
           icon: Icons.text_fields_outlined,
           label: '字号',
@@ -415,20 +433,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
           // 真生效:全局 textScaler 由此偏好驱动(app.dart 应用)。
           selected: ref.watch(appStateProvider).fontScale,
-          onChanged: (s) {
-            ref.read(appStateProvider.notifier).setFontScale(s);
-            _toast('字号已设为：$s');
-          },
+          onChanged: (s) => ref.read(appStateProvider.notifier).setFontScale(s),
         ),
-        _divider(),
-        _switchRow(
-          icon: Icons.texture_outlined,
-          label: '暖纸底纹',
-          // 真生效:NoiseBackground 读它决定画不画噪点。
-          value: ref.watch(appStateProvider).paperTexture,
-          onChanged: (v) =>
-              ref.read(appStateProvider.notifier).setPaperTexture(v),
-        ),
+        // ── [ZCode] 暖纸底纹开关已删——1800 颗微点肉眼不可见，无实际价值 ──
       ],
     );
   }
@@ -451,18 +458,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           disabled: searchCount == 0,
           onTap: () => _confirmClearSearches(searchCount),
         ),
-        _divider(),
-        _menuRow(
-          icon: Icons.upload_outlined,
-          label: '导入数据',
-          onTap: () => _toast('导入功能将在后续版本支持'),
-        ),
-        _divider(),
-        _menuRow(
-          icon: Icons.download_outlined,
-          label: '导出数据',
-          onTap: () => _toast('导出功能将在后续版本支持'),
-        ),
       ],
     );
   }
@@ -480,19 +475,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _menuRow(
           icon: Icons.description_outlined,
           label: '用户协议',
-          onTap: () => _toast('用户协议页面将在后续版本支持'),
+          onTap: () => context.push(KkRoutes.userAgreement),
         ),
         _divider(),
         _menuRow(
           icon: Icons.privacy_tip_outlined,
           label: '隐私政策',
-          onTap: () => _toast('隐私政策页面将在后续版本支持'),
+          onTap: () => context.push(KkRoutes.privacyPolicy),
         ),
         _divider(),
         _menuRow(
           icon: Icons.code_outlined,
           label: '开源致谢',
-          onTap: () => _toast('开源致谢页面将在后续版本支持'),
+          onTap: () => showLicensePage(
+            context: context,
+            applicationName: '看看',
+            applicationVersion: '0.2.0+1',
+          ),
         ),
       ],
     );
@@ -548,9 +547,8 @@ class _SegmentedControl<T> extends StatelessWidget {
                     child: Text(
                       opt.label,
                       style: KkType.bodySm.copyWith(
-                        color: opt.value == selected
-                            ? Colors.white
-                            : KkColors.t2,
+                        color:
+                            opt.value == selected ? Colors.white : KkColors.t2,
                         fontWeight: opt.value == selected
                             ? FontWeight.w600
                             : FontWeight.normal,

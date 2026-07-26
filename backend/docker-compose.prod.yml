@@ -15,8 +15,9 @@ services:
       # 国内服务器构建可加：args: { PIP_INDEX_URL: "https://pypi.tuna.tsinghua.edu.cn/simple" }
     container_name: ccpj_backend
     restart: unless-stopped
+    # 只绑本机：对外统一走 nginx:80/443，8000 不暴露到公网（服务器本机仍可 curl 调试）
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       DATABASE_URL: postgresql+psycopg2://ccpj:${POSTGRES_PASSWORD:?生产必须设置数据库密码}@postgres:5432/ccpj
       REDIS_URL: redis://redis:6379/0
@@ -35,9 +36,23 @@ services:
       ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
       ALIYUN_SMS_TEMPLATE_CODE: ${ALIYUN_SMS_TEMPLATE_CODE:-}
       SHARE_BASE_URL: ${SHARE_BASE_URL:-https://share.example.dev}
+      # web 前端与 API 同源部署（nginx 反代）时可留空；跨域访问时填 web 域名（逗号分隔）
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
       # AI 抓取管线（docker exec ccpj_backend python -m app.pipeline process 时用；可不配）
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-8}
+      # AI 整理 provider：claude / deepseek（你在用 deepseek）
+      AI_PROVIDER: ${AI_PROVIDER:-claude}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      # 成本护栏：每日 AI 调用上限（0=不限）+ 连续失败熔断阈值
+      AI_DAILY_CALL_CAP: ${AI_DAILY_CALL_CAP:-0}
+      AI_FAILURE_CIRCUIT_BREAKER: ${AI_FAILURE_CIRCUIT_BREAKER:-5}
+      # 定时整理调度：默认关；开启后每 N 分钟自动整理一批采集候选（受成本护栏约束）
+      INGEST_SCHEDULER_ENABLED: ${INGEST_SCHEDULER_ENABLED:-false}
+      INGEST_INTERVAL_MINUTES: ${INGEST_INTERVAL_MINUTES:-30}
+      INGEST_BATCH_LIMIT: ${INGEST_BATCH_LIMIT:-20}
     volumes:
       # storage_backend=local 时媒体的持久化盘（切 s3 后可去掉）
       - uploads:/srv/app/uploads
@@ -46,6 +61,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # nginx：对外唯一入口——托管 Flutter web + 反代 /api、/uploads 到后端（前后端同源）。
+  # web 静态包由本地 `flutter build web` 产出后放到 WEB_ROOT（默认整仓 checkout 时的相对路径）。
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ccpj_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      # - "443:443"   # 配好域名 + 证书后解开，并改用 nginx.conf 里的 HTTPS 段
+    volumes:
+      - ${WEB_ROOT:-../frontend/build/web}:/usr/share/nginx/html:ro
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # - ./deploy/certs:/etc/nginx/certs:ro   # 放 fullchain.pem / privkey.pem（HTTPS 时）
+    depends_on:
+      - backend
 
   postgres:
     image: postgres:16

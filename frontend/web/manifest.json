@@ -1,11 +1,11 @@
 {
-    "name": "kankan_flutter",
-    "short_name": "kankan_flutter",
+    "name": "看看",
+    "short_name": "看看",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FBF9F4",
+    "theme_color": "#1D9E75",
+    "description": "看看 · 展示你的 AI 作品，给别人直接去用",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

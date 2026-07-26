@@ -23,6 +23,7 @@ import '../remote_user_cache.dart';
 class UserPublic {
   final String id;
   final String nickname;
+  final String? handle; // 稳定用户名 @handle
   final String? avatarUrl;
   final String? bio;
   final int projectCount;
@@ -33,6 +34,7 @@ class UserPublic {
   const UserPublic({
     required this.id,
     required this.nickname,
+    this.handle,
     this.avatarUrl,
     this.bio,
     this.projectCount = 0,
@@ -102,6 +104,26 @@ class UsersApi {
     }
   }
 
+  /// GET /users/search?q= → 搜索用户（昵称/简介模糊，游客可读）。
+  /// 顺带 cacheRemoteUser 让搜索结果头像/名字在别处也查得到。
+  Future<List<KkUser>> searchUsers(String q, {int limit = 30}) async {
+    final s = q.trim();
+    if (s.isEmpty) return const [];
+    try {
+      final resp = await _dio.get<dynamic>(
+        '/users/search',
+        queryParameters: {'q': s, 'limit': limit},
+      );
+      final users = _parseUsers(resp.data);
+      for (final u in users) {
+        cacheRemoteUser(u);
+      }
+      return users;
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
   /// GET /users/{id} → 远程用户公开资料（昵称/头像/简介/计数/是否已关注）。
   /// 游客可读。顺带 cacheRemoteUser 让 userByIdProvider 兜底也能查到这位远程用户。
   Future<UserPublic> userPublic(String id) async {
@@ -112,16 +134,20 @@ class UsersApi {
         final m = Map<String, dynamic>.from(data);
         final uid = m['id'].toString();
         final nick = (m['nickname'] ?? '').toString();
+        final handle = (m['handle'] as String?)?.trim();
+        final hval = (handle != null && handle.isNotEmpty) ? handle : null;
         // 顺带缓存：profile_screen 头像、follows_screen 行头像都能用 userByIdProvider 查到。
         cacheRemoteUser(KkUser(
           id: uid,
           name: nick.isNotEmpty ? nick : uid,
+          handle: hval,
           avatar: m['avatar_url'] as String?,
           bio: m['bio'] as String?,
         ));
         return UserPublic(
           id: uid,
           nickname: nick,
+          handle: hval,
           avatarUrl: m['avatar_url'] as String?,
           bio: m['bio'] as String?,
           projectCount: _readInt(m['published_project_count']),
@@ -180,9 +206,11 @@ class UsersApi {
       final id = j['id'].toString();
       if (id.isEmpty) continue;
       final nick = (j['nickname'] ?? '').toString();
+      final handle = (j['handle'] as String?)?.trim();
       final user = KkUser(
         id: id,
         name: nick.isNotEmpty ? nick : id,
+        handle: (handle != null && handle.isNotEmpty) ? handle : null,
         avatar: j['avatar_url'] as String?,
       );
       cacheRemoteUser(user);

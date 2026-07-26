@@ -7,7 +7,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../domain/models/models.dart';
-import '../../domain/repositories/search_repository.dart';
+import '../../providers/search_provider.dart';
 import '../../router/routes.dart';
 import '../shared/empty_state.dart';
 
@@ -33,7 +33,7 @@ class TopicPlazaScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final topics = ref.watch(searchRepositoryProvider).topTopics(limit: 30);
+    final topicsAsync = ref.watch(topTopicsProvider(30));
 
     return Scaffold(
       backgroundColor: KkColors.bg,
@@ -45,31 +45,123 @@ class TopicPlazaScreen extends ConsumerWidget {
         titleSpacing: 0,
         title: Text('话题广场', style: KkType.h2),
       ),
-      body: topics.isEmpty
-          ? ListView(
-              children: const [
-                EmptyState(variant: EmptyStateVariant.generic),
-              ],
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.only(bottom: KkSpacing.xxl),
-              itemCount: topics.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: KkColors.divider, indent: 44),
-              itemBuilder: (context, i) => _TopicRow(
-                rank: i + 1,
-                topic: topics[i],
-                onTap: () => context.push(KkRoutes.topic(topics[i].tag)),
+      body: topicsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => ListView(
+          children: const [EmptyState(variant: EmptyStateVariant.generic)],
+        ),
+        data: (topics) => topics.isEmpty
+            ? ListView(
+                children: const [
+                  EmptyState(variant: EmptyStateVariant.generic),
+                ],
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  KkSpacing.lg,
+                  KkSpacing.md,
+                  KkSpacing.lg,
+                  KkSpacing.xxl,
+                ),
+                children: [
+                  // TOP3 用上方大卡展示；下方长条从第 4 名起，避免重复。
+                  if (topics.length >= 3) ...[
+                    _HotStage(topics: topics.take(3).toList()),
+                    const SizedBox(height: KkSpacing.lg),
+                  ],
+                  for (int i = (topics.length >= 3 ? 3 : 0);
+                      i < topics.length;
+                      i++)
+                    _TopicRow(
+                      rank: i + 1,
+                      topic: topics[i],
+                      onTap: () => context.push(KkRoutes.topic(topics[i].tag)),
+                    ),
+                ],
               ),
-            ),
+      ),
     );
   }
 }
 
-/// 话题榜行:名次 + #tag + 计数 + chevron。
-///
-/// 名次:mono t3 w600,固定宽 28(对齐两位数)。Top 3 不上色(克制,避免
-/// 与榜单页 medal 色系重复且 coral 铁律禁用),统一 t3。
+class _HotStage extends StatelessWidget {
+  final List<Topic> topics;
+
+  const _HotStage({required this.topics});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(KkSpacing.md),
+      decoration: BoxDecoration(
+        color: KkColors.bgCard,
+        borderRadius: BorderRadius.circular(KkRadius.lg),
+        boxShadow: KkElevation.card,
+      ),
+      child: Row(
+        children: [
+          for (int i = 0; i < topics.length; i++) ...[
+            Expanded(child: _HotTopicCard(rank: i + 1, topic: topics[i])),
+            if (i != topics.length - 1) const SizedBox(width: KkSpacing.sm),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HotTopicCard extends StatelessWidget {
+  final int rank;
+  final Topic topic;
+
+  const _HotTopicCard({required this.rank, required this.topic});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tappable(
+      onTap: () => context.push(KkRoutes.topic(topic.tag)),
+      borderRadius: BorderRadius.circular(KkRadius.md),
+      child: Container(
+        padding: const EdgeInsets.all(KkSpacing.md),
+        decoration: BoxDecoration(
+          color: rank == 1 ? KkColors.mint : KkColors.bgSubtle,
+          borderRadius: BorderRadius.circular(KkRadius.md),
+          border: Border.all(color: rank == 1 ? KkColors.mint : KkColors.bd),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'TOP $rank',
+              style: KkType.mono.copyWith(
+                fontSize: 10,
+                color: rank == 1 ? KkColors.teal : KkColors.t3,
+              ),
+            ),
+            const SizedBox(height: KkSpacing.sm),
+            Text(
+              '#${topic.tag}',
+              style: KkType.body.copyWith(
+                color: KkColors.t1,
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${topic.projectCount} 项目 · ${topic.postCount} 动态',
+              style: KkType.mono.copyWith(fontSize: 10, color: KkColors.t3),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TopicRow extends StatelessWidget {
   final int rank;
   final Topic topic;
@@ -83,25 +175,31 @@ class _TopicRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hot = rank <= 3;
     return Tappable(
       onTap: onTap,
-      borderRadius: BorderRadius.zero,
+      borderRadius: BorderRadius.circular(KkRadius.md),
       child: Container(
-        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: KkSpacing.sm),
         padding: const EdgeInsets.symmetric(
-          horizontal: KkSpacing.lg,
+          horizontal: KkSpacing.md,
           vertical: KkSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: KkColors.bgCard,
+          borderRadius: BorderRadius.circular(KkRadius.md),
+          border: Border.all(color: KkColors.bd),
         ),
         child: Row(
           children: [
             SizedBox(
               width: 28,
               child: Text(
-                '$rank',
+                rank.toString().padLeft(2, '0'),
                 style: KkType.mono.copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: KkColors.t3,
+                  fontSize: 12,
+                  color: hot ? KkColors.teal : KkColors.t3,
+                  fontWeight: hot ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ),
@@ -117,13 +215,15 @@ class _TopicRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: KkSpacing.sm),
             Text(
               '${topic.projectCount} 项目 · ${topic.postCount} 动态',
-              style: KkType.mono.copyWith(fontSize: 11, color: KkColors.t3),
+              style: KkType.mono.copyWith(
+                fontSize: 11,
+                color: KkColors.t3,
+              ),
             ),
             const SizedBox(width: KkSpacing.xs),
-            const Icon(Icons.chevron_right, size: 18, color: KkColors.t4),
+            const Icon(Icons.chevron_right, size: 18, color: KkColors.t3),
           ],
         ),
       ),

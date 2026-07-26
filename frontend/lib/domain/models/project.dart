@@ -61,6 +61,12 @@ abstract class Project with _$Project {
     /// 仓库 star 数(repo 项目用,与 RepoInfo.stars 同源)
     @Default(0) int repoStars,
 
+    /// 体验链接(作者作品的可去用地址,http/https)。有则详情页显「去体验」按钮。
+    String? tryUrl,
+
+    /// published / pending_review / draft / rejected / deleted
+    @Default('published') String status,
+
     /// 创建时间(毫秒)
     required int createdAtMs,
   }) = _Project;

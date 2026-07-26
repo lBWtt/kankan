@@ -23,6 +23,11 @@ RUN pip install -i ${PIP_INDEX_URL} -r requirements.txt
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
+# 内部审核台静态页（main.py 从 ../admin_web 挂载，容器里要有）
+COPY admin_web ./admin_web
+# 运维/种子脚本：装/改马甲、互动、清测试数据、设管理员——供 docker exec 跑
+COPY seed_personas.py seed_persona_follows.py seed_avatars.py seed_persona_interactions.py \
+     seed_dev.py clean_test_data.py make_admin.py ./
 
 # 上传目录（storage_backend=local 时挂卷持久化；s3 时仅作临时盘）
 RUN mkdir -p uploads && chown -R app:app /srv/app

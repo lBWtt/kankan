@@ -11,7 +11,7 @@ from typing import Dict, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models import Notification, Project, Report, User
+from app.models import Notification, Post, Project, Report, User
 from app.services.audit import log_admin_action
 
 # 管理动作 → (允许的起始状态, 目标状态)。红线：下架 taken_down 与删除 deleted 是两个独立状态。
@@ -88,6 +88,17 @@ def set_featured_rank(db: Session, admin: User, project_id: uuid.UUID, rank: Opt
     project.featured_rank = rank
     log_admin_action(db, admin.id, "feature_project", "project", project.id, {"featured_rank": rank})
     return project
+
+
+def admin_delete_post(db: Session, admin: User, post_id: uuid.UUID) -> None:
+    """管理员软删任意动态（不限本人）——用于统一管理马甲/清理违规内容。
+    与 posts.delete_post 的「仅本人」不同：后台按 is_admin 授权，可删任何人的动态。幂等：已删再删也 OK。"""
+    p = db.get(Post, post_id)
+    if p is None:
+        raise AppError(404, "NOT_FOUND", "动态不存在")
+    if p.deleted_at is None:
+        p.deleted_at = datetime.now(timezone.utc)
+    log_admin_action(db, admin.id, "delete_post", "post", p.id, {"author_user_id": str(p.author_user_id)})
 
 
 def resolve_report(

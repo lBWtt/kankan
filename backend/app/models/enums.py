@@ -39,7 +39,8 @@ SHARE_CHANNEL = ("wechat", "moments", "x", "xiaohongshu", "copy_link", "other")
 
 # ---- 通知类型 ----
 NOTIFICATION_TYPE = (
-    "daily_pick", "weekly_ranking", "how_to_interest", "clue_update",
+    # want_to_try = 旧 how_to_interest 改名（定位：想试/想去用）；已删旧的 clue_update。
+    "daily_pick", "weekly_ranking", "want_to_try",
     "similar_project", "content_status", "system", "interaction",
 )
 

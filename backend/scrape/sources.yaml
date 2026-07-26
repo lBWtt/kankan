@@ -1,0 +1,525 @@
+# ============================================================
+# 这个文件是干什么的：**内容源登记册**——把"帮我们筛好项目的博主/网站/清单"统一存起来。
+#   站(website/directory/awesome_list/newsletter) 和 号(x_account) 一起管，不再混淆。
+# 为什么要它：与其人肉记几个源，不如把"自己去发现同类源并存起来"这件事固化成流程——
+#   `discover_sources` 跑固定搜索 + 行为分析，把新发现的源以 status: proposed 追加到本文件；
+#   人在审核台/命令行确认后翻成 confirmed；采集器**只从 confirmed 拉**。换任何 AI 跑都一样。
+# 谁读它：各 collector（ph/x/hellogithub/...）读 confirmed 的同类源；discover_sources 写 proposed。
+#
+# ── 字段 schema ─────────────────────────────────────────────
+#   name        显示名（站名 / @handle）
+#   kind        website | directory | awesome_list | newsletter | x_account
+#   url         站类必填（首页/repo/RSS）
+#   handle      x_account 必填（不带 @）
+#   lang        zh | en
+#   focus       ai-tools | indie-products | github-projects | devtools | mixed
+#                 —— 供评分/配额用：偏成品(indie-products/ai-tools)优先，偏基建(github-projects)次之
+#   region_hint cn | us | global   —— 只是提示；真正的国区/美区可达以解析 try_url 为准
+#   scrapable   rss | repo_md | html | x_timeline | x_search   —— 将来写 collector 用哪种解析
+#   status      seed | confirmed | proposed | rejected   —— 采集器只认 confirmed(含 seed)
+#   found_by    manual | websearch:YYYY-MM-DD | behavior | list:<handle>
+#   note        备注（偏科/坑/优先级等）
+#
+# ── 状态流转 ─────────────────────────────────────────────
+#   discover_sources → 新源写 proposed → 人确认 → confirmed（或 rejected，下次不再提名）。
+#   seed = 初始手工种子，等价 confirmed。
+# ============================================================
+
+sources:
+  # ---------- 站：中文、结构化、无需登录、已知好用（seed/confirmed） ----------
+- name: HelloGitHub
+  kind: website
+  url: https://hellogithub.com
+  lang: zh
+  focus: github-projects
+  region_hint: global
+  scrapable: repo_md            # 月刊内容 = repo 521xueweihan/HelloGitHub 里的 markdown
+  status: seed
+  found_by: manual
+  note: 月刊·收录有趣/入门开源项目；偏基建/C·C++，也有可上手成品——当次要饲料，靠评分过滤
+
+- name: GitHubDaily（站+号）
+  kind: website
+  url: https://github.com/GitHubDaily/GitHubDaily
+  lang: zh
+  focus: mixed
+  region_hint: global
+  scrapable: repo_md            # 年度 .md 列表；同名 X 号 @GitHubDaily 另见下方 x_account
+  status: seed
+  found_by: manual
+
+- name: 阮一峰·科技爱好者周刊
+  kind: newsletter
+  url: https://github.com/ruanyf/weekly
+  lang: zh
+  focus: mixed
+  region_hint: global
+  scrapable: repo_md            # repo 每期 .md + RSS
+  status: seed
+  found_by: manual
+
+- name: Product Hunt
+  kind: directory
+  url: https://www.producthunt.com/feed
+  lang: en
+  focus: indie-products
+  region_hint: global
+  scrapable: rss                # 已接 ph_collector → pipeline_run ph
+  status: seed
+  found_by: manual
+  note: 已接入 pipeline_run ph（国区可达过滤 + 商店锁区标注）
+
+- name: AI工具集
+  kind: directory
+  url: https://ai-bot.cn/
+  lang: zh
+  focus: ai-tools
+  region_hint: cn
+  scrapable: html
+  status: confirmed
+  found_by: websearch:2026-07-20
+  note: 1000+ AI 工具导航，每条自带官网链接（成品+链接富矿）
+
+- name: 优设AI导航
+  kind: directory
+  url: https://hao.uisdc.com/ai/
+  lang: zh
+  focus: ai-tools
+  region_hint: cn
+  scrapable: html
+  status: confirmed
+  found_by: websearch:2026-07-20
+
+- name: Toolify
+  kind: directory
+  url: https://www.toolify.ai/zh/
+  lang: zh
+  focus: ai-tools
+  region_hint: global
+  scrapable: html
+  status: confirmed
+  found_by: websearch:2026-07-20
+
+  # ---------- 站：自动发现，待确认（proposed） ----------
+- name: AI导航网
+  kind: directory
+  url: https://www.ainav.cn/
+  lang: zh
+  focus: ai-tools
+  region_hint: cn
+  scrapable: html
+  status: proposed
+  found_by: websearch:2026-07-20
+
+- name: 图钉AI导航
+  kind: directory
+  url: https://www.tudingai.com/
+  lang: zh
+  focus: ai-tools
+  region_hint: cn
+  scrapable: html
+  status: proposed
+  found_by: websearch:2026-07-20
+
+- name: awesome-ai-tools（0voice）
+  kind: awesome_list
+  url: https://github.com/0voice/awesome-ai-tools
+  lang: en
+  focus: ai-tools
+  region_hint: global
+  scrapable: repo_md
+  status: proposed
+  found_by: websearch:2026-07-20
+
+- name: newsletter-list（chasays）
+  kind: awesome_list
+  url: https://github.com/chasays/newsletter-list
+  lang: zh
+  focus: mixed
+  region_hint: global
+  scrapable: repo_md
+  status: proposed
+  found_by: websearch:2026-07-20
+  note: 一份 newsletter 清单——用来"顺藤摸瓜"再发现更多源
+
+  # ---------- 号：X 独立开发/buildinpublic（proposed，需 X 抓取通了再拉） ----------
+  # 注意：真去 X 抓仍卡反自动化，要靠 CDP 复用已登录 Chrome（见 memory vibe-coding-source-strategy）。
+- name: '@GitHubDaily'
+  kind: x_account
+  handle: GitHubDaily
+  lang: zh
+  focus: mixed
+  region_hint: global
+  scrapable: x_timeline
+  status: proposed
+  found_by: manual
+
+- name: '@CoderDaMing（半吊子程序猿大铭）'
+  kind: x_account
+  handle: CoderDaMing
+  lang: zh
+  focus: github-projects
+  region_hint: global
+  scrapable: x_timeline
+  status: proposed
+  found_by: manual
+  note: 用户截图那位——发 GitHub 工具介绍
+
+- name: '@levelsio（Pieter Levels）'
+  kind: x_account
+  handle: levelsio
+  lang: en
+  focus: indie-products
+  region_hint: global
+  scrapable: x_timeline
+  status: proposed
+  found_by: websearch:2026-07-20
+  note: NomadList/PhotoAI，buildinpublic 标杆
+
+- name: '@dannypostma'
+  kind: x_account
+  handle: dannypostma
+  lang: en
+  focus: indie-products
+  region_hint: global
+  scrapable: x_timeline
+  status: proposed
+  found_by: websearch:2026-07-20
+
+- name: '@tibo'
+  kind: x_account
+  handle: tibo
+  lang: en
+  focus: indie-products
+  region_hint: global
+  scrapable: x_timeline
+  status: proposed
+  found_by: websearch:2026-07-20
+
+- name: '@csallen（Indie Hackers 创始人）'
+  kind: x_account
+  handle: csallen
+  lang: en
+  focus: indie-products
+  region_hint: global
+  scrapable: x_timeline
+  status: proposed
+  found_by: websearch:2026-07-20
+
+- name: '@CursorHQ'
+  kind: x_account
+  handle: CursorHQ
+  lang: en
+  focus: devtools
+  region_hint: global
+  scrapable: x_timeline
+  status: proposed
+  found_by: websearch:2026-07-20
+
+# ── 发现线索（供 discover_sources 复跑，不是源本身） ──────────
+# X 标签/社区：#buildinpublic、#indiehackers、#solofounder；BuildinPublic X 社区(~1.08 万人)。
+# 固定搜索词（站）：独立开发者产品周刊 / AI工具精选导航 / awesome ai tools / indie hacker newsletter。
+# 顺藤摸瓜：从任一 confirmed 的 x_account 扒其 X List 与高频转发对象 → 新 proposed。
+- name: HN Show HN
+  kind: directory
+  url: https://news.ycombinator.com/show
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: confirmed
+  found_by: manual
+- name: 小众软件 appinn
+  kind: directory
+  url: https://www.appinn.com/
+  lang: zh
+  focus: indie-products
+  region_hint: cn
+  status: confirmed
+  found_by: manual
+- name: PH maker @call_me_young（Young）
+  kind: directory
+  url: https://www.producthunt.com/@call_me_young
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @mike_acti（Mike）
+  kind: directory
+  url: https://www.producthunt.com/@mike_acti
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @yjbdr（Junbo Y.）
+  kind: directory
+  url: https://www.producthunt.com/@yjbdr
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @axelkane（ Axel Kane）
+  kind: directory
+  url: https://www.producthunt.com/@axelkane
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @kai_active（KAI）
+  kind: directory
+  url: https://www.producthunt.com/@kai_active
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @william_wang24（William Wang）
+  kind: directory
+  url: https://www.producthunt.com/@william_wang24
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @yura_acti（Yura）
+  kind: directory
+  url: https://www.producthunt.com/@yura_acti
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @kisekiya（Kisekiya）
+  kind: directory
+  url: https://www.producthunt.com/@kisekiya
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @charlesfeng1（Charles ）
+  kind: directory
+  url: https://www.producthunt.com/@charlesfeng1
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @bioyue（Bio）
+  kind: directory
+  url: https://www.producthunt.com/@bioyue
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @inith271（Aharon）
+  kind: directory
+  url: https://www.producthunt.com/@inith271
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @mati_lee（Mati）
+  kind: directory
+  url: https://www.producthunt.com/@mati_lee
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @skyu（Skyu）
+  kind: directory
+  url: https://www.producthunt.com/@skyu
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @[REDACTED]（[REDACTED]）
+  kind: directory
+  url: https://www.producthunt.com/@[REDACTED]
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @xiaban（xiaban）
+  kind: directory
+  url: https://www.producthunt.com/@xiaban
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @bdrift（Beer van der Drift）
+  kind: directory
+  url: https://www.producthunt.com/@bdrift
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @kar_re（Kaspian Jakobsson）
+  kind: directory
+  url: https://www.producthunt.com/@kar_re
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @amperisk（Joseph Calvo）
+  kind: directory
+  url: https://www.producthunt.com/@amperisk
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @nic_tang（Nic Tang）
+  kind: directory
+  url: https://www.producthunt.com/@nic_tang
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @tony_tan10086（Tony TAN）
+  kind: directory
+  url: https://www.producthunt.com/@tony_tan10086
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @jiwei_yuan（Jiwei Yuan）
+  kind: directory
+  url: https://www.producthunt.com/@jiwei_yuan
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @konstantimb（Konstantin Borimechkov）
+  kind: directory
+  url: https://www.producthunt.com/@konstantimb
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @kevin_kamau（Kevin Kamau）
+  kind: directory
+  url: https://www.producthunt.com/@kevin_kamau
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @finn_kong（Finn）
+  kind: directory
+  url: https://www.producthunt.com/@finn_kong
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @bensenescu（Ben Senescu）
+  kind: directory
+  url: https://www.producthunt.com/@bensenescu
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @cruise_chen（Cruise Chen）
+  kind: directory
+  url: https://www.producthunt.com/@cruise_chen
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @pliorea（Hans_Yuan）
+  kind: directory
+  url: https://www.producthunt.com/@pliorea
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @christyfea（Christy Chen）
+  kind: directory
+  url: https://www.producthunt.com/@christyfea
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @wendyba（Wendy）
+  kind: directory
+  url: https://www.producthunt.com/@wendyba
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @luki_notlowkey（Luki ）
+  kind: directory
+  url: https://www.producthunt.com/@luki_notlowkey
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @rohanrecommends（Rohan Chaubey）
+  kind: directory
+  url: https://www.producthunt.com/@rohanrecommends
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @rcn（Raajeev Chandran）
+  kind: directory
+  url: https://www.producthunt.com/@rcn
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @emirkarabeg（Emir Karabeg）
+  kind: directory
+  url: https://www.producthunt.com/@emirkarabeg
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @tirth_nandha1（Tirth Nandha）
+  kind: directory
+  url: https://www.producthunt.com/@tirth_nandha1
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @samuel_kraft（Samuel Kraft）
+  kind: directory
+  url: https://www.producthunt.com/@samuel_kraft
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+discovery_hints:
+  x_hashtags: [buildinpublic, indiehackers, solofounder]
+  site_queries:
+  - 独立开发者 产品 周刊 newsletter
+  - AI 工具 精选 导航 每周更新
+  - awesome ai tools github
+  - indie hacker product newsletter

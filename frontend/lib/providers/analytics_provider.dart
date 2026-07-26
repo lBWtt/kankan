@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/config/app_config.dart';
 import '../core/prefs.dart';
 import '../core/utils/backend_id.dart';
 import '../data/api/events_api.dart';
@@ -18,17 +19,21 @@ class Analytics {
   Timer? _timer;
 
   Analytics(this._ref) {
-    // 定时冲刷：攒着的事件每 8 秒发一批（也在满 20 条时立即发）。
-    _timer = Timer.periodic(const Duration(seconds: 8), (_) => flush());
-    // provider 销毁时停定时器 + 最后冲刷一次（别丢尾巴上的事件）。
-    _ref.onDispose(() {
-      _timer?.cancel();
-      flush();
-    });
+    // mock 模式没有后端可发，所有事件都会被跳过 → 不建定时器，省一个空转 timer。
+    if (AppConfig.useRemote) {
+      // 定时冲刷：攒着的事件每 8 秒发一批（也在满 20 条时立即发）。
+      _timer = Timer.periodic(const Duration(seconds: 8), (_) => flush());
+      // provider 销毁时停定时器 + 最后冲刷一次（别丢尾巴上的事件）。
+      _ref.onDispose(() {
+        _timer?.cancel();
+        flush();
+      });
+    }
   }
 
   /// 记一条事件。projectId 为 mock 短 id 时整条跳过（后端 project_id 需 UUID）。
   void track(String eventName, {String? projectId, Map<String, dynamic>? payload}) {
+    if (!AppConfig.useRemote) return; // mock 模式不埋点
     if (projectId != null && !looksLikeBackendId(projectId)) return;
     final e = <String, dynamic>{
       'event_name': eventName,

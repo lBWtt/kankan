@@ -36,7 +36,7 @@ class AdminAction(CreatedAtMixin, Base):
         # 非固定枚举；PR#5 原 CHECK 白名单词表是错的，会 500 掉合法审计写入，已移除。
         # H-MDL-6：target_type 白名单 CHECK
         CheckConstraint(
-            "target_type IN ('project','candidate','report','user')",
+            "target_type IN ('project','candidate','report','user','post','feedback')",
             name="admin_target_type_allowed",
         ),
     )

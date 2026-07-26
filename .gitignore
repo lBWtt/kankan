@@ -20,3 +20,10 @@ build/
 *.iml
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# 大文件/构建产物/浏览器缓存（别入库）
+*.apk
+.jike_userdata/
+backend/.jike_userdata/
+*_userdata/
+backend/.*_userdata/

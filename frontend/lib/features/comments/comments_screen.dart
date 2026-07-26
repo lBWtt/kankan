@@ -77,7 +77,7 @@ class _CommentsScreenState extends ConsumerState<CommentsScreen> {
         // mock 模式显真实 mock 评论数。remote 的真实总数需后端 total 字段(暂未提供),
         // 列表体用 paginated provider 分页加载。
         title: Text(
-          isRemote ? '心得' : '心得 ${sorted.length}',
+          isRemote ? '评论' : '评论 ${sorted.length}',
           style: KkType.h3,
         ),
         actions: [
@@ -116,7 +116,7 @@ class _CommentsScreenState extends ConsumerState<CommentsScreen> {
           ? const Center(
               child: EmptyState(
                 variant: EmptyStateVariant.generic,
-                title: '暂无心得',
+                title: '暂无评论',
               ),
             )
           : SafeArea(

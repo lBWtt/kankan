@@ -11,7 +11,6 @@ from app.models.project_action import ProjectAction, ProjectActionEvent
 from app.models.media import ProjectMedia
 from app.models.tag import ProjectTag, ProjectTagRelation
 from app.models.interaction import (
-    ClueSubscription,
     Favorite,
     HowToInterest,
     ProjectReaction,
@@ -27,6 +26,8 @@ from app.models.notification import Notification, PushPreference
 from app.models.candidate import CandidateContent
 from app.models.admin_action import AdminAction
 from app.models.analytics import AnalyticsEvent
+from app.models.topic_follow import TopicFollow
+from app.models.feedback import Feedback
 
 __all__ = [
     "Base",
@@ -40,7 +41,6 @@ __all__ = [
     "Favorite",
     "TryItem",
     "HowToInterest",
-    "ClueSubscription",
     "SimilarProjectLink",
     "ProjectReaction",
     "UserFollow",
@@ -56,4 +56,6 @@ __all__ = [
     "CandidateContent",
     "AdminAction",
     "AnalyticsEvent",
+    "TopicFollow",
+    "Feedback",
 ]

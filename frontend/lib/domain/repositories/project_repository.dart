@@ -84,10 +84,11 @@ class ProjectRepository {
   /// take 成功后 +1(HANDOFF §2.2)
   /// Phase 2 简化:仅内存更新;Phase 5 接 Drift 持久化。
   void incrementTakeaway(String projectId) {
-    final p = byId(projectId);
-    if (p != null) {
-      _projects[_projects.indexOf(p)] = p.copyWith(
-        takeawayCount: p.takeawayCount + 1,
+    // 按 id 查下标（不依赖对象引用相等，排序/重排后也不会返回 -1 越界）。
+    final i = _projects.indexWhere((p) => p.id == projectId);
+    if (i >= 0) {
+      _projects[i] = _projects[i].copyWith(
+        takeawayCount: _projects[i].takeawayCount + 1,
       );
     }
   }

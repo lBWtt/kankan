@@ -30,7 +30,7 @@ def cmd_collect(args) -> int:
         print("文件内容必须是 JSON 数组（每个元素一条抓取内容）", file=sys.stderr)
         return 1
     with SessionLocal() as db:
-        stats = ingest_raw_items(db, items, default_platform=args.platform)
+        stats = ingest_raw_items(db, items, default_platform=args.platform, default_kind=args.kind)
     print(f"入池 {stats['ingested']} 条；重复跳过 {stats['duplicate']} 条；"
           f"缺 source_url/title 无效 {stats['invalid']} 条")
     return 0
@@ -51,6 +51,8 @@ def main() -> int:
     p_collect = sub.add_parser("collect", help="把抓取的 JSON 条目入候选池（ai_collected）")
     p_collect.add_argument("file", help="JSON 文件路径（数组，每条至少含 source_url + title）")
     p_collect.add_argument("--platform", default=None, help="条目没写来源平台时的默认值")
+    p_collect.add_argument("--kind", default="project", choices=["project", "post"],
+                           help="落地路径：project 建项目（默认）/ post 建动态（即刻/资讯改写）")
     p_collect.set_defaults(func=cmd_collect)
 
     p_process = sub.add_parser("process", help="调 LLM(Claude/DeepSeek) 整理 ai_collected 的候选 → 待审核")

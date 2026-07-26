@@ -4,6 +4,7 @@
 // 如果它出错了：重复加载 / 漏页 / 加载态卡死 / 刷新不重置。
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../network/app_exception.dart';
 import 'page.dart';
 
 /// 分页 Notifier 基类。子类实现 [fetchPage]（拉一页）+ [idOf]（去重键）。
@@ -39,26 +40,38 @@ abstract class PaginatedNotifier<T> extends Notifier<PaginatedState<T>> {
 
   Future<void> _refresh() async {
     state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      final page = await fetchPage(null);
-      if (page.items.isEmpty) {
-        // 空首页：保留空列表，hasMore=false
-        state = PaginatedState<T>(
-          items: const [],
-          isLoading: false,
-          hasMore: false,
-          nextCursor: page.nextCursor,
-        );
+    // 冷启动那一下网络/USB 隧道可能还没就绪 → 对「网络不可达」做有限次退避重试，
+    // 避免一次瞬时失败把 UI 永久钉在「加载失败」（真实排查过的坑：curl 通、App 却卡失败态）。
+    // 只重试 NETWORK_ERROR；HTTP 4xx/5xx、解析等错误不重试，直接暴露给失败页显示真实原因。
+    // 重试期间保持 isLoading（用户看到的是转圈，不是错误页）。
+    const maxTries = 3;
+    for (var attempt = 1;; attempt++) {
+      try {
+        final page = await fetchPage(null);
+        // 空首页：保留空列表，hasMore=false。
+        state = page.items.isEmpty
+            ? PaginatedState<T>(
+                items: const [],
+                isLoading: false,
+                hasMore: false,
+                nextCursor: page.nextCursor,
+              )
+            : PaginatedState<T>(
+                items: page.items,
+                isLoading: false,
+                hasMore: page.hasMore,
+                nextCursor: page.nextCursor,
+              );
         return;
+      } catch (e) {
+        final retriable =
+            attempt < maxTries && e is AppException && e.code == 'NETWORK_ERROR';
+        if (!retriable) {
+          state = state.copyWith(isLoading: false, error: e);
+          return;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 400 * attempt));
       }
-      state = PaginatedState<T>(
-        items: page.items,
-        isLoading: false,
-        hasMore: page.hasMore,
-        nextCursor: page.nextCursor,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e);
     }
   }
 
@@ -67,7 +80,8 @@ abstract class PaginatedNotifier<T> extends Notifier<PaginatedState<T>> {
     if (state.isLoading || state.isLoadingMore || !state.hasMore) return;
     final cursor = state.nextCursor;
     if (cursor == null) return; // 无游标且 hasMore 仍 true（首页启发式）→ 停
-    state = state.copyWith(isLoadingMore: true);
+    // 重试追加时先清掉上次的 error（成功路径本就重建 state 清 error，这里让重试即时清）。
+    state = state.copyWith(isLoadingMore: true, clearError: true);
     try {
       final page = await fetchPage(cursor);
       // 去重：跳过已存在的 id（后端不支持分页时避免重复）。

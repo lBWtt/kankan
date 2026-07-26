@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -19,10 +20,14 @@ import '../../data/api/posts_api.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../../domain/repositories/project_repository.dart';
+import '../../providers/app_state_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/paginated_posts_provider.dart';
+import '../../providers/project_provider.dart';
 import '../../providers/remote_post_provider.dart';
+import '../../providers/remote_project_provider.dart';
 import '../../router/routes.dart';
+import '../feedback/feedback_sheet.dart';
 
 /// 任务⑭ 发动态 compose 屏 — 朋友圈发布器样式。
 ///
@@ -45,27 +50,36 @@ class ComposeScreen extends ConsumerStatefulWidget {
   ConsumerState<ComposeScreen> createState() => _ComposeScreenState();
 }
 
+enum _DraftExitAction { save, discard, keepEditing }
+
 class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   final _contentCtrl = TextEditingController();
   final List<MediaItem> _media = [];
   final Map<String, Uint8List> _mediaBytes = {}; // url→bytes（远程发布真上传用）
   final List<String> _tags = [];
   String? _quoteProjectId;
+  Project? _quoteProject;
 
   // 任务 A:草稿恢复。_pendingDraft 进屏时从 prefs 读,非空则显横条;
   // _sent=true 表示已成功发送(dispose 时不再存草稿,且已清 key)。
   _ComposeDraft? _pendingDraft;
   bool _showDraftBanner = false;
   bool _sent = false;
+  bool _isPublishing = false;
+  Timer? _autosaveTimer;
 
   @override
   void initState() {
     super.initState();
     _loadDraft();
+    _contentCtrl.addListener(_scheduleAutoSave);
   }
 
+  String get _draftKey =>
+      '${ref.read(authProvider).currentUser?.id ?? 'guest'}::${PrefsKeys.draftCompose}';
+
   void _loadDraft() {
-    final raw = ref.read(prefsProvider).getString(PrefsKeys.draftCompose);
+    final raw = ref.read(prefsProvider).getString(_draftKey);
     if (raw == null || raw.isEmpty) return;
     try {
       final m = jsonDecode(raw) as Map<String, dynamic>;
@@ -76,7 +90,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       );
       _showDraftBanner = _pendingDraft != null &&
           (_pendingDraft!.content.trim().isNotEmpty ||
-              _pendingDraft!.tags.isNotEmpty);
+              _pendingDraft!.tags.isNotEmpty ||
+              _pendingDraft!.hadMedia);
     } catch (_) {
       _pendingDraft = null;
       _showDraftBanner = false;
@@ -92,10 +107,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         ..addAll(_pendingDraft!.tags);
       _showDraftBanner = false;
     });
+    _scheduleAutoSave();
   }
 
   void _dismissDraft() {
-    ref.read(prefsProvider).remove(PrefsKeys.draftCompose);
+    ref.read(prefsProvider).remove(_draftKey);
     setState(() {
       _showDraftBanner = false;
       _pendingDraft = null;
@@ -105,11 +121,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   void _saveDraft() {
     final content = _contentCtrl.text;
     final tags = _tags;
-    final hasDraft = content.trim().isNotEmpty || tags.isNotEmpty;
+    final hasDraft =
+        content.trim().isNotEmpty || tags.isNotEmpty || _media.isNotEmpty;
     final prefs = ref.read(prefsProvider);
     if (hasDraft) {
       prefs.setString(
-        PrefsKeys.draftCompose,
+        _draftKey,
         jsonEncode({
           'content': content,
           'tags': tags,
@@ -117,7 +134,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         }),
       );
     } else {
-      prefs.remove(PrefsKeys.draftCompose);
+      prefs.remove(_draftKey);
     }
   }
 
@@ -125,6 +142,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   void dispose() {
     // 任务 A:未发送则存草稿(防丢稿);已发送(_sent=true)则跳过(_send 已清 key)。
     if (!_sent) _saveDraft();
+    _autosaveTimer?.cancel();
     _contentCtrl.dispose();
     super.dispose();
   }
@@ -135,55 +153,69 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   }
 
   Future<void> _send() async {
+    if (_isPublishing) return;
     final text = _contentCtrl.text.trim();
     if (text.isEmpty && _media.isEmpty) {
       _toast('写点什么再发');
       return;
     }
 
-    // 登录 → 真发后端（POST /posts，先上传图拿 media_ids）；未登录/失败 → 本地 mock。
-    if (ref.read(authProvider).isLoggedIn) {
-      try {
-        final mediaIds = await _uploadMedia();
-        await ref.read(postsApiProvider).create({
-          'content': text.isEmpty ? ' ' : text,
-          'tags': _tags,
-          if (_quoteProjectId != null) 'quote_project_id': _quoteProjectId,
-          if (mediaIds.isNotEmpty) 'media_ids': mediaIds,
-        });
-        if (!mounted) return;
-        ref.invalidate(remotePostsProvider); // 动态流刷新看到新动态
-        ref.invalidate(paginatedPostsProvider); // P0-1：分页流也刷新（发现页推荐流）
-        _finish('已发送到「看看」');
-        return;
-      } on AppException catch (e) {
-        // 上线构建(useRemote)：如实报错并停下，不把失败伪装成「已本地发布」的假成功。
-        if (AppConfig.useRemote) {
-          if (mounted) _toast('发送失败：${e.message}');
+    setState(() => _isPublishing = true);
+    try {
+      // 登录 → 真发后端（POST /posts，先上传图拿 media_ids）；未登录/失败 → 本地 mock。
+      if (ref.read(authProvider).isLoggedIn) {
+        try {
+          final mediaIds = await _uploadMedia();
+          // ── [ZCode] 纯图无文发送分享图片，不再传空格被后端 reject ──
+          await ref.read(postsApiProvider).create({
+            'content': text.isEmpty ? '分享图片' : text,
+            'tags': _tags,
+            if (_quoteProjectId != null) 'quote_project_id': _quoteProjectId,
+            if (mediaIds.isNotEmpty) 'media_ids': mediaIds,
+          });
+          if (!mounted) return;
+          ref.invalidate(remotePostsProvider); // 动态流刷新看到新动态
+          ref.invalidate(paginatedPostsProvider); // P0-1：分页流也刷新（发现页推荐流）
+          // 「关注」流靠 userPostsProvider 补齐我自己的动态，发完也要刷新它才立刻可见。
+          final selfId = ref.read(authProvider).currentUser?.id;
+          if (selfId != null) ref.invalidate(userPostsProvider(selfId));
+          _finish('已发送');
           return;
+        } on AppException catch (e) {
+          // 上线构建(useRemote)：如实报错并停下，不把失败伪装成「已本地发布」的假成功。
+          if (AppConfig.useRemote) {
+            if (mounted) _toast('发送失败：${e.message}', error: e);
+            return;
+          }
+          // demo 构建(mock)：落到本地发布，不挡演示。
+          if (mounted) _toast('后端未同步（${e.message}），已本地发布');
+        } catch (e) {
+          // ── [ZCode] 兜底：非 AppException 的错误也要显示 ──
+          if (mounted) _toast('发送失败：$e', error: e);
+          if (AppConfig.useRemote) return;
         }
-        // demo 构建(mock)：落到本地发布，不挡演示。
-        if (mounted) _toast('后端未同步（${e.message}），已本地发布');
       }
-    }
 
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final post = Post(
-      id: 'user_post_$now',
-      content: text.isEmpty ? ' ' : text,
-      authorId: 'me',
-      media: List.of(_media),
-      tags: List.of(_tags),
-      quoteProjectId: _quoteProjectId,
-      likes: 0,
-      commentCount: 0,
-      createdAtMs: now,
-    );
-    ref.read(postRepositoryProvider).addPost(post);
-    // 让依赖 postRepositoryProvider 的屏(discover 推荐/关注/profile 动态)刷新
-    ref.invalidate(postRepositoryProvider);
-    ref.invalidate(paginatedPostsProvider); // P0-1：分页流刷新看到新动态
-    _finish('已发送');
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final post = Post(
+        id: 'user_post_$now',
+        content: text.isEmpty ? '分享图片' : text,
+        authorId: 'me',
+        media: List.of(_media),
+        tags: List.of(_tags),
+        quoteProjectId: _quoteProjectId,
+        likes: 0,
+        commentCount: 0,
+        createdAtMs: now,
+      );
+      ref.read(postRepositoryProvider).addPost(post);
+      // 让依赖 postRepositoryProvider 的屏(discover 推荐/关注/profile 动态)刷新
+      ref.invalidate(postRepositoryProvider);
+      ref.invalidate(paginatedPostsProvider); // P0-1：分页流刷新看到新动态
+      _finish('已发送');
+    } finally {
+      if (mounted && !_sent) setState(() => _isPublishing = false);
+    }
   }
 
   /// 上传图片拿 media_ids（best-effort：某张失败跳过，不挡发布）。
@@ -192,19 +224,96 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final ids = <String>[];
     for (final m in _media) {
       final bytes = _mediaBytes[m.url];
-      if (bytes == null) continue;
+      if (bytes == null) {
+        throw const AppException(code: 'MEDIA_MISSING', message: '图片需要重新添加');
+      }
       try {
         ids.add(await api.upload(bytes));
-      } catch (_) {}
+      } on AppException {
+        rethrow;
+      } catch (_) {
+        throw const AppException(
+            code: 'MEDIA_UPLOAD_FAILED', message: '图片上传失败，请重试');
+      }
     }
     return ids;
   }
 
   /// 收尾:清草稿 + 标记已发 + toast + 关屏。
   void _finish(String msg) {
-    ref.read(prefsProvider).remove(PrefsKeys.draftCompose);
+    ref.read(prefsProvider).remove(_draftKey);
     _sent = true;
     _toast(msg);
+    context.go('${KkRoutes.discover}?tab=following');
+  }
+
+  void _scheduleAutoSave() {
+    if (_sent) return;
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(const Duration(milliseconds: 500), _saveDraft);
+  }
+
+  bool get _hasUnsavedDraft =>
+      _contentCtrl.text.trim().isNotEmpty ||
+      _tags.isNotEmpty ||
+      _media.isNotEmpty;
+
+  Future<void> _requestClose() async {
+    if (!_hasUnsavedDraft) {
+      _close();
+      return;
+    }
+    final action = await showModalBottomSheet<_DraftExitAction>(
+      context: context,
+      backgroundColor: KkColors.bgCard,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                KkSpacing.lg,
+                KkSpacing.lg,
+                KkSpacing.lg,
+                KkSpacing.md,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('保存这次编辑？', style: KkType.h3),
+              ),
+            ),
+            _exitSheetItem(
+              icon: Icons.save_outlined,
+              label: '保存草稿',
+              onTap: () => Navigator.pop(sheetCtx, _DraftExitAction.save),
+            ),
+            const Divider(height: 1, color: KkColors.divider),
+            _exitSheetItem(
+              icon: Icons.delete_outline,
+              label: '丢弃',
+              onTap: () => Navigator.pop(sheetCtx, _DraftExitAction.discard),
+            ),
+            const Divider(height: 1, color: KkColors.divider),
+            _exitSheetItem(
+              icon: Icons.close,
+              label: '继续编辑',
+              onTap: () =>
+                  Navigator.pop(sheetCtx, _DraftExitAction.keepEditing),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null || action == _DraftExitAction.keepEditing) {
+      return;
+    }
+    if (action == _DraftExitAction.save) {
+      _saveDraft();
+      _toast('草稿已保存');
+    } else {
+      ref.read(prefsProvider).remove(_draftKey);
+      _sent = true;
+    }
     _close();
   }
 
@@ -218,14 +327,31 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
   }
 
-  void _toast(String msg) {
+  void _toast(String msg, {Object? error}) {
+    final code = error is AppException
+        ? (error.statusCode != null
+            ? 'HTTP_${error.statusCode}_${error.code}'
+            : error.code)
+        : error?.runtimeType.toString();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(msg),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          action: error == null
+              ? null
+              : SnackBarAction(
+                  label: '\u53cd\u9988',
+                  onPressed: () => showFeedbackSheet(
+                    context,
+                    sourcePage: KkRoutes.compose,
+                    errorCode: code,
+                  ),
+                ),
+        ),
+      );
   }
 
   /// 九宫格选图 — 复用 image_picker.pickMultiImage(同 MediaPicker 图片逻辑),
@@ -240,7 +366,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       final picked = <(MediaItem, Uint8List)>[];
       for (final f in files) {
         if (_media.length + picked.length >= 9) break;
-        picked.add((MediaItem(type: 'image', url: f.path, alt: '本地图片'), await f.readAsBytes()));
+        picked.add((
+          MediaItem(type: 'image', url: f.path, alt: '本地图片'),
+          await f.readAsBytes()
+        ));
       }
       if (!mounted) return;
       setState(() {
@@ -249,8 +378,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           _mediaBytes[item.url] = bytes;
         }
       });
-    } catch (_) {
-      // 用户取消或权限拒绝,静默
+      _scheduleAutoSave();
+    } catch (e) {
+      // ── [ZCode] 区分用户取消 vs 真实错误，不能全静默吞掉 ──
+      if (mounted) _toast('选图失败：$e');
     }
   }
 
@@ -261,6 +392,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       final t = ctrl.text.trim().replaceAll('#', '');
       if (t.isNotEmpty && !_tags.contains(t)) {
         setState(() => _tags.add(t));
+        _scheduleAutoSave();
       }
       Navigator.pop(context);
     }
@@ -299,14 +431,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('取消',
-                style: KkType.body.copyWith(color: KkColors.t2)),
+            child: Text('取消', style: KkType.body.copyWith(color: KkColors.t2)),
           ),
           TextButton(
             onPressed: submit,
             child: Text('添加',
-                style: KkType.body
-                    .copyWith(color: KkColors.teal, fontWeight: FontWeight.w600)),
+                style: KkType.body.copyWith(
+                    color: KkColors.teal, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -315,48 +446,54 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: KkColors.bg,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _topBar(),
-            // 任务 A:草稿恢复横条(进屏时 prefs 有草稿才显;恢复/忽略后消失)。
-            if (_showDraftBanner) _draftBanner(),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: KkSpacing.xxl),
-                children: [
-                  _contentField(),
-                  const SizedBox(height: KkSpacing.sm),
-                  _imageGrid(),
-                  if (_tags.isNotEmpty) ...[
-                    const SizedBox(height: KkSpacing.lg),
-                    _tagsChips(),
-                  ],
-                  if (_quoteProjectId != null) ...[
-                    const SizedBox(height: KkSpacing.lg),
-                    _quoteCard(),
-                  ],
-                  const SizedBox(height: KkSpacing.xl),
-                  // 底部操作条(朋友圈式行):只放已实现入口。
-                  _actionRow(
-                    icon: Icons.tag_outlined,
-                    label: '话题',
-                    value: _tags.isEmpty ? null : '已选 ${_tags.length} 个',
-                    onTap: _addTagDialog,
-                  ),
-                  if (_quoteProjectId == null)
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: Scaffold(
+        backgroundColor: KkColors.bg,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _topBar(),
+              // 任务 A:草稿恢复横条(进屏时 prefs 有草稿才显;恢复/忽略后消失)。
+              if (_showDraftBanner) _draftBanner(),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: KkSpacing.xxl),
+                  children: [
+                    _contentField(),
+                    const SizedBox(height: KkSpacing.sm),
+                    _imageGrid(),
+                    if (_tags.isNotEmpty) ...[
+                      const SizedBox(height: KkSpacing.lg),
+                      _tagsChips(),
+                    ],
+                    if (_quoteProjectId != null) ...[
+                      const SizedBox(height: KkSpacing.lg),
+                      _quoteCard(),
+                    ],
+                    const SizedBox(height: KkSpacing.xl),
+                    // 底部操作条(朋友圈式行):只放已实现入口。
                     _actionRow(
-                      icon: Icons.link,
-                      label: '引用项目',
-                      onTap: _pickProject,
+                      icon: Icons.tag_outlined,
+                      label: '话题',
+                      value: _tags.isEmpty ? null : '已选 ${_tags.length} 个',
+                      onTap: _addTagDialog,
                     ),
-                ],
+                    if (_quoteProjectId == null)
+                      _actionRow(
+                        icon: Icons.link,
+                        label: '引用项目',
+                        onTap: _pickProject,
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -375,17 +512,19 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       child: Row(
         children: [
           Tappable(
-            onTap: _close,
+            onTap: _isPublishing ? null : _requestClose,
             child: Padding(
               padding: const EdgeInsets.all(KkSpacing.md),
-              child: Text('取消', style: KkType.body.copyWith(color: KkColors.t2)),
+              child:
+                  Text('取消', style: KkType.body.copyWith(color: KkColors.t2)),
             ),
           ),
           const Spacer(),
           // 朋友圈式:中间留白(极简,不放标题)
           const Spacer(),
           Tappable(
-            onTap: _canSend ? _send : null,
+            // ── [ZCode] 按钮始终可点，让用户看到具体报错，不静默失败 ──
+            onTap: _isPublishing ? null : _send,
             borderRadius: BorderRadius.circular(KkRadius.pill),
             child: Container(
               padding: const EdgeInsets.symmetric(
@@ -394,12 +533,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               ),
               decoration: BoxDecoration(
                 // 空内容置灰(非 coral;发表不是 take,用 teal)
-                color: _canSend ? KkColors.teal : KkColors.t4,
+                color: _isPublishing
+                    ? KkColors.t4
+                    : (_canSend ? KkColors.teal : KkColors.t4),
                 borderRadius: BorderRadius.circular(KkRadius.pill),
               ),
-              child: const Text(
-                '发表',
-                style: TextStyle(
+              child: Text(
+                _isPublishing ? '发布中' : '发表',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -496,6 +637,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       ),
       child: TextField(
         controller: _contentCtrl,
+        autofocus: true,
         maxLines: 8,
         minLines: 4,
         maxLength: 500,
@@ -516,8 +658,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   // ── 九宫格图片区(3 列,近正方形圆角,×移除,末尾虚线+添加格)──
   Widget _imageGrid() {
     final screenW = MediaQuery.of(context).size.width;
-    // 3 列:屏宽 - 左右 padding(2*lg) - 2 个间隙(2*xs)
-    final cellSize = (screenW - 2 * KkSpacing.lg - 2 * KkSpacing.xs) / 3;
+    // 3 列:屏宽 - 左右 padding(2*lg) - 2 个间隙(2*xs)。
+    // 防御:首帧/过渡期屏宽可能为 0（引擎 "Width is zero" 帧），算出的 cellSize 会变负，
+    // 负尺寸的格子会让整屏布局失败→黑屏。宽度非正时先用兜底值，下一帧宽度正常再重算。
+    final usableW = screenW - 2 * KkSpacing.lg - 2 * KkSpacing.xs;
+    final cellSize = usableW > 3 ? usableW / 3 : 100.0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
       child: Wrap(
@@ -528,10 +673,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             _GridThumb(
               media: _media[i],
               size: cellSize,
-              onRemove: () => setState(() => _media.removeAt(i)),
+              onRemove: () {
+                setState(() => _media.removeAt(i));
+                _scheduleAutoSave();
+              },
             ),
-          if (_media.length < 9)
-            _AddCell(size: cellSize, onTap: _pickImage),
+          if (_media.length < 9) _AddCell(size: cellSize, onTap: _pickImage),
         ],
       ),
     );
@@ -548,7 +695,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           for (final t in _tags)
             _TagChip(
               tag: t,
-              onRemove: () => setState(() => _tags.remove(t)),
+              onRemove: () {
+                setState(() => _tags.remove(t));
+                _scheduleAutoSave();
+              },
             ),
         ],
       ),
@@ -558,13 +708,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   // ── 引用项目卡(已选态,可删/跳详情)──
   Widget _quoteCard() {
     final repo = ref.read(projectRepositoryProvider);
-    final project = repo.byId(_quoteProjectId!);
+    final project = _quoteProject ?? repo.byId(_quoteProjectId!);
     if (project == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
       child: _QuoteProjectCard(
         project: project,
-        onRemove: () => setState(() => _quoteProjectId = null),
+        onRemove: () => setState(() {
+          _quoteProjectId = null;
+          _quoteProject = null;
+        }),
       ),
     );
   }
@@ -612,10 +765,41 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     );
   }
 
-  /// 选引用项目 — 弹底部 sheet 列出全部项目,点选设 _quoteProjectId。
-  void _pickProject() {
+  /// 选引用项目 — 只展示真实相关来源：我的作品 / 收藏 / 最近看过的项目。
+  Future<void> _pickProject() async {
     final repo = ref.read(projectRepositoryProvider);
-    final projects = repo.all();
+    final sections = <({String title, List<Project> projects})>[];
+    final seen = <String>{};
+    List<Project> dedupe(List<Project> items) {
+      final out = <Project>[];
+      for (final p in items) {
+        if (seen.add(p.id)) out.add(p);
+      }
+      return out;
+    }
+
+    if (AppConfig.useRemote && ref.read(authProvider).isLoggedIn) {
+      final mine = dedupe(await ref.read(myProjectsProvider.future));
+      if (mine.isNotEmpty) sections.add((title: '我的作品', projects: mine));
+
+      final favs = dedupe(await ref.read(remoteFavoritesProvider.future));
+      if (favs.isNotEmpty) sections.add((title: '收藏', projects: favs));
+
+      final recent = <Project>[];
+      for (final id in ref.read(appStateProvider).browseHistory.take(12)) {
+        final p = await ref.read(projectByIdProvider(id).future);
+        if (p != null) recent.add(p);
+      }
+      final recentDeduped = dedupe(recent);
+      if (recentDeduped.isNotEmpty) {
+        sections.add((title: '最近看过的项目', projects: recentDeduped));
+      }
+    } else {
+      final local = dedupe(repo.all().take(20).toList());
+      if (local.isNotEmpty) sections.add((title: '可引用项目', projects: local));
+    }
+
+    if (!mounted) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -635,53 +819,118 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   const Spacer(),
                   Tappable(
                     onTap: () => Navigator.pop(sheetCtx),
-                    child: const Icon(Icons.close,
-                        size: 22, color: KkColors.t1),
+                    child:
+                        const Icon(Icons.close, size: 22, color: KkColors.t1),
                   ),
                 ],
               ),
             ),
             const Divider(height: 1, color: KkColors.divider),
             Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: projects.length,
-                separatorBuilder: (_, __) =>
-                    const Divider(height: 1, color: KkColors.divider, indent: 72),
-                itemBuilder: (ctx, i) {
-                  final p = projects[i];
-                  return Tappable(
-                    onTap: () {
-                      setState(() => _quoteProjectId = p.id);
-                      Navigator.pop(sheetCtx);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: KkSpacing.lg,
-                        vertical: KkSpacing.md,
+              child: sections.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(KkSpacing.xl),
+                      child: Text(
+                        '还没有可引用的项目',
+                        style: KkType.body.copyWith(color: KkColors.t3),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.article_outlined,
-                              size: 20, color: KkColors.t2),
-                          const SizedBox(width: KkSpacing.md),
-                          Expanded(
+                    )
+                  : ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final section in sections) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              KkSpacing.lg,
+                              KkSpacing.lg,
+                              KkSpacing.lg,
+                              KkSpacing.xs,
+                            ),
                             child: Text(
-                              p.title,
-                              style: KkType.body,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              section.title,
+                              style: KkType.bodySm.copyWith(
+                                color: KkColors.t3,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                          const Icon(Icons.chevron_right,
-                              size: 18, color: KkColors.t3),
+                          for (final p in section.projects)
+                            Tappable(
+                              onTap: () {
+                                setState(() {
+                                  _quoteProjectId = p.id;
+                                  _quoteProject = p;
+                                });
+                                Navigator.pop(sheetCtx);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: KkSpacing.lg,
+                                  vertical: KkSpacing.md,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.article_outlined,
+                                        size: 20, color: KkColors.t2),
+                                    const SizedBox(width: KkSpacing.md),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            p.title,
+                                            style: KkType.body,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (p.summary.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              p.summary,
+                                              style: KkType.bodySm.copyWith(
+                                                color: KkColors.t3,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.chevron_right,
+                                        size: 18, color: KkColors.t3),
+                                  ],
+                                ),
+                              ),
+                            ),
                         ],
-                      ),
+                      ],
                     ),
-                  );
-                },
-              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _exitSheetItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Tappable(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: KkSpacing.lg,
+          vertical: KkSpacing.md,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: KkColors.t2),
+            const SizedBox(width: KkSpacing.md),
+            Text(label, style: KkType.body),
           ],
         ),
       ),
@@ -725,8 +974,7 @@ class _GridThumb extends StatelessWidget {
                   color: Color(0xCC000000),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close,
-                    color: Colors.white, size: 14),
+                child: const Icon(Icons.close, color: Colors.white, size: 14),
               ),
             ),
           ),
@@ -738,11 +986,11 @@ class _GridThumb extends StatelessWidget {
   Widget _buildImage() {
     if (media.url.startsWith('http')) {
       return Image.network(media.url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _placeholder());
+          fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder());
     }
     // 本地选取的图片：移动端 Image.file / web blob URL → 真显示（不再用随机占位图）。
-    return localImage(media.url, fit: BoxFit.cover, placeholder: _placeholder());
+    return localImage(media.url,
+        fit: BoxFit.cover, placeholder: _placeholder());
   }
 
   Widget _placeholder() {
@@ -902,12 +1150,13 @@ class _QuoteProjectCard extends StatelessWidget {
           const SizedBox(width: KkSpacing.sm),
           Tappable(
             onTap: () => context.push(KkRoutes.detail(project.id)),
-            child: const Icon(Icons.open_in_new,
-                size: 16, color: KkColors.t3),
+            child: const Icon(Icons.open_in_new, size: 16, color: KkColors.t3),
           ),
           const SizedBox(width: KkSpacing.xs),
           Tappable(
-            onTap: onRemove,
+            onTap: () {
+              onRemove();
+            },
             child: const Icon(Icons.close, size: 16, color: KkColors.t3),
           ),
         ],

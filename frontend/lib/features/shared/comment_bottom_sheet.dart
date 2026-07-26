@@ -52,7 +52,8 @@ class CommentBottomSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final height = MediaQuery.of(context).size.height * 0.85;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final height = screenHeight * 0.62;
     return SizedBox(
       height: height,
       child: Column(
@@ -88,7 +89,7 @@ class CommentBottomSheet extends ConsumerWidget {
           // 占位让标题居中
           const SizedBox(width: KkTouch.minTarget),
           const Spacer(),
-          Text('心得 ${initialComments.length}', style: KkType.h3),
+          Text('评论 ${initialComments.length}', style: KkType.h3),
           const Spacer(),
           Tappable(
             onTap: () => Navigator.of(context).pop(),

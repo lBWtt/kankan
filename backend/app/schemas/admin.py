@@ -33,6 +33,7 @@ class CandidateListItem(BaseModel):
 
     id: uuid.UUID
     status: CandidateStatus
+    content_kind: str = Field("project", description="project=项目 / post=动态（马甲发的动态需单独审）")
     source_type: ContentSourceType = Field(description="ai_crawled / manual_import（迁移 0002 补充）")
     title: Optional[str] = None
     tagline: Optional[str] = None
@@ -104,11 +105,31 @@ class CandidateApproveResponse(BaseModel):
     准入不满足返回 409 PUBLISH_GATE_FAILED；状态不允许返回 409 CANDIDATE_INVALID_STATE。"""
 
     ok: bool = True
-    project_id: uuid.UUID
+    # 项目候选返回 project_id；动态（content_kind=post）候选返回 post_id。二者其一。
+    project_id: Optional[uuid.UUID] = None
+    post_id: Optional[uuid.UUID] = None
+    # 实际随机派到的马甲昵称（审核员据此知道发布后作者显示成谁；预览页的名字是样例、以此为准）。
+    persona_name: Optional[str] = None
 
 
 class CandidateDiscardRequest(BaseModel):
     reason: Optional[str] = Field(None, max_length=500)
+
+
+class CandidateManualCreate(BaseModel):
+    """POST /admin/candidates/manual：把自己找到的链接手动加进候选池（跑 AI 整理后进待审队列）。"""
+
+    url: str = Field(min_length=4, max_length=1000, description="要收录的链接（http/https）")
+    title: Optional[str] = Field(None, max_length=80, description="不填则尝试抓页面标题，抓不到用域名")
+    source_platform: Optional[str] = Field(None, max_length=40, description="来源平台名，缺省 manual")
+    content_kind: Literal["project", "post"] = Field("project", description="落地为项目或动态，默认项目")
+
+
+class CandidateManualCreateResponse(BaseModel):
+    ok: bool = True
+    candidate_id: Optional[uuid.UUID] = None
+    duplicate: bool = Field(False, description="true=该链接已在候选池/已发布，未重复创建")
+    fetched_title: Optional[str] = Field(None, description="抓到的页面标题（供前端回显确认）")
 
 
 # ---------- 已发布项目管理 ----------
@@ -220,7 +241,6 @@ class DashboardFunnel(BaseModel):
     clue_source_clicks: int = 0
     clue_tool_clicks: int = 0
     clue_related_clicks: int = 0
-    clue_subscribes: int = 0
 
 
 class DashboardResponse(BaseModel):
@@ -257,7 +277,82 @@ class AdminActionItem(BaseModel):
     # action 是审计日志代码 f-string 生成的动态值（如 take_down_project / edit_candidate /
     # push_daily_pick），非固定枚举——保持裸 str，否则列表接口读到真实值会 500。
     action: str
-    target_type: Literal["project", "candidate", "report", "user"]
+    target_type: Literal["project", "candidate", "report", "user", "post", "feedback"]
     target_id: Optional[uuid.UUID] = None
     detail: Optional[dict] = None
     created_at: datetime
+
+
+# ---------- 使用情况（真实用户/行为分析，回答"到底有没有人用"）----------
+class ActiveUserItem(BaseModel):
+    """窗口内活跃的登录用户 + 最近行为，用于判断是不是就自己人在用。"""
+    user_id: uuid.UUID
+    nickname: Optional[str] = None
+    is_admin: bool = False
+    event_count: int
+    last_active: datetime
+
+
+# ---------- 马甲号统一管理 ----------
+
+
+class PersonaListItem(BaseModel):
+    """GET /admin/personas 列表项：一个马甲号 + 它产出的内容量（初期内容质量把控用）。"""
+    id: uuid.UUID
+    nickname: Optional[str] = None
+    handle: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    project_count: int = 0        # 该马甲名下未删的项目数
+    post_count: int = 0           # 该马甲名下未删的动态数
+    total_post_likes: int = 0     # 动态获赞总数（粗看内容反响）
+    last_active: Optional[datetime] = None  # 最近一条内容时间（项目/动态取较晚者）
+
+
+class PersonaPostItem(BaseModel):
+    """马甲名下一条动态（可就地删）。"""
+    id: uuid.UUID
+    content: str
+    tags: List[str] = []
+    quote_project_id: Optional[uuid.UUID] = None
+    like_count: int = 0
+    created_at: datetime
+
+
+class PersonaProjectItem(BaseModel):
+    """马甲名下一个项目（可就地下架/删）。"""
+    id: uuid.UUID
+    title: str
+    status: ProjectStatus
+    cover_media_url: Optional[str] = None
+    hot_score: float = 0
+    featured_rank: Optional[int] = None
+    created_at: datetime
+
+
+class PersonaContentResponse(BaseModel):
+    """GET /admin/personas/{id}/content：某马甲最近的动态 + 项目，供逐条核查/删除。"""
+    persona: PersonaListItem
+    posts: List[PersonaPostItem]
+    projects: List[PersonaProjectItem]
+
+
+class PersonaUpdateRequest(BaseModel):
+    """PATCH /admin/personas/{id}：后台改马甲的 昵称/签名/头像（都可选，只改传了的字段）。
+    头像先经 POST /media 上传拿到 url，再把 url 传进来（或直接粘外链）。"""
+    nickname: Optional[str] = Field(None, min_length=1, max_length=30)
+    bio: Optional[str] = Field(None, max_length=200)
+    avatar_url: Optional[str] = Field(None, max_length=500)
+
+
+class UsageSummary(BaseModel):
+    period_start: datetime
+    period_end: datetime
+    total_users: int          # 全部真实用户（非马甲、未注销）
+    new_users: int            # 窗口内新注册
+    active_users: int         # 窗口内有行为的登录用户数
+    admin_active: int         # 其中管理员数（用于识别"是不是就我自己")
+    dau_today: int            # 今天有行为的登录用户数
+    guest_opens: int          # 游客 app_open 次数（无 user_id）
+    event_breakdown: dict     # event_name -> 次数
+    active_list: List[ActiveUserItem]

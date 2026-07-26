@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  这个文件是干什么的：内部「内容审核台」——一个纯静态单页（原生 JS，无需构建），
+    由后端同源托管在 /admin-web/。登录后调现成的 /api/v1/admin/* 接口审内容：
+    待审队列 → 看内容/图/来源 → 编辑 / 通过（发布，显示派到的马甲）/ 不推荐 / 暂存。
+  为什么单独做成网页而不是塞进 App：审核 = 内部运营工具，不该跟着用户包发出去
+    （安全面 + 迭代节奏）。网页改完刷新即生效，将来上锁只需放到 IP 白名单/内网后面。
+  它不含任何业务逻辑：所有动作都是后端 admin.py 已实现的端点，这里只是个前端。
+  用法：起后端后浏览器开 http://localhost:8000/admin-web/  → 用管理员登录（dev: 手机号任意 + 验证码 888）。
+  ============================================================
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>看看 · 内容审核台</title>
+<style>
+  :root{
+    --teal:#0e7c6b; --teal-d:#0a5f52; --bg:#f5f6f7; --card:#fff; --bd:#e4e6e8;
+    --t1:#1a1c1e; --t2:#565b60; --t3:#8a9096; --danger:#c0392b; --warn:#b8860b;
+    --ok:#0e7c6b; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;
+    background:var(--bg);color:var(--t1);font-size:14px;line-height:1.55}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;padding:8px 14px;font-size:14px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input,textarea,select{font-family:inherit;font-size:14px;border:1px solid var(--bd);border-radius:8px;padding:8px 10px;width:100%;background:#fff;color:var(--t1)}
+  textarea{resize:vertical}
+  a{color:var(--teal);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .btn-primary{background:var(--teal);color:#fff}
+  .btn-primary:hover{background:var(--teal-d)}
+  .btn-danger{background:#fff;color:var(--danger);border:1px solid var(--danger)}
+  .btn-danger:hover{background:var(--danger);color:#fff}
+  .btn-ghost{background:#fff;color:var(--t2);border:1px solid var(--bd)}
+  .btn-ghost:hover{background:#f0f1f2}
+  .muted{color:var(--t3)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;background:#eef1f2;color:var(--t2);margin-right:6px}
+  .pill.risk{background:#fbeaea;color:var(--danger)}
+  .pill.score{background:#e8f3f0;color:var(--teal)}
+
+  /* ---- login ---- */
+  #login{max-width:340px;margin:12vh auto;background:var(--card);padding:28px;border-radius:var(--radius);
+    border:1px solid var(--bd);box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  #login h1{font-size:19px;margin:0 0 4px}
+  #login .sub{color:var(--t3);font-size:13px;margin-bottom:20px}
+  #login label{display:block;font-size:12px;color:var(--t2);margin:12px 0 4px}
+  #login button{width:100%;margin-top:18px}
+  #loginErr{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
+
+  /* ---- app shell ---- */
+  #app{display:none;height:100vh;flex-direction:column}
+  header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:#fff;border-bottom:1px solid var(--bd)}
+  header .brand{font-weight:700;font-size:16px}
+  header .brand span{color:var(--teal)}
+  header .spacer{flex:1}
+  header .stat{font-size:13px;color:var(--t2)}
+  header .stat b{color:var(--teal)}
+  .main{flex:1;display:flex;min-height:0}
+  /* queue */
+  .queue{width:380px;border-right:1px solid var(--bd);display:flex;flex-direction:column;background:#fafbfb}
+  .filters{padding:10px 12px;border-bottom:1px solid var(--bd);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .filters select,.filters input{width:auto;flex:1;min-width:90px}
+  .list{flex:1;overflow-y:auto}
+  .row{padding:11px 14px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;gap:10px}
+  .row:hover{background:#f0f4f3}
+  .row.active{background:#e8f3f0;border-left:3px solid var(--teal);padding-left:11px}
+  .row .thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;background:#e9ecee;flex-shrink:0}
+  .row .rtitle{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .row .rmeta{font-size:11.5px;color:var(--t3);margin-top:3px}
+  .loadmore{padding:12px;text-align:center}
+  /* detail */
+  .detail{flex:1;overflow-y:auto;padding:22px 26px;max-width:820px}
+  .detail .empty{color:var(--t3);text-align:center;margin-top:20vh}
+  .detail h2{font-size:20px;margin:0 0 6px}
+  .detail .tagline{color:var(--t2);font-size:15px;margin-bottom:14px}
+  .detail .media{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .detail .media img{max-height:180px;border-radius:10px;border:1px solid var(--bd)}
+  .field{margin:16px 0}
+  .field label{display:block;font-size:12px;color:var(--t3);margin-bottom:5px;font-weight:600;letter-spacing:.02em}
+  .actions{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(245,246,247,0),var(--bg) 24px);
+    padding:18px 0 6px;margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+  .actions button{padding:10px 20px;font-weight:600}
+  .kv{font-size:13px;color:var(--t2);margin:3px 0}
+  .kv b{color:var(--t1);font-weight:600}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1c1e;color:#fff;
+    padding:11px 20px;border-radius:24px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:99}
+  #toast.show{opacity:1}
+  /* 手动加链接弹层 */
+  .mask{display:none;position:fixed;inset:0;background:rgba(20,22,24,.42);z-index:80;align-items:flex-start;justify-content:center}
+  .mask.show{display:flex}
+  .modal{background:#fff;margin-top:12vh;width:440px;max-width:92vw;border-radius:var(--radius);padding:22px 24px;
+    box-shadow:0 12px 40px rgba(0,0,0,.18)}
+  .modal h3{margin:0 0 4px;font-size:17px}
+  .modal .mhint{color:var(--t3);font-size:12.5px;margin-bottom:14px;line-height:1.5}
+  .modal label{display:block;font-size:12px;color:var(--t2);margin:12px 0 4px}
+  .modal .mrow{display:flex;gap:12px}
+  .merr{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
+  .mbtns{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+  .saveedit{background:#fff;color:var(--teal);border:1px solid var(--teal)}
+
+  /* ---- 马甲管理 全屏视图 ---- */
+  #personas{display:none;position:fixed;inset:0;background:var(--bg);z-index:70;flex-direction:column}
+  #personas.show{display:flex}
+  #personas header .brand span{color:var(--teal)}
+  #personas .main{flex:1;display:flex;min-height:0}
+  .plist{width:300px;border-right:1px solid var(--bd);overflow-y:auto;background:#fafbfb}
+  .prow{padding:12px 14px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;gap:10px;align-items:center}
+  .prow:hover{background:#f0f4f3}
+  .prow.active{background:#e8f3f0;border-left:3px solid var(--teal);padding-left:11px}
+  .prow img{width:40px;height:40px;border-radius:50%;object-fit:cover;background:#e9ecee;flex-shrink:0}
+  .prow .pname{font-weight:600;font-size:14px}
+  .prow .pmeta{font-size:11.5px;color:var(--t3);margin-top:2px}
+  .pcontent{flex:1;overflow-y:auto;padding:20px 26px;max-width:860px}
+  .pcontent h3{font-size:15px;margin:22px 0 10px;color:var(--t2);border-bottom:1px solid var(--bd);padding-bottom:6px}
+  .citem{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--bd);align-items:flex-start}
+  .citem .cthumb{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#e9ecee;flex-shrink:0}
+  .citem .cbody{flex:1;min-width:0}
+  .citem .ctitle{font-weight:600;font-size:14px}
+  .citem .ctext{font-size:13px;color:var(--t2);white-space:pre-wrap;word-break:break-word}
+  .citem .cmeta{font-size:11.5px;color:var(--t3);margin-top:4px}
+  .citem .cdel{flex-shrink:0}
+  /* 马甲资料编辑区 */
+  .pedit{display:flex;gap:18px;align-items:flex-start;background:#fff;border:1px solid var(--bd);border-radius:var(--radius);padding:16px 18px}
+  .pedit-av{text-align:center;flex-shrink:0}
+  .pedit-fields{flex:1;min-width:0}
+  .pedit-fields .pe_lbl{display:block;font-size:12px;color:var(--t3);margin:8px 0 3px;font-weight:600}
+
+  /* ---- 意见反馈 / 运营数据 全屏视图 ---- */
+  #feedback{display:none;position:fixed;inset:0;background:var(--bg);z-index:70;flex-direction:column}
+  #feedback.show{display:flex}
+  .fbcard{background:#fff;border:1px solid var(--bd);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+  .fbcard .fbtop{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .fbcard .fbtext{font-size:14px;white-space:pre-wrap;word-break:break-word;color:var(--t1)}
+  .fbcard .fbmeta{font-size:12px;color:var(--t3);margin-top:8px;line-height:1.7}
+  .fbcard .fbmeta b{color:var(--t2);font-weight:600}
+  .pill.cat-bug{background:#fbeaea;color:var(--danger)}
+  .pill.cat-suggestion{background:#e8f3f0;color:var(--teal)}
+  .pill.done{background:#eef1f2;color:var(--t3)}
+  #stats{display:none;position:fixed;inset:0;background:var(--bg);z-index:70;flex-direction:column}
+  #stats.show{display:flex}
+  #stats header .brand span{color:var(--teal)}
+  .scontent{flex:1;overflow-y:auto;padding:24px 28px;max-width:1000px;width:100%;margin:0 auto}
+  .cards{display:flex;gap:14px;flex-wrap:wrap}
+  .mcard{background:#fff;border:1px solid var(--bd);border-radius:var(--radius);padding:16px 18px;min-width:140px;flex:1}
+  .mcard .num{font-size:28px;font-weight:700;color:var(--t1);line-height:1.1}
+  .mcard .lbl{font-size:12.5px;color:var(--t3);margin-top:4px}
+  .mcard.hl .num{color:var(--teal)}
+  .sh3{font-size:15px;margin:26px 0 12px;color:var(--t2);border-bottom:1px solid var(--bd);padding-bottom:6px}
+  .utable{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid var(--bd);border-radius:var(--radius);overflow:hidden}
+  .utable th,.utable td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--bd)}
+  .utable th{color:var(--t3);font-weight:600;font-size:12px;background:#fafbfb}
+  .utable tr:last-child td{border-bottom:none}
+  .utable tbody tr:hover{background:#f0f4f3}
+  .evgrid{display:flex;gap:10px;flex-wrap:wrap}
+  .evchip{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px 12px;font-size:12.5px;color:var(--t2)}
+  .evchip b{color:var(--t1)}
+</style>
+</head>
+<body>
+
+<!-- 登录 -->
+<div id="login">
+  <h1>看看 · 内容审核台</h1>
+  <div class="sub">内部运营工具 · 需管理员账号</div>
+  <label>手机号</label>
+  <input id="phone" value="18800000888" autocomplete="off">
+  <label>验证码</label>
+  <input id="code" autocomplete="off" placeholder="验证码（自己填，如 888）">
+  <button class="btn-primary" onclick="doLogin()">登录</button>
+  <div id="loginErr"></div>
+</div>
+
+<!-- 主界面 -->
+<div id="app">
+  <header>
+    <div class="brand">看看 <span>审核台</span></div>
+    <div class="spacer"></div>
+    <div class="stat" id="pendingStat"></div>
+    <button class="btn-ghost" onclick="openFeedback()">意见反馈</button>
+    <button class="btn-ghost" onclick="openStats()">运营数据</button>
+    <button class="btn-ghost" onclick="openPersonas()">马甲管理</button>
+    <button class="btn-primary" onclick="openManualAdd()">＋ 加链接</button>
+    <button class="btn-ghost" onclick="logout()">退出</button>
+  </header>
+  <div class="main">
+    <div class="queue">
+      <div class="filters">
+        <select id="fStatus" onchange="reload()">
+          <option value="pending_review">待审核</option>
+          <option value="ai_processed">AI已整理</option>
+          <option value="edited">已编辑</option>
+          <option value="parked">暂存</option>
+          <option value="ai_collected">刚采集</option>
+          <option value="approved">已通过</option>
+          <option value="discarded">已弃</option>
+          <option value="">全部</option>
+        </select>
+        <select id="fKind" onchange="reload()">
+          <option value="">项目+动态</option>
+          <option value="post">只看动态</option>
+          <option value="project">只看项目</option>
+        </select>
+        <input id="fPlatform" placeholder="平台(如 producthunt)" onchange="reload()">
+      </div>
+      <div class="list" id="list"></div>
+    </div>
+    <div class="detail" id="detail">
+      <div class="empty">← 从左侧选一条待审内容</div>
+    </div>
+  </div>
+</div>
+
+<!-- 马甲管理 全屏视图 -->
+<div id="personas">
+  <header>
+    <div class="brand">看看 <span>马甲管理</span></div>
+    <div class="stat muted" style="margin-left:8px">初期靠马甲撑内容质量：看住每个号发了什么，随时删</div>
+    <div class="spacer"></div>
+    <div class="stat" id="personaStat"></div>
+    <button class="btn-ghost" onclick="closePersonas()">← 返回审核台</button>
+  </header>
+  <div class="main">
+    <div class="plist" id="plist"></div>
+    <div class="pcontent" id="pcontent">
+      <div class="empty muted" style="text-align:center;margin-top:20vh">← 选一个马甲，查看/清理它的内容</div>
+    </div>
+  </div>
+</div>
+
+<!-- 意见反馈 全屏视图 -->
+<div id="feedback">
+  <header>
+    <div class="brand">看看 <span>意见反馈</span></div>
+    <div class="stat muted" style="margin-left:8px">用户在 App「我的 → 意见反馈」提交的</div>
+    <div class="spacer"></div>
+    <select id="fbStatus" onchange="loadFeedback()" style="width:auto">
+      <option value="new">未处理</option>
+      <option value="">全部</option>
+      <option value="handled">已处理</option>
+    </select>
+    <button class="btn-ghost" onclick="closeFeedback()">← 返回审核台</button>
+  </header>
+  <div class="scontent" id="fbcontent">
+    <div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>
+  </div>
+</div>
+
+<!-- 运营数据 全屏视图 -->
+<div id="stats">
+  <header>
+    <div class="brand">看看 <span>运营数据</span></div>
+    <div class="stat muted" style="margin-left:8px">真实用户监测 · 已排除马甲号</div>
+    <div class="spacer"></div>
+    <select id="statsDays" onchange="loadStats()" style="width:auto">
+      <option value="7">近 7 天</option>
+      <option value="30">近 30 天</option>
+      <option value="90">近 90 天</option>
+    </select>
+    <button class="btn-ghost" onclick="closeStats()">← 返回审核台</button>
+  </header>
+  <div class="scontent" id="scontent">
+    <div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>
+  </div>
+</div>
+
+<!-- 手动加链接弹层 -->
+<div id="manualMask" class="mask" onclick="if(event.target===this)closeManualAdd()">
+  <div class="modal">
+    <h3>手动添加链接</h3>
+    <div class="mhint">自己找到的链接（GitHub 项目 / 工具官网 / 帖子）粘进来，入池后跑一次 AI 整理即进待审队列。</div>
+    <label>链接 *</label>
+    <input id="mUrl" placeholder="https://…" autocomplete="off">
+    <label>标题（可留空，自动抓页面标题）</label>
+    <input id="mTitle" placeholder="留空则抓 og:title / 页面 <title>" autocomplete="off">
+    <div class="mrow">
+      <div style="flex:1">
+        <label>落地为</label>
+        <select id="mKind">
+          <option value="project">项目</option>
+          <option value="post">动态</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label>来源平台（可留空）</label>
+        <input id="mPlatform" placeholder="如 github / x / manual" autocomplete="off">
+      </div>
+    </div>
+    <div id="mErr" class="merr"></div>
+    <div class="mbtns">
+      <button class="btn-ghost" onclick="closeManualAdd()">取消</button>
+      <button class="btn-primary" id="mSubmit" onclick="submitManualAdd()">添加</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = "/api/v1";
+let TOKEN = localStorage.getItem("kk_admin_token") || "";
+let cursor = null, loading = false, current = null;
+
+// ---------- 基础 ----------
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
+
+async function api(path, opts={}){
+  const headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
+  if(TOKEN) headers["Authorization"] = "Bearer "+TOKEN;
+  const res = await fetch(API+path, Object.assign({}, opts, {headers}));
+  if(res.status===401||res.status===403){ logout(); throw new Error("登录已失效或非管理员"); }
+  let body=null; try{ body = await res.json(); }catch(e){}
+  if(!res.ok){
+    const msg = (body && (body.message||body.detail)) || ("HTTP "+res.status);
+    const err = new Error(msg); err.body=body; err.status=res.status; throw err;
+  }
+  return body;
+}
+
+// ---------- 登录 ----------
+async function doLogin(){
+  const phone=document.getElementById("phone").value.trim();
+  const code=document.getElementById("code").value.trim();
+  const errEl=document.getElementById("loginErr"); errEl.textContent="";
+  try{
+    const r = await fetch(API+"/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({identifier_type:"phone",identifier:phone,code})});
+    const b = await r.json();
+    if(!r.ok) throw new Error(b.message||"登录失败");
+    if(!b.user || !b.user.is_admin){ throw new Error("该账号不是管理员，无权进入审核台"); }
+    TOKEN = b.access_token; localStorage.setItem("kk_admin_token", TOKEN);
+    enterApp();
+  }catch(e){ errEl.textContent = e.message; }
+}
+function logout(){ TOKEN=""; localStorage.removeItem("kk_admin_token");
+  document.getElementById("app").style.display="none";
+  document.getElementById("login").style.display="block"; }
+
+function enterApp(){
+  document.getElementById("login").style.display="none";
+  document.getElementById("app").style.display="flex";
+  reload(); refreshPending();
+}
+
+// ---------- 队列 ----------
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+async function refreshPending(){
+  try{ const d = await api("/admin/dashboard");
+    document.getElementById("pendingStat").innerHTML =
+      `待审 <b>${d.pending_candidates}</b> · 已发布 ${d.published_projects} · 待处理举报 ${d.open_reports}`;
+  }catch(e){}
+}
+
+async function reload(){
+  cursor=null; document.getElementById("list").innerHTML="";
+  await loadMore(true);
+}
+
+async function loadMore(fresh){
+  if(loading) return; loading=true;
+  const status=document.getElementById("fStatus").value;
+  const kind=document.getElementById("fKind").value;
+  const platform=document.getElementById("fPlatform").value.trim();
+  let q = "/admin/candidates?page_size=30";
+  if(status) q+="&status="+encodeURIComponent(status);
+  if(kind) q+="&content_kind="+encodeURIComponent(kind);
+  if(platform) q+="&source_platform="+encodeURIComponent(platform);
+  if(cursor) q+="&cursor="+encodeURIComponent(cursor);
+  try{
+    const page = await api(q);
+    const list=document.getElementById("list");
+    document.querySelectorAll(".loadmore").forEach(e=>e.remove());
+    if(fresh && page.items.length===0){
+      list.innerHTML='<div class="loadmore muted">这个状态下没有内容</div>'; loading=false; return;
+    }
+    for(const it of page.items){
+      const div=document.createElement("div");
+      div.className="row"; div.dataset.id=it.id;
+      div.onclick=()=>openDetail(it.id, div);
+      const thumb = it.cover_media_url ? `<img class="thumb" src="${esc(it.cover_media_url)}" onerror="this.style.visibility='hidden'">`
+                    : `<div class="thumb"></div>`;
+      const risk = (it.risk_flags&&it.risk_flags.length)?`<span class="pill risk">⚠ ${it.risk_flags.length}</span>`:"";
+      const score = (it.ai_curation_score!=null)?`<span class="pill score">${it.ai_curation_score}分</span>`:"";
+      const kindPill = it.content_kind==="post" ? `<span class="pill" style="background:#eef0fb;color:#5a5ac0">动态</span>` : `<span class="pill">项目</span>`;
+      div.innerHTML = `${thumb}<div style="min-width:0">
+        <div class="rtitle">${esc(it.title||"(无标题)")}</div>
+        <div class="rmeta">${kindPill}${score}${risk}${esc(it.source_platform||"")} · ${esc((it.language||"").replace("zh-CN","中").replace("en-US","EN"))}</div>
+      </div>`;
+      list.appendChild(div);
+    }
+    cursor = page.next_cursor;
+    if(page.has_more){
+      const b=document.createElement("div"); b.className="loadmore";
+      b.innerHTML='<button class="btn-ghost" onclick="loadMore(false)">加载更多</button>';
+      list.appendChild(b);
+    }
+  }catch(e){ toast("加载失败："+e.message); }
+  loading=false;
+}
+
+// ---------- 详情 ----------
+async function openDetail(id, rowEl){
+  document.querySelectorAll(".row").forEach(r=>r.classList.remove("active"));
+  if(rowEl) rowEl.classList.add("active");
+  const d=document.getElementById("detail");
+  d.innerHTML='<div class="empty">加载中…</div>';
+  try{
+    const c = await api("/admin/candidates/"+id);
+    current = c;
+    renderDetail(c);
+  }catch(e){ d.innerHTML='<div class="empty">加载失败：'+esc(e.message)+'</div>'; }
+}
+
+function mediaUrls(c){
+  const out=[]; if(c.cover_media_url) out.push(c.cover_media_url);
+  let mj=c.media_json; if(mj && mj.items) mj=mj.items;
+  if(Array.isArray(mj)) for(const m of mj){ const u=(typeof m==="string")?m:(m&&m.url); if(u && !out.includes(u)) out.push(u); }
+  return out.slice(0,8);
+}
+
+function renderDetail(c){
+  const d=document.getElementById("detail");
+  const media = mediaUrls(c).map(u=>`<img src="${esc(u)}" onerror="this.style.display='none'">`).join("");
+  const risks = (c.risk_flags||[]).map(r=>`<span class="pill risk">${esc(r)}</span>`).join("");
+  const tools = (c.tools||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
+  const domains = (c.domains||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
+  const src = c.source_url ? `<a href="${esc(c.source_url)}" target="_blank" rel="noopener">${esc(c.source_url)}</a>` : '<span class="muted">无</span>';
+  const author = c.original_author_name ? esc(c.original_author_name) : '<span class="muted">未识别</span>';
+  const scoreP = (c.ai_curation_score!=null)?`<span class="pill score">${c.ai_curation_score}分</span>`:"";
+
+  d.innerHTML = `
+    <div>${scoreP}<span class="pill">${esc(c.status)}</span><span class="pill">${esc(c.source_platform||"")}</span>${risks}</div>
+    ${media?`<div class="media">${media}</div>`:""}
+
+    <div class="field"><label>标题（可改）</label><input id="e_title" value="${esc(c.title||"")}"></div>
+    <div class="field"><label>一句话（tagline，可改）</label><input id="e_tagline" value="${esc(c.tagline||"")}"></div>
+    <div class="field"><label>摘要（summary，可改）</label><textarea id="e_summary" rows="3">${esc(c.summary||"")}</textarea></div>
+    <div class="field"><label>正文（description，可改）</label><textarea id="e_description" rows="6">${esc(c.description||"")}</textarea></div>
+    <div><button class="saveedit" onclick="saveEdit()">保存修改（→已编辑）</button></div>
+
+    <div class="field">
+      <div class="kv"><b>去体验/来源链接：</b>${src}</div>
+      <div class="kv"><b>原作者：</b>${author}${c.original_author_url?` · <a href="${esc(c.original_author_url)}" target="_blank">主页</a>`:""}</div>
+      <div class="kv"><b>领域：</b>${domains||'<span class="muted">—</span>'}</div>
+      <div class="kv"><b>工具：</b>${tools||'<span class="muted">—</span>'}</div>
+      ${c.risk_note?`<div class="kv"><b>风险备注：</b>${esc(c.risk_note)}</div>`:""}
+      ${c.ai_implementation_hint?`<div class="kv"><b>实现思路：</b>${esc(c.ai_implementation_hint)}</div>`:""}
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" onclick="approve('${c.id}')">✓ 通过并发布</button>
+      <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
+      <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>
+    </div>
+  `;
+}
+
+// ---------- 动作 ----------
+function dropCurrentRow(id){
+  const row=document.querySelector('.row[data-id="'+id+'"]');
+  if(row) row.remove();
+  document.getElementById("detail").innerHTML='<div class="empty">← 从左侧选一条待审内容</div>';
+  current=null;
+}
+
+async function saveEdit(){
+  if(!current) return;
+  const body={
+    title:document.getElementById("e_title").value.trim(),
+    tagline:document.getElementById("e_tagline").value.trim(),
+    summary:document.getElementById("e_summary").value.trim(),
+    description:document.getElementById("e_description").value.trim(),
+  };
+  try{
+    const c = await api("/admin/candidates/"+current.id,{method:"PATCH",body:JSON.stringify(body)});
+    current=c; toast("已保存（状态→已编辑）"); refreshPending();
+    // 若当前筛的是待审，编辑后状态变 edited，可能不再属于该列表——刷新行标签即可，不强制移除。
+    const row=document.querySelector('.row[data-id="'+c.id+'"] .rtitle'); if(row) row.textContent=c.title||"(无标题)";
+  }catch(e){ toast("保存失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function approve(id){
+  if(!confirm("确认通过并发布？将随机派一个马甲作者、把封面转存到本地/OSS。")) return;
+  try{
+    const r = await api("/admin/candidates/"+id+"/approve",{method:"POST"});
+    toast("已发布 · 作者马甲："+(r.persona_name||"—"));
+    dropCurrentRow(id); refreshPending();
+  }catch(e){
+    // 准入闸失败会带 details.problems
+    const probs = e.body && e.body.details && e.body.details.problems;
+    toast("发布失败："+(e.body&&e.body.message||e.message)+(probs?("（"+probs.join("；")+"）"):""));
+  }
+}
+
+async function discard(id){
+  const reason = prompt("不推荐的理由（可留空）：","");
+  if(reason===null) return;
+  try{
+    await api("/admin/candidates/"+id+"/discard",{method:"POST",body:JSON.stringify({reason:reason||null})});
+    toast("已标记不推荐"); dropCurrentRow(id); refreshPending();
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function park(id){
+  try{
+    await api("/admin/candidates/"+id+"/park",{method:"POST"});
+    toast("已暂存"); dropCurrentRow(id);
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// ---------- 手动加链接 ----------
+function openManualAdd(){
+  document.getElementById("mErr").textContent="";
+  document.getElementById("manualMask").classList.add("show");
+  document.getElementById("mUrl").focus();
+}
+function closeManualAdd(){ document.getElementById("manualMask").classList.remove("show"); }
+
+async function submitManualAdd(){
+  const url=document.getElementById("mUrl").value.trim();
+  const title=document.getElementById("mTitle").value.trim();
+  const kind=document.getElementById("mKind").value;
+  const platform=document.getElementById("mPlatform").value.trim();
+  const errEl=document.getElementById("mErr"); errEl.textContent="";
+  if(!/^https?:\/\//.test(url)){ errEl.textContent="请填写 http(s) 链接"; return; }
+  const btn=document.getElementById("mSubmit"); btn.disabled=true; btn.textContent="添加中…";
+  try{
+    const body={url, content_kind:kind};
+    if(title) body.title=title;
+    if(platform) body.source_platform=platform;
+    const r=await api("/admin/candidates/manual",{method:"POST",body:JSON.stringify(body)});
+    if(r.duplicate){
+      toast("这个链接已在候选池/已发布，未重复添加");
+    }else{
+      toast("已入池"+(r.fetched_title?("：「"+r.fetched_title.slice(0,20)+"…」"):"")+" · 跑 AI 整理后进待审");
+    }
+    closeManualAdd();
+    document.getElementById("mUrl").value=""; document.getElementById("mTitle").value="";
+    // 切到「刚采集」让用户看到刚加的这条（AI 整理前停在 ai_collected）。
+    document.getElementById("fStatus").value = r.duplicate ? document.getElementById("fStatus").value : "ai_collected";
+    reload(); refreshPending();
+  }catch(e){ errEl.textContent = (e.body&&e.body.message)||e.message; }
+  finally{ btn.disabled=false; btn.textContent="添加"; }
+}
+
+// ---------- 意见反馈 ----------
+function openFeedback(){ document.getElementById("feedback").classList.add("show"); loadFeedback(); }
+function closeFeedback(){ document.getElementById("feedback").classList.remove("show"); }
+
+async function loadFeedback(){
+  const box=document.getElementById("fbcontent");
+  box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>';
+  const status=document.getElementById("fbStatus").value;
+  try{
+    let q="/admin/feedback?page_size=50";
+    if(status) q+="&status="+encodeURIComponent(status);
+    const page=await api(q);
+    renderFeedback(page.items||[]);
+  }catch(e){
+    box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载失败：'+esc(e.message)+'</div>';
+  }
+}
+
+function renderFeedback(items){
+  const box=document.getElementById("fbcontent");
+  if(!items.length){ box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:18vh">这个筛选下没有反馈</div>'; return; }
+  const catLabel={bug:"Bug",suggestion:"建议",other:"其他"};
+  box.innerHTML=items.map(f=>{
+    const cat=`<span class="pill cat-${esc(f.category)}">${esc(catLabel[f.category]||f.category)}</span>`;
+    const done=f.status==="handled"?`<span class="pill done">已处理</span>`:"";
+    const who=f.user_nickname?esc(f.user_nickname):'<span class="muted">游客/未登录</span>';
+    const meta=[
+      f.contact?`<b>联系</b> ${esc(f.contact)}`:"",
+      f.source_page?`<b>页面</b> ${esc(f.source_page)}`:"",
+      f.error_code?`<b>错误码</b> ${esc(f.error_code)}`:"",
+      (f.platform||f.app_version)?`<b>环境</b> ${esc([f.platform,f.app_version].filter(Boolean).join(" · "))}`:"",
+      f.device_info?`<b>设备</b> ${esc(f.device_info)}`:"",
+      f.admin_note?`<b>处理备注</b> ${esc(f.admin_note)}`:"",
+    ].filter(Boolean).join("　");
+    const btn=f.status==="handled"?"":`<button class="btn-ghost" style="padding:5px 12px;font-size:12.5px" onclick="handleFeedback('${f.id}')">标记已处理</button>`;
+    return `<div class="fbcard" data-fb="${f.id}">
+      <div class="fbtop">${cat}${done}<span class="muted" style="font-size:12.5px">${who} · ${esc((f.created_at||"").slice(0,16).replace("T"," "))}</span><span class="spacer" style="flex:1"></span>${btn}</div>
+      <div class="fbtext">${esc(f.content)}</div>
+      ${meta?`<div class="fbmeta">${meta}</div>`:""}
+    </div>`;
+  }).join("");
+}
+
+async function handleFeedback(id){
+  const note=prompt("处理备注（可留空）：","");
+  if(note===null) return;
+  try{
+    await api("/admin/feedback/"+id+"/handle",{method:"POST",body:JSON.stringify({note:note||null})});
+    toast("已标记处理");
+    loadFeedback();
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// ---------- 运营数据 ----------
+function openStats(){ document.getElementById("stats").classList.add("show"); loadStats(); }
+function closeStats(){ document.getElementById("stats").classList.remove("show"); }
+
+function fmtTime(s){
+  if(!s) return "—";
+  const t=new Date(s);
+  if(isNaN(t)) return esc(String(s).slice(0,16).replace("T"," "));
+  return t.toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+}
+
+async function loadStats(){
+  const box=document.getElementById("scontent");
+  box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>';
+  const days=document.getElementById("statsDays").value;
+  try{
+    // 两个接口并发：/usage=真实用户监测；/dashboard=内容/待办计数
+    const [u,d] = await Promise.all([
+      api("/admin/usage?days="+days),
+      api("/admin/dashboard"),
+    ]);
+    renderStats(u,d,days);
+  }catch(e){
+    box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载失败：'+esc(e.message)+'</div>';
+  }
+}
+
+function renderStats(u,d,days){
+  const box=document.getElementById("scontent");
+  const card=(num,lbl,hl)=>`<div class="mcard${hl?' hl':''}"><div class="num">${num}</div><div class="lbl">${esc(lbl)}</div></div>`;
+  const ev = Object.entries(u.event_breakdown||{}).sort((a,b)=>b[1]-a[1])
+    .map(([k,v])=>`<div class="evchip">${esc(k)} <b>${v}</b></div>`).join("")
+    || '<span class="muted">窗口内无埋点事件</span>';
+  const rows = (u.active_list||[]).map(a=>`<tr>
+      <td>${esc(a.nickname||"(无昵称)")}${a.is_admin?' <span class="pill" style="background:#eef0fb;color:#5a5ac0">管理员</span>':""}</td>
+      <td>${a.event_count}</td>
+      <td>${fmtTime(a.last_active)}</td>
+    </tr>`).join("") || '<tr><td colspan="3" class="muted">窗口内无活跃登录用户</td></tr>';
+  box.innerHTML = `
+    <div class="cards">
+      ${card(u.total_users,"真实用户总数",true)}
+      ${card(u.new_users,"近 "+days+" 天新增")}
+      ${card(u.active_users,"近 "+days+" 天活跃")}
+      ${card(u.dau_today,"今日 DAU")}
+      ${card(u.guest_opens,"游客打开")}
+      ${card(u.admin_active,"活跃管理员")}
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:10px">
+      真实用户口径已排除马甲号（@persona.kankan）。「活跃 / DAU / 事件分布」依赖客户端埋点，App 未接埋点时为 0——
+      若这几项恒 0 但确有人用，是埋点没接，不是没人用。管理员活跃≈总活跃说明「还在自嗨」。
+    </div>
+
+    <div class="sh3">内容 & 待办</div>
+    <div class="cards">
+      ${card(d.published_projects,"已发布项目")}
+      ${card(d.pending_candidates,"待审候选")}
+      ${card(d.open_reports,"待处理举报")}
+    </div>
+
+    <div class="sh3">事件分布（近 ${days} 天）</div>
+    <div class="evgrid">${ev}</div>
+
+    <div class="sh3">活跃用户清单（最近 ${(u.active_list||[]).length} 人）</div>
+    <table class="utable">
+      <thead><tr><th>用户</th><th>事件数</th><th>最近活跃</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+// ---------- 马甲管理 ----------
+let curPersona = null;
+
+function openPersonas(){
+  document.getElementById("personas").classList.add("show");
+  loadPersonas();
+}
+function closePersonas(){
+  document.getElementById("personas").classList.remove("show");
+}
+
+async function loadPersonas(){
+  const box=document.getElementById("plist");
+  box.innerHTML='<div class="prow muted">加载中…</div>';
+  try{
+    const list = await api("/admin/personas");
+    document.getElementById("personaStat").innerHTML =
+      `共 <b>${list.length}</b> 个马甲`;
+    if(!list.length){ box.innerHTML='<div class="prow muted">还没有马甲号（跑 seed_personas.py 建）</div>'; return; }
+    box.innerHTML="";
+    for(const p of list){
+      const div=document.createElement("div");
+      div.className="prow"; div.dataset.id=p.id;
+      div.onclick=()=>openPersonaContent(p.id, div);
+      const av = p.avatar_url ? `<img src="${esc(p.avatar_url)}" onerror="this.style.visibility='hidden'">` : `<img>`;
+      div.innerHTML = `${av}<div style="min-width:0">
+        <div class="pname">${esc(p.nickname||"(无名)")} <span class="muted" style="font-weight:400">@${esc(p.handle||"")}</span></div>
+        <div class="pmeta">项目 ${p.project_count} · 动态 ${p.post_count} · 获赞 ${p.total_post_likes}</div>
+      </div>`;
+      box.appendChild(div);
+    }
+  }catch(e){ box.innerHTML='<div class="prow muted">加载失败：'+esc(e.message)+'</div>'; }
+}
+
+async function openPersonaContent(id, rowEl){
+  curPersona=id;
+  document.querySelectorAll(".prow").forEach(r=>r.classList.remove("active"));
+  if(rowEl) rowEl.classList.add("active");
+  const d=document.getElementById("pcontent");
+  d.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>';
+  try{
+    const c = await api("/admin/personas/"+id+"/content?limit=50");
+    renderPersonaContent(c);
+  }catch(e){ d.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载失败：'+esc(e.message)+'</div>'; }
+}
+
+function renderPersonaContent(c){
+  const d=document.getElementById("pcontent");
+  const p=c.persona;
+  const posts = c.posts.map(x=>{
+    const tags=(x.tags||[]).map(t=>`<span class="pill">#${esc(t)}</span>`).join("");
+    return `<div class="citem" data-post="${x.id}">
+      <div class="cbody">
+        <div class="ctext">${esc(x.content)}</div>
+        <div class="cmeta">${tags} 赞 ${x.like_count} · ${esc((x.created_at||"").slice(0,10))}</div>
+      </div>
+      <button class="btn-danger cdel" onclick="delPersonaPost('${x.id}')">删除</button>
+    </div>`;
+  }).join("") || '<div class="muted">无动态</div>';
+  const projs = c.projects.map(x=>{
+    const thumb = x.cover_media_url ? `<img class="cthumb" src="${esc(x.cover_media_url)}" onerror="this.style.visibility='hidden'">` : `<div class="cthumb"></div>`;
+    const feat = (x.featured_rank!=null)?`<span class="pill score">精选#${x.featured_rank}</span>`:"";
+    return `<div class="citem" data-proj="${x.id}">
+      ${thumb}
+      <div class="cbody">
+        <div class="ctitle">${esc(x.title)}</div>
+        <div class="cmeta">${feat}<span class="pill">${esc(x.status)}</span>热度 ${Math.round(x.hot_score)} · ${esc((x.created_at||"").slice(0,10))}</div>
+      </div>
+      <button class="btn-danger cdel" onclick="delPersonaProject('${x.id}')">删除</button>
+    </div>`;
+  }).join("") || '<div class="muted">无项目</div>';
+  const avImg = p.avatar_url
+    ? `<img id="pe_avimg" src="${esc(p.avatar_url)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:#e9ecee" onerror="this.style.visibility='hidden'">`
+    : `<div id="pe_avimg" style="width:64px;height:64px;border-radius:50%;background:#e9ecee"></div>`;
+  d.innerHTML = `
+    <div class="pedit">
+      <div class="pedit-av">
+        ${avImg}
+        <input type="file" id="pe_avfile" accept="image/png,image/jpeg,image/webp" style="display:none"
+               onchange="uploadPersonaAvatar('${p.id}')">
+        <button class="btn-ghost" style="margin-top:8px;padding:5px 10px;font-size:12.5px"
+                onclick="document.getElementById('pe_avfile').click()">换头像</button>
+      </div>
+      <div class="pedit-fields">
+        <div class="muted" style="font-size:12.5px;margin-bottom:6px">@${esc(p.handle||"")}</div>
+        <label class="pe_lbl">昵称</label>
+        <input id="pe_nick" value="${esc(p.nickname||"")}" maxlength="30">
+        <label class="pe_lbl">签名</label>
+        <input id="pe_bio" value="${esc(p.bio||"")}" maxlength="200" placeholder="有生活感就好，别报菜名">
+        <button class="btn-primary" style="margin-top:10px" onclick="savePersona('${p.id}')">保存资料</button>
+      </div>
+    </div>
+    <h3>动态（${c.posts.length}）</h3>${posts}
+    <h3>项目（${c.projects.length}）</h3>${projs}
+  `;
+}
+
+async function savePersona(id){
+  const nickname=document.getElementById("pe_nick").value.trim();
+  const bio=document.getElementById("pe_bio").value.trim();
+  if(!nickname){ toast("昵称不能为空"); return; }
+  try{
+    await api("/admin/personas/"+id,{method:"PATCH",body:JSON.stringify({nickname, bio})});
+    toast("已保存");
+    loadPersonas();  // 刷新左侧列表的名字
+  }catch(e){ toast("保存失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function uploadPersonaAvatar(id){
+  const inp=document.getElementById("pe_avfile");
+  const file=inp.files&&inp.files[0];
+  if(!file) return;
+  toast("上传中…");
+  try{
+    // 先传媒体拿 url，再把 avatar_url 写到马甲
+    const fd=new FormData(); fd.append("file", file);
+    const headers={}; if(TOKEN) headers["Authorization"]="Bearer "+TOKEN;
+    const res=await fetch(API+"/media",{method:"POST",headers,body:fd});
+    const mb=await res.json();
+    if(!res.ok) throw new Error(mb.message||"上传失败");
+    await api("/admin/personas/"+id,{method:"PATCH",body:JSON.stringify({avatar_url:mb.url})});
+    const img=document.getElementById("pe_avimg");
+    if(img&&img.tagName==="IMG"){ img.src=mb.url; img.style.visibility="visible"; }
+    toast("头像已更新");
+    loadPersonas();
+  }catch(e){ toast("换头像失败："+(e.body&&e.body.message||e.message)); }
+  finally{ inp.value=""; }
+}
+
+async function delPersonaPost(postId){
+  if(!confirm("确认删除这条动态？（软删，App 端立即不可见）")) return;
+  try{
+    await api("/admin/posts/"+postId,{method:"DELETE"});
+    toast("动态已删除");
+    document.querySelector('.citem[data-post="'+postId+'"]').remove();
+    loadPersonas(); // 刷新左侧计数
+  }catch(e){ toast("删除失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function delPersonaProject(projId){
+  if(!confirm("确认删除这个项目？（软删，不可在 App 展示）")) return;
+  try{
+    await api("/admin/projects/"+projId+"/soft-delete",{method:"POST",body:JSON.stringify({reason:"马甲管理清理"})});
+    toast("项目已删除");
+    document.querySelector('.citem[data-proj="'+projId+'"]').remove();
+    loadPersonas();
+  }catch(e){ toast("删除失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// ---------- 启动 ----------
+if(TOKEN){ enterApp(); }
+document.getElementById("code").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
+</script>
+</body>
+</html>

@@ -74,6 +74,11 @@ class MediaApi {
   /// 上传一份媒体字节。返回后端 media id（填进 POST /projects 的 media_ids）。
   /// 类型从字节头推断；识别不了（非 jpg/png/webp/mp4）抛 AppException，调用方跳过该张。
   Future<String> upload(Uint8List bytes) async {
+    return (await uploadRecord(bytes)).id;
+  }
+
+  /// 上传后同时返回可展示 URL；头像等不属于项目素材的场景也可复用。
+  Future<({String id, String url})> uploadRecord(Uint8List bytes) async {
     final contentType = detectMediaContentType(bytes);
     if (contentType == null) {
       throw const AppException(
@@ -92,8 +97,8 @@ class MediaApi {
       });
       final resp = await _dio.post<dynamic>('/media', data: form);
       final data = resp.data;
-      if (data is Map && data['id'] != null) {
-        return data['id'].toString();
+      if (data is Map && data['id'] != null && data['url'] != null) {
+        return (id: data['id'].toString(), url: data['url'].toString());
       }
       throw const AppException(code: 'UNKNOWN', message: '上传返回格式异常');
     } on DioException catch (e) {

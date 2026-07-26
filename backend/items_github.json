@@ -1,0 +1,78 @@
+[
+  {
+    "source_url": "https://github.com/DietrichGebert/ponytail",
+    "title": "DietrichGebert/ponytail",
+    "text": "Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote.  ·  #agent-skills #ai-agents #claude #claude-code #claude-code-plugin #cursor-rules #developer-tools #llm",
+    "source_platform": "github",
+    "original_author_name": "DietrichGebert",
+    "original_author_url": "https://github.com/DietrichGebert",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/1784274801/DietrichGebert/ponytail",
+        "media_type": "image"
+      }
+    ],
+    "language": "en-US",
+    "published_at": "2026-06-12T00:52:37Z",
+    "engagement": {
+      "likes": 4616,
+      "collects": 84869,
+      "comments": 80,
+      "shares": 4616
+    },
+    "homepage": "https://ponytail.dev",
+    "topics": [
+      "agent-skills",
+      "ai-agents",
+      "claude",
+      "claude-code",
+      "claude-code-plugin",
+      "cursor-rules",
+      "developer-tools",
+      "llm",
+      "prompt-engineering",
+      "yagni"
+    ],
+    "github_stars": 84869,
+    "score": 3625.1187,
+    "bucket": "A"
+  },
+  {
+    "source_url": "https://github.com/Unclecheng-li/VulnClaw",
+    "title": "Unclecheng-li/VulnClaw",
+    "text": "基于 AI Agent + MCP 工具链 + 渗透 Skill 编排， 配合大语言模型， 自然语言输入 → 自动完成「信息收集 → 漏洞发现 → 漏洞利用 → 报告生成」全流程。  ·  #ai #ai-agent #ai-tools #ctf #cybersecurity #openclaw #penetration-testing #penetration-testing-tools",
+    "source_platform": "github",
+    "original_author_name": "Unclecheng-li",
+    "original_author_url": "https://github.com/Unclecheng-li",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/1784274879/Unclecheng-li/VulnClaw",
+        "media_type": "image"
+      }
+    ],
+    "language": "en-US",
+    "published_at": "2026-04-18T13:02:17Z",
+    "engagement": {
+      "likes": 288,
+      "collects": 2103,
+      "comments": 8,
+      "shares": 288
+    },
+    "homepage": "https://unclecheng-li.github.io/vulnclaw.com",
+    "topics": [
+      "ai",
+      "ai-agent",
+      "ai-tools",
+      "ctf",
+      "cybersecurity",
+      "openclaw",
+      "penetration-testing",
+      "penetration-testing-tools",
+      "security-tools",
+      "skill"
+    ],
+    "github_stars": 2103,
+    "score": 35.3257,
+    "bucket": "B"
+  }
+]

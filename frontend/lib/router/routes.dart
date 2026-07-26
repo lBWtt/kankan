@@ -90,4 +90,15 @@ class KkRoutes {
   /// 登录 / 注册 — 手机号或邮箱验证码登录（未注册自动注册）。
   /// 「我的」页点头像/「点击登录」或设置页「账号」区进入；拿真 JWT 解锁写操作。
   static const login = '/login';
+
+  /// 用户协议 / 隐私政策 — 登录页「同意协议」链接 + 设置「关于」入口（上架合规）。
+  static const userAgreement = '/legal/agreement';
+  static const privacyPolicy = '/legal/privacy';
+
+  // ── 管理员审核（仅 AppConfig.adminBuild 构建注册；消费端不存在这些路由）──
+  /// 审核队列
+  static const adminReview = '/admin/review';
+  /// 候选详情（审核动作）
+  static String adminCandidate(String id) => '/admin/candidate/$id';
+  static const adminCandidatePattern = '/admin/candidate/:id';
 }

@@ -15,6 +15,8 @@ Future<LocalStore> _storeWith(Map<String, Object> initial) async {
   return LocalStore(prefs);
 }
 
+String _guestKey(String key) => 'guest::$key';
+
 void main() {
   group('LocalStore.loadMerged — 首启（空盘）', () {
     test('无任何 kv_* key → 全用 seed（mock 演示数据原样返回）', () async {
@@ -37,16 +39,17 @@ void main() {
   group('LocalStore.loadMerged — 已有 persisted 数据', () {
     test('persisted 覆盖 seed 各片', () async {
       final store = await _storeWith({
-        PrefsKeys.kvLikedIds: <String>['p1', 'post-abc'],
-        PrefsKeys.kvSavedProjectIds: <String>['proj-1'],
-        PrefsKeys.kvFollowedUserIds: <String>['chen'],
-        PrefsKeys.kvNotInterestedIds: <String>['bad-1'],
-        PrefsKeys.kvBrowseHistory: <String>['h1', 'h2'],
-        PrefsKeys.kvUnreadNotifIds: <String>['n1'],
-        PrefsKeys.kvRecentSearches: '{"ai":1700000000000,"flutter":1700000001000}',
-        PrefsKeys.kvFontScale: '大',
-        PrefsKeys.kvPaperTexture: false,
-        PrefsKeys.kvDndEnabled: true,
+        _guestKey(PrefsKeys.kvLikedIds): <String>['p1', 'post-abc'],
+        _guestKey(PrefsKeys.kvSavedProjectIds): <String>['proj-1'],
+        _guestKey(PrefsKeys.kvFollowedUserIds): <String>['chen'],
+        _guestKey(PrefsKeys.kvNotInterestedIds): <String>['bad-1'],
+        _guestKey(PrefsKeys.kvBrowseHistory): <String>['h1', 'h2'],
+        _guestKey(PrefsKeys.kvUnreadNotifIds): <String>['n1'],
+        _guestKey(PrefsKeys.kvRecentSearches):
+            '{"ai":1700000000000,"flutter":1700000001000}',
+        _guestKey(PrefsKeys.kvFontScale): '大',
+        _guestKey(PrefsKeys.kvPaperTexture): false,
+        _guestKey(PrefsKeys.kvDndEnabled): true,
       });
       final merged = store.loadMerged(AppStateData.initial());
 
@@ -66,10 +69,10 @@ void main() {
     test('persisted 空集合覆盖 seed（清空状态跨会话保留，不被 seed 塞回）', () async {
       // kv_* 存在但为空 → loadMerged 应返回空，而非 seed 的 mock 演示数据
       final store = await _storeWith({
-        PrefsKeys.kvSavedTakeaways: '[]',
-        PrefsKeys.kvBrowseHistory: <String>[],
-        PrefsKeys.kvRecentSearches: '{}',
-        PrefsKeys.kvUnreadNotifIds: <String>[],
+        _guestKey(PrefsKeys.kvSavedTakeaways): '[]',
+        _guestKey(PrefsKeys.kvBrowseHistory): <String>[],
+        _guestKey(PrefsKeys.kvRecentSearches): '{}',
+        _guestKey(PrefsKeys.kvUnreadNotifIds): <String>[],
       });
       final seed = AppStateData.initial();
       final merged = store.loadMerged(seed);
@@ -83,9 +86,9 @@ void main() {
 
     test('脏 JSON → 该片退 seed（其它片不受影响）', () async {
       final store = await _storeWith({
-        PrefsKeys.kvRecentSearches: 'not-json{',
-        PrefsKeys.kvSavedTakeaways: 'broken',
-        PrefsKeys.kvFontScale: '特大',
+        _guestKey(PrefsKeys.kvRecentSearches): 'not-json{',
+        _guestKey(PrefsKeys.kvSavedTakeaways): 'broken',
+        _guestKey(PrefsKeys.kvFontScale): '特大',
       });
       final seed = AppStateData.initial();
       final merged = store.loadMerged(seed);

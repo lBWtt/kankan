@@ -36,6 +36,28 @@ class ProjectsApi {
     }
   }
 
+  /// GET /projects?section=today_pick → 运营精选（按 featured_rank 排序，不分页）。
+  /// 「精选」Tab 用（App Store 编辑精选风）。运营没挑时后端返回空，由 provider 兜底。
+  Future<List<Project>> featured({int limit = 12}) async {
+    try {
+      final resp = await _dio.get<dynamic>(
+        '/projects',
+        queryParameters: {'section': 'today_pick', 'page_size': limit},
+      );
+      final data = resp.data;
+      final Object? rawItems = data is Map<dynamic, dynamic>
+          ? (data['items'] ?? data['data'] ?? const <dynamic>[])
+          : (data ?? const <dynamic>[]);
+      final items = rawItems is List ? rawItems : const <dynamic>[];
+      return items
+          .whereType<Map<dynamic, dynamic>>()
+          .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
+          .toList();
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
   /// GET /projects?q= → 项目搜索（后端匹配 title/tagline/tools，仅 published）。
   /// 空 q 早退返空（不请求）。返回卡片列表。
   Future<List<Project>> search(String q, {int limit = 30}) async {
@@ -74,6 +96,27 @@ class ProjectsApi {
           : (data ?? const <dynamic>[]);
       final items = rawItems is List ? rawItems : const <dynamic>[];
       return items
+          .whereType<Map<dynamic, dynamic>>()
+          .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
+          .toList();
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
+  /// 当前账号自己的全部作品，包含审核中/草稿/下架状态。
+  Future<List<Project>> mine({int limit = 50}) async {
+    try {
+      final resp = await _dio.get<dynamic>(
+        '/me/projects',
+        queryParameters: {'page_size': limit},
+      );
+      final data = resp.data;
+      final raw = data is Map<dynamic, dynamic>
+          ? (data['items'] ?? const <dynamic>[])
+          : (data ?? const <dynamic>[]);
+      if (raw is! List) return const [];
+      return raw
           .whereType<Map<dynamic, dynamic>>()
           .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
           .toList();

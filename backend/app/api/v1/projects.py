@@ -15,7 +15,7 @@ from typing_extensions import Literal
 from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_required
 from app.core.db import get_db
 from app.core.ratelimit import rate_limit
-from app.models import ClueSubscription, User
+from app.models import User
 from app.schemas.common import Category, ContentType, Domain, Page
 from app.schemas.project import (
     ImplementationClue,
@@ -162,17 +162,8 @@ def implementation_clue(
     user: Optional[User] = Depends(auth_optional),
     db: Session = Depends(get_db),
 ):
-    """来源/工具/AI 思路/关联推荐/当前需求数/是否已订阅；游客 is_subscribed 恒 false。"""
+    """来源/工具/AI 思路/关联推荐/当前"想试"数。（"订阅更新"功能已随 clue_subscriptions 删除。）"""
     p = get_visible_project(db, project_id, user)
-    is_subscribed = False
-    if user is not None:
-        is_subscribed = bool(
-            db.scalar(
-                select(ClueSubscription.id)
-                .where(ClueSubscription.project_id == p.id, ClueSubscription.user_id == user.id)
-                .limit(1)
-            )
-        )
     return ImplementationClue(
         project_id=p.id,
         source_url=p.source_url,
@@ -183,5 +174,4 @@ def implementation_clue(
         ai_implementation_hint=p.ai_implementation_hint,
         related_projects=cards_from_projects_with_stats(db, clue_related_projects(db, p)),  # 填充 author/counts
         how_to_interest_count=how_to_interest_count(db, p.id),
-        is_subscribed=is_subscribed,
     )
