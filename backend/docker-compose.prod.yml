@@ -23,6 +23,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_ENV: ${APP_ENV:-prod}
       JWT_SECRET: ${JWT_SECRET:?生产必须设置 JWT 密钥}
+      # 反代层数：nginx 一层 → 1，IP 限流才取到真实客户端 IP（默认 0 会用到 nginx 内网 IP）
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # 内部审核台：prod 默认不挂，要用置 1（务必配合 IP 白名单/内网，别裸奔公网）
+      ADMIN_WEB_ENABLED: ${ADMIN_WEB_ENABLED:-0}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
       S3_BUCKET: ${S3_BUCKET:-}
