@@ -44,6 +44,13 @@ class CandidateListItem(BaseModel):
     source_platform: Optional[str] = None
     cover_media_url: Optional[str] = None
     ai_curation_score: Optional[int] = None
+    attraction_score: Optional[int] = None
+    value_score: Optional[int] = None
+    hook_clarity: Optional[int] = None
+    visual_impact: Optional[int] = None
+    work_form: Optional[str] = None
+    creator_type: Optional[str] = None
+    access_friction: Optional[str] = None
     risk_flags: List[str] = []
     project_id: Optional[uuid.UUID] = Field(None, description="approve 后回写的正式项目 ID")
     created_at: datetime
@@ -56,11 +63,31 @@ class CandidateDetail(CandidateListItem):
     ai_implementation_hint: Optional[str] = None
     target_users: List[str] = []
     use_cases: List[str] = []
+    # try_url = 体验链接（作品可去用地址，approve 带进 Project.try_url，前端「去体验」打开）；
+    # 与 source_url（采集来源，内部去重/备查，不展示给用户）分开。审核台需据此核验体验链接是否正确。
+    try_url: Optional[str] = None
     source_url: Optional[str] = None
     original_author_name: Optional[str] = None
     original_author_url: Optional[str] = None
     media_json: Optional[Any] = Field(None, description="列表或 {items:[...]}，每项 {url, media_type, thumbnail_url?}")
     scores_json: Optional[Any] = None
+    is_work: Optional[bool] = None
+    work_rejection_reason: Optional[str] = None
+    surprise: Optional[int] = None
+    tryability: Optional[int] = None
+    shareability: Optional[int] = None
+    is_strong_visual: bool = False
+    is_direct_tryable: bool = False
+    experience_type: Optional[str] = None
+    experience_url: Optional[str] = None
+    experience_content: Optional[str] = None
+    selected_proof_media: Optional[Any] = None
+    title_candidates: Optional[List[str]] = None
+    policy_version: str = "1.1"
+    score_version: Optional[str] = None
+    ai_analysis_json: Optional[Any] = None
+    human_override_json: Optional[Any] = None
+    override_reason: Optional[str] = None
     risk_note: Optional[str] = None
     reviewed_by_user_id: Optional[uuid.UUID] = None
     reviewed_at: Optional[datetime] = None
@@ -77,7 +104,7 @@ class CandidateDetail(CandidateListItem):
 class CandidatePatch(BaseModel):
     """PATCH /admin/candidates/{id}：人工编辑候选字段，保存后状态自动 → edited。"""
 
-    title: Optional[str] = Field(None, min_length=2, max_length=80)
+    title: Optional[str] = Field(None, min_length=12, max_length=28)
     tagline: Optional[str] = Field(None, min_length=5, max_length=140)
     summary: Optional[str] = Field(None, min_length=20, max_length=500)
     description: Optional[str] = Field(None, max_length=1000)
@@ -91,6 +118,8 @@ class CandidatePatch(BaseModel):
     )
     target_users: Optional[List[str]] = None
     use_cases: Optional[List[str]] = None
+    # 体验链接：审核员可改（把跳错的采集源页改成产品真实官网 / App Store / GitHub）。
+    try_url: Optional[str] = Field(None, max_length=2000, description="体验链接(http/https)，与采集源 source_url 分开")
     source_url: Optional[str] = None
     source_platform: Optional[str] = None
     original_author_name: Optional[str] = None
@@ -98,6 +127,29 @@ class CandidatePatch(BaseModel):
     cover_media_url: Optional[str] = None
     media_json: Optional[Any] = None
     risk_note: Optional[str] = None
+    is_work: Optional[bool] = None
+    work_form: Optional[Literal["app", "website", "workflow", "model", "prompt", "ai_art", "game", "tool"]] = None
+    creator_type: Optional[Literal["indie", "company"]] = None
+    access_friction: Optional[Literal["instant", "install", "technical"]] = None
+    experience_type: Optional[Literal["web", "video", "gallery", "download", "model_page", "workflow_file", "prompt_content", "game"]] = None
+    experience_url: Optional[str] = Field(None, max_length=2000)
+    experience_content: Optional[str] = Field(None, max_length=12000)
+    selected_proof_media: Optional[Any] = None
+    title_candidates: Optional[List[str]] = Field(None, min_length=2, max_length=2)
+    hook_clarity: Optional[int] = Field(None, ge=0, le=100)
+    visual_impact: Optional[int] = Field(None, ge=0, le=100)
+    surprise: Optional[int] = Field(None, ge=0, le=100)
+    tryability: Optional[int] = Field(None, ge=0, le=100)
+    shareability: Optional[int] = Field(None, ge=0, le=100)
+    value_score: Optional[int] = Field(None, ge=0, le=100)
+    override_reason: Optional[str] = Field(None, min_length=2, max_length=1000)
+
+    @field_validator("try_url", "experience_url", mode="after")
+    @classmethod
+    def _check_try_url(cls, v):
+        if v is not None and v.strip() and not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("体验链接必须是 http/https 网址")
+        return v
 
 
 class CandidateApproveResponse(BaseModel):
@@ -110,6 +162,35 @@ class CandidateApproveResponse(BaseModel):
     post_id: Optional[uuid.UUID] = None
     # 实际随机派到的马甲昵称（审核员据此知道发布后作者显示成谁；预览页的名字是样例、以此为准）。
     persona_name: Optional[str] = None
+
+
+class AdminProjectEditRequest(BaseModel):
+    """PATCH /admin/projects/{id}：管理员「再剪辑」已发布项目的文案（不改所有权/媒体）。"""
+
+    title: Optional[str] = Field(None, min_length=2, max_length=80)
+    tagline: Optional[str] = Field(None, min_length=1, max_length=140)
+    summary: Optional[str] = Field(None, min_length=1, max_length=500)
+    description: Optional[str] = Field(None, max_length=1000)
+    try_url: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("try_url", mode="after")
+    @classmethod
+    def _chk_try(cls, v):
+        if v is not None and v.strip() and not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("体验链接必须是 http/https 网址")
+        return v
+
+
+class BulkScoreCleanupRequest(BaseModel):
+    """批量按 AI 分清理（人为设阈值）：待审候选批量不推荐 / 已发布项目批量下架。"""
+
+    below_score: int = Field(ge=1, le=100, description="删除 AI 分【严格低于】此值的（填 60 → 处理 <60 分）")
+    dry_run: bool = Field(True, description="true=只返回将影响的数量（预览用，不改动）；false=真执行")
+
+
+class BulkCleanupResponse(BaseModel):
+    matched: int = Field(description="dry_run 时=将影响的数量；执行时=实际处理成功的数量")
+    executed: bool = False
 
 
 class CandidateDiscardRequest(BaseModel):

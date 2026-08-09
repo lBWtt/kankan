@@ -12,7 +12,9 @@ services:
   backend:
     build:
       context: .
-      # 国内服务器构建可加：args: { PIP_INDEX_URL: "https://pypi.tuna.tsinghua.edu.cn/simple" }
+      # 国内服务器构建走清华镜像：直连 pypi.org 会超时重试失败（腾讯云上海实测）。
+      args:
+        PIP_INDEX_URL: "https://pypi.tuna.tsinghua.edu.cn/simple"
     container_name: ccpj_backend
     restart: unless-stopped
     # 只绑本机：对外统一走 nginx:80/443，8000 不暴露到公网（服务器本机仍可 curl 调试）
@@ -60,6 +62,8 @@ services:
     volumes:
       # storage_backend=local 时媒体的持久化盘（切 s3 后可去掉）
       - uploads:/srv/app/uploads
+      # AI 审核必须读取整份内容宪法；只读挂载根目录 SSOT，避免在镜像里复制出第二份规则。
+      - ../docs/CONTENT_CONSTITUTION.md:/srv/docs/CONTENT_CONSTITUTION.md:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,11 +78,12 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      # - "443:443"   # 配好域名 + 证书后解开，并改用 nginx.conf 里的 HTTPS 段
+      - "443:443"   # HTTPS（lovluu.com 已备案，certbot 证书）
     volumes:
       - ${WEB_ROOT:-../frontend/build/web}:/usr/share/nginx/html:ro
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # - ./deploy/certs:/etc/nginx/certs:ro   # 放 fullchain.pem / privkey.pem（HTTPS 时）
+      - ./deploy/.htpasswd:/etc/nginx/.htpasswd:ro
+      - /etc/letsencrypt:/etc/nginx/certs:ro   # certbot live/archive；nginx 引用 live/lovluu.com/*.pem
     depends_on:
       - backend
 

@@ -182,6 +182,8 @@
     <button class="btn-ghost" onclick="openFeedback()">意见反馈</button>
     <button class="btn-ghost" onclick="openStats()">运营数据</button>
     <button class="btn-ghost" onclick="openPersonas()">马甲管理</button>
+    <button class="btn-ghost" onclick="bulkCleanup('candidates')" title="把待审队列里 AI 分低于你设的分数的候选批量不推荐">🧹 清待审低分</button>
+    <button class="btn-ghost" onclick="bulkCleanup('projects')" title="把已发布项目里 AI 分低于你设的分数的批量下架">🧹 下架线上低分</button>
     <button class="btn-primary" onclick="openManualAdd()">＋ 加链接</button>
     <button class="btn-ghost" onclick="logout()">退出</button>
   </header>
@@ -307,10 +309,35 @@ let cursor = null, loading = false, current = null;
 function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
 
-async function api(path, opts={}){
+// 静默续期：access 过期(401)时用 refresh token 换新的，成功则续上登录、不用重新短信。
+// refresh 有效期 30 天且每次刷新轮换 → 只要 30 天内用过一次就一直续着；真过期才回登录页。
+let _refreshing = null;
+function tryRefresh(){
+  if(_refreshing) return _refreshing;
+  const rt = localStorage.getItem("kk_admin_refresh");
+  if(!rt) return Promise.resolve(false);
+  _refreshing = (async ()=>{
+    try{
+      const r = await fetch(API+"/auth/refresh",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({refresh_token:rt})});
+      if(!r.ok){ localStorage.removeItem("kk_admin_refresh"); return false; }
+      const b = await r.json();
+      TOKEN = b.access_token; localStorage.setItem("kk_admin_token", TOKEN);
+      if(b.refresh_token) localStorage.setItem("kk_admin_refresh", b.refresh_token);
+      return true;
+    }catch(e){ return false; }
+  })();
+  const p = _refreshing; p.finally(()=>{ _refreshing = null; }); return p;
+}
+
+async function api(path, opts={}, _retried){
   const headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
   if(TOKEN) headers["Authorization"] = "Bearer "+TOKEN;
   const res = await fetch(API+path, Object.assign({}, opts, {headers}));
+  // access 过期先试静默续期，成功就用新 token 重试一次（避免因 2h 过期就弹回登录）
+  if(res.status===401 && !_retried && await tryRefresh()){
+    return api(path, opts, true);
+  }
   if(res.status===401||res.status===403){ logout(); throw new Error("登录已失效或非管理员"); }
   let body=null; try{ body = await res.json(); }catch(e){}
   if(!res.ok){
@@ -332,10 +359,12 @@ async function doLogin(){
     if(!r.ok) throw new Error(b.message||"登录失败");
     if(!b.user || !b.user.is_admin){ throw new Error("该账号不是管理员，无权进入审核台"); }
     TOKEN = b.access_token; localStorage.setItem("kk_admin_token", TOKEN);
+    // 存 refresh token → 之后 30 天内静默续期，不用再输手机号+短信验证码
+    if(b.refresh_token) localStorage.setItem("kk_admin_refresh", b.refresh_token);
     enterApp();
   }catch(e){ errEl.textContent = e.message; }
 }
-function logout(){ TOKEN=""; localStorage.removeItem("kk_admin_token");
+function logout(){ TOKEN=""; localStorage.removeItem("kk_admin_token"); localStorage.removeItem("kk_admin_refresh");
   document.getElementById("app").style.display="none";
   document.getElementById("login").style.display="block"; }
 
@@ -422,28 +451,58 @@ function mediaUrls(c){
   return out.slice(0,8);
 }
 
+function candidateMediaItems(c){
+  let mj=c.media_json; if(mj && mj.items) mj=mj.items;
+  return Array.isArray(mj) ? mj.filter(m=>m && m.url) : [];
+}
+
 function renderDetail(c){
   const d=document.getElementById("detail");
-  const media = mediaUrls(c).map(u=>`<img src="${esc(u)}" onerror="this.style.display='none'">`).join("");
+  const proofItems = candidateMediaItems(c);
+  const selectedProofUrl = c.selected_proof_media && c.selected_proof_media.url;
+  const media = proofItems.map((m,i)=>`<label style="display:inline-block;text-align:center"><img src="${esc(m.url)}" onerror="this.style.display='none'"><br><input type="radio" name="proof_media" value="${i}" ${m.url===selectedProofUrl?'checked':''}> 成果证据</label>`).join("");
   const risks = (c.risk_flags||[]).map(r=>`<span class="pill risk">${esc(r)}</span>`).join("");
   const tools = (c.tools||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
   const domains = (c.domains||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
   const src = c.source_url ? `<a href="${esc(c.source_url)}" target="_blank" rel="noopener">${esc(c.source_url)}</a>` : '<span class="muted">无</span>';
+  const tryVal = (c.experience_url||c.try_url||"").trim();
+  let tryHint = "";
+  const hostOf = (u)=>{ try{ return new URL(u).host.replace(/^www\./,''); }catch(_){ return ""; } };
+  if(!tryVal && !c.experience_content){
+    tryHint = `<div class="kv" style="color:#c0392b">⚠ 缺体验入口：URL 型填链接，提示词/工作流型填可复用内容</div>`;
+  } else if(c.source_url && hostOf(tryVal) && hostOf(tryVal)===hostOf(c.source_url)){
+    tryHint = `<div class="kv" style="color:#e67e22">⚠ 体验链接疑似=采集源（${esc(hostOf(tryVal))}），请核实是否应改成产品真实地址</div>`;
+  } else {
+    tryHint = `<div class="kv"><a href="${esc(tryVal)}" target="_blank" rel="noopener">↗ 打开体验链接核验</a></div>`;
+  }
   const author = c.original_author_name ? esc(c.original_author_name) : '<span class="muted">未识别</span>';
-  const scoreP = (c.ai_curation_score!=null)?`<span class="pill score">${c.ai_curation_score}分</span>`:"";
+  const scoreP = (c.attraction_score!=null)?`<span class="pill score">吸引力 ${c.attraction_score}</span>`:"";
+  const titles = c.title_candidates||[];
+  const titleChoices = titles.map(t=>`<button type="button" class="btn-ghost" onclick="document.getElementById('e_title').value=this.dataset.title" data-title="${esc(t)}">${esc(t)}</button>`).join(' ');
+  const expTypes=['web','video','gallery','download','model_page','workflow_file','prompt_content','game'];
+  const expOptions=expTypes.map(t=>`<option value="${t}" ${c.experience_type===t?'selected':''}>${t}</option>`).join('');
 
   d.innerHTML = `
-    <div>${scoreP}<span class="pill">${esc(c.status)}</span><span class="pill">${esc(c.source_platform||"")}</span>${risks}</div>
+    <div>${scoreP}<span class="pill">价值 ${c.value_score??'—'}</span><span class="pill">${esc(c.status)}</span><span class="pill">${esc(c.source_platform||"")}</span>${risks}</div>
+    <div class="kv">hook ${c.hook_clarity??'—'} · visual ${c.visual_impact??'—'} · surprise ${c.surprise??'—'} · try ${c.tryability??'—'} · share ${c.shareability??'—'}</div>
+    <div class="kv">${esc(c.work_form||'—')} · ${esc(c.creator_type||'—')} · ${esc(c.access_friction||'—')} · score ${esc(c.score_version||'—')}</div>
     ${media?`<div class="media">${media}</div>`:""}
 
-    <div class="field"><label>标题（可改）</label><input id="e_title" value="${esc(c.title||"")}"></div>
+    <div class="field"><label>双标题候选（点选后仍可编辑）</label><div>${titleChoices||'<span class="muted">模型尚未生成</span>'}</div><input id="e_title" value="${esc(c.title||"")}" minlength="12" maxlength="28"></div>
     <div class="field"><label>一句话（tagline，可改）</label><input id="e_tagline" value="${esc(c.tagline||"")}"></div>
     <div class="field"><label>摘要（summary，可改）</label><textarea id="e_summary" rows="3">${esc(c.summary||"")}</textarea></div>
     <div class="field"><label>正文（description，可改）</label><textarea id="e_description" rows="6">${esc(c.description||"")}</textarea></div>
-    <div><button class="saveedit" onclick="saveEdit()">保存修改（→已编辑）</button></div>
+    <div class="field"><label>体验类型</label><select id="e_experience_type">${expOptions}</select></div>
+    <div class="field"><label>体验 URL（URL 型填写）</label><input id="e_try_url" value="${esc(tryVal)}" placeholder="https://..."></div>
+    <div class="field"><label>体验内容（prompt/workflow 无 URL 时填写）</label><textarea id="e_experience_content" rows="4">${esc(c.experience_content||"")}</textarea></div>
+    <div class="field"><label>人工覆盖理由（修改标题/评分/体验/proof 时必填）</label><input id="e_override_reason" placeholder="例如：审核员对照演示视频后选择第 2 个标题"></div>
+    ${tryHint}
+    <div>${(c.status==='approved' && c.project_id)
+      ? `<button class="saveedit" onclick="saveEditProject()">保存修改（改线上项目）</button>`
+      : `<button class="saveedit" onclick="saveEdit()">保存修改（→已编辑）</button>`}</div>
 
     <div class="field">
-      <div class="kv"><b>去体验/来源链接：</b>${src}</div>
+      <div class="kv"><b>采集来源（内部，不展示给用户）：</b>${src}</div>
       <div class="kv"><b>原作者：</b>${author}${c.original_author_url?` · <a href="${esc(c.original_author_url)}" target="_blank">主页</a>`:""}</div>
       <div class="kv"><b>领域：</b>${domains||'<span class="muted">—</span>'}</div>
       <div class="kv"><b>工具：</b>${tools||'<span class="muted">—</span>'}</div>
@@ -452,9 +511,12 @@ function renderDetail(c){
     </div>
 
     <div class="actions">
-      <button class="btn-primary" onclick="approve('${c.id}')">✓ 通过并发布</button>
-      <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
-      <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>
+      ${(c.status==='approved' && c.project_id)
+        ? `<button class="btn-danger" onclick="takeDownProject('${c.project_id}','${c.id}')">⬇ 下架</button>
+           <button class="btn-ghost" onclick="restoreProject('${c.project_id}')">↺ 恢复上架</button>`
+        : `<button class="btn-primary" onclick="approve('${c.id}')">✓ 通过并发布</button>
+           <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
+           <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`}
     </div>
   `;
 }
@@ -467,13 +529,23 @@ function dropCurrentRow(id){
   current=null;
 }
 
+// 体验链接容错：只输了域名(如 a.com)自动补 https://，省得因缺前缀报「参数校验失败」。
+function normTryUrl(u){ u=(u||"").trim(); if(u && !/^https?:\/\//i.test(u)) u="https://"+u; return u; }
+
 async function saveEdit(){
   if(!current) return;
+  const proofRadio=document.querySelector('input[name="proof_media"]:checked');
+  const proofItems=candidateMediaItems(current);
   const body={
     title:document.getElementById("e_title").value.trim(),
     tagline:document.getElementById("e_tagline").value.trim(),
     summary:document.getElementById("e_summary").value.trim(),
     description:document.getElementById("e_description").value.trim(),
+    experience_type:document.getElementById("e_experience_type").value,
+    experience_url:normTryUrl(document.getElementById("e_try_url").value),
+    experience_content:document.getElementById("e_experience_content").value.trim()||null,
+    selected_proof_media:proofRadio?proofItems[Number(proofRadio.value)]:null,
+    override_reason:document.getElementById("e_override_reason").value.trim(),
   };
   try{
     const c = await api("/admin/candidates/"+current.id,{method:"PATCH",body:JSON.stringify(body)});
@@ -481,6 +553,40 @@ async function saveEdit(){
     // 若当前筛的是待审，编辑后状态变 edited，可能不再属于该列表——刷新行标签即可，不强制移除。
     const row=document.querySelector('.row[data-id="'+c.id+'"] .rtitle'); if(row) row.textContent=c.title||"(无标题)";
   }catch(e){ toast("保存失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 已通过内容「再剪辑」：改动直接落到线上项目（PATCH /admin/projects/{project_id}）。
+async function saveEditProject(){
+  if(!current || !current.project_id) return;
+  const body={
+    title:document.getElementById("e_title").value.trim(),
+    tagline:document.getElementById("e_tagline").value.trim(),
+    summary:document.getElementById("e_summary").value.trim(),
+    description:document.getElementById("e_description").value.trim(),
+    try_url:normTryUrl(document.getElementById("e_try_url").value),
+  };
+  try{
+    await api("/admin/projects/"+current.project_id,{method:"PATCH",body:JSON.stringify(body)});
+    toast("已保存到线上项目");
+    const row=document.querySelector('.row[data-id="'+current.id+'"] .rtitle'); if(row) row.textContent=body.title||"(无标题)";
+  }catch(e){ toast("保存失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 下架已发布项目（可恢复）。
+async function takeDownProject(projId, candId){
+  if(!confirm("确认下架这个线上项目？用户将看不到，可再恢复。")) return;
+  try{
+    await api("/admin/projects/"+projId+"/take-down",{method:"POST",body:JSON.stringify({reason:"审核台下架"})});
+    toast("已下架（可恢复）"); dropCurrentRow(candId); refreshPending();
+  }catch(e){ toast("下架失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 恢复上架（下架/隐藏/审核中 → 已发布）。
+async function restoreProject(projId){
+  try{
+    await api("/admin/projects/"+projId+"/restore",{method:"POST",body:JSON.stringify({reason:"审核台恢复"})});
+    toast("已恢复上架"); refreshPending();
+  }catch(e){ toast("恢复失败："+(e.body&&e.body.message||e.message)); }
 }
 
 async function approve(id){
@@ -497,10 +603,9 @@ async function approve(id){
 }
 
 async function discard(id){
-  const reason = prompt("不推荐的理由（可留空）：","");
-  if(reason===null) return;
+  // 直接不推荐，不再弹框问理由（决定本身已记进 admin_actions，供偏好学习用）。
   try{
-    await api("/admin/candidates/"+id+"/discard",{method:"POST",body:JSON.stringify({reason:reason||null})});
+    await api("/admin/candidates/"+id+"/discard",{method:"POST",body:JSON.stringify({reason:null})});
     toast("已标记不推荐"); dropCurrentRow(id); refreshPending();
   }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
 }
@@ -509,6 +614,26 @@ async function park(id){
   try{
     await api("/admin/candidates/"+id+"/park",{method:"POST"});
     toast("已暂存"); dropCurrentRow(id);
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 批量清理：人为设分数阈值，把低于它的一次性处理。先 dry_run 预览数量、确认后再执行（可恢复）。
+async function bulkCleanup(scope){
+  const isProj = scope==='projects';
+  const s = prompt(isProj
+    ? "【下架线上低分项目】把已发布项目里 AI 分【低于】多少的批量下架？（如 55，可恢复）"
+    : "【清待审低分】把待审候选里 AI 分【低于】多少的批量不推荐？（如 55，可恢复）", "");
+  if(s===null) return;
+  const below = parseInt(s,10);
+  if(!(below>0 && below<=100)){ toast("请输入 1–100 的分数"); return; }
+  const path = isProj ? "/admin/projects/bulk-take-down" : "/admin/candidates/bulk-discard";
+  try{
+    const pre = await api(path,{method:"POST",body:JSON.stringify({below_score:below,dry_run:true})});
+    if(!pre.matched){ toast("没有低于 "+below+" 分的"); return; }
+    if(!confirm("将"+(isProj?"下架":"不推荐")+" "+pre.matched+" 条（AI 分 < "+below+"）。可恢复。确认执行？")) return;
+    const res = await api(path,{method:"POST",body:JSON.stringify({below_score:below,dry_run:false})});
+    toast("已处理 "+res.matched+" 条");
+    reload(); refreshPending();
   }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
 }
 
@@ -820,7 +945,8 @@ async function delPersonaProject(projId){
 }
 
 // ---------- 启动 ----------
-if(TOKEN){ enterApp(); }
+// 有 access 或 refresh 就直接进（access 过期会在首个请求自动续期，不弹登录）
+if(TOKEN || localStorage.getItem("kk_admin_refresh")){ enterApp(); }
 document.getElementById("code").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
 </script>
 </body>

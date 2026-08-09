@@ -3,8 +3,7 @@
 #   焊成一条命令，规则写死在代码里，防止"下次忘"。SSOT 见根 CONTENT_PIPELINE.md。
 #
 # 决策（已和用户拍板，写死）：
-#   - GitHub（项目，低风险）→ 富化后**自动过审发布** + 封面兜底回填。
-#   - 即刻/小红书/抖音 → 富化后停在**待审核队列**，人工用管理员端过一遍再发。
+#   - 所有来源（包括 GitHub）→ 富化后停在**待审核队列**，一律人工最终过审。
 #   - 口吻**对照即刻真帖**（jike 跑完自动刷新 scrape/jike_voice_samples.json 口吻样本库）。
 #   - 节奏：手动 on-demand（本脚本就是手动入口）。
 #
@@ -68,57 +67,6 @@ def refresh_voice_bank(items_jike="items_jike.json", out="scrape/jike_voice_samp
         print(f"  已用 {len(samples)} 条即刻真帖刷新口吻样本库 → {out}")
 
 
-# ---------------- GitHub 自动过审 + 封面兜底 ----------------
-def auto_approve_github():
-    """GitHub 低风险：把富化好的 github 候选自动过审发布，并给缺封面的项目限速补社交卡。"""
-    from sqlalchemy import select, func
-    from app.core.db import SessionLocal
-    from app.models import CandidateContent, Project, ProjectMedia, User
-    from app.services.candidates import approve_candidate
-    from app.services.media_transfer import transfer_media
-    from app.core.errors import AppError
-
-    with SessionLocal() as db:
-        admin = db.query(User).filter(User.is_admin.is_(True)).first() or db.query(User).first()
-        cands = db.scalars(select(CandidateContent).where(
-            CandidateContent.source_platform == "github",
-            CandidateContent.status.in_(("pending_review", "ai_processed", "edited")),
-        )).all()
-        ok = 0
-        for c in cands:
-            try:
-                approve_candidate(db, c, admin); db.commit(); ok += 1
-            except AppError:
-                db.rollback()
-            except Exception:
-                db.rollback()
-        print(f"  GitHub 自动过审发布 {ok} 条")
-
-        # 封面兜底：给没封面的 github 项目限速补社交卡（GitHub 429 严，慢慢来）
-        projs = db.scalars(select(Project).where(
-            Project.source_platform == "github", Project.status == "published",
-            Project.deleted_at.is_(None), Project.cover_media_url.is_(None))).all()
-        done = 0
-        for p in projs:
-            m = re.search(r"github\.com/([^/]+/[^/?#]+)", p.source_url or "")
-            if not m:
-                continue
-            og = f"https://opengraph.githubassets.com/{int(time.time())}/{m.group(1)}"
-            res = None
-            for attempt in range(3):
-                res = transfer_media(og, "github", "image")
-                if res:
-                    break
-                time.sleep(6 * (attempt + 1))
-            if res:
-                p.cover_media_url = res["url"]
-                db.add(ProjectMedia(project_id=p.id, media_type="image", url=res["url"], sort_order=0))
-                db.commit(); done += 1
-            time.sleep(3)
-        if projs:
-            print(f"  封面兜底补了 {done}/{len(projs)} 条")
-
-
 # ---------------- 各源入口 ----------------
 def cmd_github(args):
     run([PY, "scrape/github_collector.py", "-o", "items_github.json", "--limit", str(args.limit)])
@@ -126,11 +74,7 @@ def cmd_github(args):
          "-o", "items_github_passed.json"])
     run([PY, "-m", "app.pipeline", "collect", "items_github_passed.json", "--platform", "github"])
     _process()
-    if args.no_approve:
-        print("\n已进待审核队列（--no-approve）。去管理员端 approve 发布。")
-    else:
-        auto_approve_github()
-    print("\nGitHub 流水线完成。")
+    print("\nGitHub 内容已进待审核队列；内容宪法 v1.1 禁止任何来源自动发布。")
 
 
 def cmd_jike(args):
@@ -274,9 +218,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="内容流水线一键驱动（规则见 CONTENT_PIPELINE.md）")
     sub = ap.add_subparsers(dest="source", required=True)
 
-    g = sub.add_parser("github", help="项目·GitHub（自动过审）")
+    g = sub.add_parser("github", help="项目·GitHub（只入待审核队列，不自动发布）")
     g.add_argument("--limit", type=int, default=40)
-    g.add_argument("--no-approve", action="store_true", help="不自动过审，留待人工")
     g.set_defaults(func=cmd_github)
 
     j = sub.add_parser("jike", help="动态·即刻（人工审核）")

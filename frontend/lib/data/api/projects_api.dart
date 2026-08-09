@@ -125,6 +125,24 @@ class ProjectsApi {
     }
   }
 
+  /// 内容宪法 v1.1：首页首批十条由后端 slate 编排，客户端不得二次洗牌。
+  Future<List<Project>> homeSlate() async {
+    try {
+      final resp = await _dio.get<dynamic>('/projects/home-slate');
+      final data = resp.data;
+      final raw = data is Map<dynamic, dynamic>
+          ? (data['items'] ?? const <dynamic>[])
+          : const <dynamic>[];
+      final items = raw is List ? raw : const <dynamic>[];
+      return items
+          .whereType<Map<dynamic, dynamic>>()
+          .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
+          .toList();
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
   /// GET /projects（游标分页）→ 项目卡片分页。
   /// 后端返回 {items, next_cursor, has_more}；无游标时 hasMore 按 items.length>=limit 推断。
   /// 后端契约参数是 page_size + cursor（见 backend/api/v1/projects.py），不是 limit。
@@ -153,7 +171,10 @@ class ProjectsApi {
         hasMore = projects.length >= limit;
       }
       return Page<Project>(
-          items: projects, nextCursor: nextCursor, hasMore: hasMore);
+        items: projects,
+        nextCursor: nextCursor,
+        hasMore: hasMore,
+      );
     } on DioException catch (e) {
       throw AppException.fromDio(e);
     }

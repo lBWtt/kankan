@@ -19,6 +19,22 @@ from app.services.storage import save_media_file
 
 logger = logging.getLogger("app.media_transfer")
 
+# 转存下载可走代理：国内服务器直连 GitHub raw / HuggingFace / mshots 常被墙/限速，
+# 转存大面积失败（见运维记录）。配 MEDIA_PROXY=http://host:port 让**转存下载**走代理，
+# 只作用于本模块的下载 client，不影响 DeepSeek/短信等其它出网（那些要直连国内）。
+_MEDIA_PROXY = os.environ.get("MEDIA_PROXY", "").strip() or None
+
+
+def _make_client() -> httpx.Client:
+    """建下载用 httpx client。配了 MEDIA_PROXY 就走代理（兼容 httpx 新老版本的 proxy/proxies 参数）。"""
+    kw = dict(timeout=30.0, follow_redirects=True, trust_env=True)
+    if _MEDIA_PROXY:
+        try:
+            return httpx.Client(proxy=_MEDIA_PROXY, **kw)      # httpx >= 0.26
+        except TypeError:
+            return httpx.Client(proxies=_MEDIA_PROXY, **kw)    # 老版本
+    return httpx.Client(**kw)
+
 _UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -76,8 +92,8 @@ def transfer_media(
 
     tmp = None
     try:
-        # trust_env=True：让系统代理（Clash）按规则路由——国内 CDN 直连、国外走代理。
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        # 配了 MEDIA_PROXY 走代理（绕 GFW），否则直连；trust_env 也让系统 HTTP(S)_PROXY 生效。
+        with _make_client() as client:
             with client.stream("GET", url, headers=_headers_for(platform)) as r:
                 r.raise_for_status()
                 ct = r.headers.get("content-type", "").split(";")[0].strip().lower()
@@ -118,6 +134,8 @@ def transfer_candidate_media(media_items, platform: Optional[str]) -> list:
         t = transfer_media(item["url"], platform, item.get("media_type", "image"))
         if t:
             if item.get("thumbnail_url"):
-                t["thumbnail_url"] = item["thumbnail_url"]
+                thumbnail = transfer_media(item["thumbnail_url"], platform, "image")
+                if thumbnail:
+                    t["thumbnail_url"] = thumbnail["url"]
             out.append(t)
     return out

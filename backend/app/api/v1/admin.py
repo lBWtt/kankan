@@ -35,7 +35,10 @@ from app.schemas.admin import (
     AdminProjectActionRequest,
     AdminProjectActionResponse,
     AdminProjectListItem,
+    AdminProjectEditRequest,
     AdminReportItem,
+    BulkCleanupResponse,
+    BulkScoreCleanupRequest,
     CandidateApproveResponse,
     CandidateDetail,
     CandidateDiscardRequest,
@@ -59,6 +62,7 @@ from app.schemas.admin import (
     ActiveUserItem,
 )
 from app.schemas.feedback import AdminFeedbackItem, AdminFeedbackHandleRequest
+from app.schemas.project import HomeSlateResponse
 from app.schemas.common import (
     CandidateStatus,
     ContentSourceType,
@@ -80,6 +84,8 @@ from app.services.ingestion import ingest_raw_items
 from app.services.moderation import admin_delete_post, apply_project_action, set_featured_rank
 from app.services.moderation import resolve_report as svc_resolve_report
 from app.services.personas import is_persona, persona_recent_content, personas_with_stats
+from app.services.projects import cards_from_projects_with_stats
+from app.services.slate import home_slate
 
 # 全部后台接口：需登录 + is_admin=true，否则 403 FORBIDDEN
 router = APIRouter(prefix="/admin", tags=["后台"], dependencies=[Depends(admin_required)], responses=ERRORS_AUTHED)
@@ -93,6 +99,20 @@ def _get_candidate(db: Session, candidate_id: uuid.UUID) -> CandidateContent:
 
 
 # ---------- 候选池（V0 已实现） ----------
+
+
+@router.get(
+    "/slate/preview",
+    response_model=HomeSlateResponse,
+    summary="人工预览内容宪法 v1.1 首页 slate",
+)
+def preview_home_slate(db: Session = Depends(get_db)):
+    result = home_slate(db)
+    return HomeSlateResponse(
+        slate_id=result.slate_id,
+        items=cards_from_projects_with_stats(db, result.projects),
+        shortages=result.shortages,
+    )
 
 
 @router.get("/candidates", response_model=Page[CandidateListItem], summary="候选列表（筛选：状态/分数/风险/来源/语言）")
@@ -132,16 +152,26 @@ def list_candidates(
         # 使用 safe_like_pattern 转义特殊字符 % 和 _，防止模式注入
         stmt = stmt.where(CandidateContent.title.ilike(safe_like_pattern(q)))
 
-    stmt = stmt.order_by(CandidateContent.created_at.desc(), CandidateContent.id.desc())
+    # 按 AI 评分排序：高分优先（无分的用 -1 沉底），同分再按新→旧。
+    # 审核台默认让「最该发的」浮到最上面，边审边毙，效率最高（无分 = 还没 AI 打分，排最后）。
+    score_key = func.coalesce(CandidateContent.ai_curation_score, -1)
+    stmt = stmt.order_by(score_key.desc(), CandidateContent.created_at.desc(), CandidateContent.id.desc())
     if cursor:
-        c_dt, c_id = parse_datetime_cursor(cursor)
-        stmt = stmt.where(tuple_(CandidateContent.created_at, CandidateContent.id) < (c_dt, c_id))
+        c_score_s, c_dt_s, c_id_s = decode_cursor(cursor, 3)
+        c_score, c_dt, c_id = int(c_score_s), datetime.fromisoformat(c_dt_s), uuid.UUID(c_id_s)
+        stmt = stmt.where(
+            tuple_(score_key, CandidateContent.created_at, CandidateContent.id) < (c_score, c_dt, c_id)
+        )
 
     rows = db.scalars(stmt.limit(page_size + 1)).all()
     has_more = len(rows) > page_size
     rows = rows[:page_size]
     next_cursor = (
-        encode_cursor([rows[-1].created_at.isoformat(), str(rows[-1].id)]) if has_more and rows else None
+        encode_cursor([
+            str(rows[-1].ai_curation_score if rows[-1].ai_curation_score is not None else -1),
+            rows[-1].created_at.isoformat(),
+            str(rows[-1].id),
+        ]) if has_more and rows else None
     )
     return Page[CandidateListItem](
         items=[CandidateListItem.model_validate(r) for r in rows], next_cursor=next_cursor, has_more=has_more
@@ -163,8 +193,43 @@ def patch_candidate(
     cand = _get_candidate(db, candidate_id)
     ensure_actionable(cand, "编辑")
     changes = body.model_dump(exclude_unset=True)
+    quality_fields = {
+        "title", "is_work", "work_form", "creator_type", "access_friction",
+        "experience_type", "experience_url", "experience_content", "selected_proof_media",
+        "title_candidates", "hook_clarity", "visual_impact", "surprise", "tryability",
+        "shareability", "value_score",
+    }
+    overridden = {field: value for field, value in changes.items() if field in quality_fields}
+    if overridden and not (changes.get("override_reason") or "").strip():
+        raise AppError(422, "OVERRIDE_REASON_REQUIRED", "修改内容宪法字段必须填写 override_reason")
     for field, value in changes.items():
         setattr(cand, field, value.value if hasattr(value, "value") else value)
+    if overridden:
+        cand.human_override_json = {**(cand.human_override_json or {}), **overridden}
+    if "experience_url" in changes:
+        cand.try_url = cand.experience_url  # 旧客户端兼容
+    elif "try_url" in changes:
+        cand.experience_url = cand.try_url
+    if "selected_proof_media" in changes:
+        cand.cover_media_url = (cand.selected_proof_media or {}).get("url")
+    score_fields = ("hook_clarity", "visual_impact", "surprise", "tryability", "shareability")
+    if any(field in changes for field in score_fields) and all(getattr(cand, field) is not None for field in score_fields):
+        cand.attraction_score = round(
+            cand.hook_clarity * .25 + cand.visual_impact * .25 + cand.surprise * .20
+            + cand.tryability * .15 + cand.shareability * .15
+        )
+        cand.ai_curation_score = cand.attraction_score
+    cand.is_strong_visual = bool((cand.visual_impact or 0) >= 80 and cand.selected_proof_media)
+    cand.is_direct_tryable = bool(
+        (
+            cand.experience_type in {"web", "video", "gallery", "game"}
+            and cand.experience_url
+        )
+        or (
+            cand.experience_type == "prompt_content"
+            and cand.experience_content
+        )
+    )
     cand.status = "edited"  # 人工已改（PRD §8.4：发布前仍需 approve）
     log_admin_action(db, admin.id, "edit_candidate", "candidate", cand.id, {"fields": list(changes)})
     db.commit()
@@ -216,6 +281,65 @@ def park(candidate_id: uuid.UUID, admin: User = Depends(admin_required), db: Ses
     transition_candidate(db, cand, admin, "parked")
     db.commit()
     return OkResponse()
+
+
+@router.post("/candidates/bulk-discard", response_model=BulkCleanupResponse,
+             summary="批量不推荐：把待审候选里 AI 分低于阈值的一次性毙掉（人为设阈值，先 dry_run 预览）")
+def bulk_discard_candidates(
+    body: BulkScoreCleanupRequest,
+    admin: User = Depends(admin_required),
+    db: Session = Depends(get_db),
+):
+    """人为设分数、批量清理待审队列里的低分候选。可恢复（→discarded，非真删）。
+    只动还在队列里的（pending_review/ai_processed/edited），不碰已 approve/已 parked/已 discarded。"""
+    rows = db.scalars(select(CandidateContent).where(
+        CandidateContent.status.in_(("pending_review", "ai_processed", "edited")),
+        CandidateContent.ai_curation_score.isnot(None),
+        CandidateContent.ai_curation_score < body.below_score,
+    )).all()
+    if body.dry_run:
+        return BulkCleanupResponse(matched=len(rows), executed=False)
+    done = 0
+    for c in rows:
+        try:
+            transition_candidate(db, c, admin, "discarded", f"批量清理：AI 分 < {body.below_score}")
+            db.commit()
+            done += 1
+        except Exception:
+            db.rollback()
+    return BulkCleanupResponse(matched=done, executed=True)
+
+
+@router.post("/projects/bulk-take-down", response_model=BulkCleanupResponse,
+             summary="批量下架：把已发布项目里（原候选）AI 分低于阈值的一次性下架（人为设阈值，先 dry_run 预览）")
+def bulk_take_down_projects(
+    body: BulkScoreCleanupRequest,
+    admin: User = Depends(admin_required),
+    db: Session = Depends(get_db),
+):
+    """人为设分数、批量下架线上低分项目。分数来自原候选（candidate.project_id=project.id）；
+    无关联候选的项目（如用户自建）不受影响。可恢复（take_down→taken_down，非真删）。"""
+    ids = db.scalars(
+        select(Project.id).distinct()
+        .join(CandidateContent, CandidateContent.project_id == Project.id)
+        .where(
+            Project.status == "published",
+            Project.deleted_at.is_(None),
+            CandidateContent.ai_curation_score.isnot(None),
+            CandidateContent.ai_curation_score < body.below_score,
+        )
+    ).all()
+    if body.dry_run:
+        return BulkCleanupResponse(matched=len(ids), executed=False)
+    done = 0
+    for pid in ids:
+        try:
+            apply_project_action(db, admin, pid, "take_down", f"批量清理：AI 分 < {body.below_score}")
+            db.commit()
+            done += 1
+        except Exception:
+            db.rollback()
+    return BulkCleanupResponse(matched=done, executed=True)
 
 
 def _fetch_og_best_effort(url: str) -> dict:
@@ -376,6 +500,26 @@ router.post("/projects/{project_id}/soft-delete", response_model=AdminProjectAct
             summary="删除（→deleted，软删；红线：与下架是两个状态）")(_project_action_route("soft_delete"))
 router.post("/projects/{project_id}/require-edit", response_model=AdminProjectActionResponse,
             summary="要求修改（→under_review + 通知作者）")(_project_action_route("require_edit"))
+
+
+@router.patch("/projects/{project_id}", response_model=OkResponse,
+              summary="再剪辑：管理员改已发布项目的文案（标题/一句话/摘要/正文/体验链接）")
+def admin_edit_project(
+    project_id: uuid.UUID,
+    body: AdminProjectEditRequest,
+    admin: User = Depends(admin_required),
+    db: Session = Depends(get_db),
+):
+    """审核台对「已通过」的内容再编辑——直接改线上项目文案（不动所有权/媒体/状态）。"""
+    p = db.get(Project, project_id)
+    if p is None or p.deleted_at is not None:
+        raise AppError(404, "NOT_FOUND", "项目不存在")
+    changes = body.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        setattr(p, field, value)
+    log_admin_action(db, admin.id, "edit_project", "project", p.id, changes)
+    db.commit()
+    return OkResponse()
 
 
 @router.post("/projects/{project_id}/feature", response_model=OkResponse,

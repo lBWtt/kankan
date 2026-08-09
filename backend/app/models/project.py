@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Index, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, uuid_pk
@@ -62,6 +62,30 @@ class Project(TimestampMixin, Base):
     # 与 source_url（采集源，不留出处、不展示）分开——这是可对外展示的、让人去用的链接。
     try_url: Mapped[Optional[str]] = mapped_column(Text)
 
+    # 内容宪法 v1.1：正式内容保留当前生效判断，同时保存 AI 原值/人工覆盖审计。
+    work_form: Mapped[Optional[str]] = mapped_column(String(30))
+    creator_type: Mapped[Optional[str]] = mapped_column(String(20))
+    access_friction: Mapped[Optional[str]] = mapped_column(String(20))
+    experience_type: Mapped[Optional[str]] = mapped_column(String(30))
+    experience_url: Mapped[Optional[str]] = mapped_column(Text)
+    experience_content: Mapped[Optional[str]] = mapped_column(Text)
+    hook_clarity: Mapped[Optional[int]] = mapped_column(Integer)
+    visual_impact: Mapped[Optional[int]] = mapped_column(Integer)
+    surprise: Mapped[Optional[int]] = mapped_column(Integer)
+    tryability: Mapped[Optional[int]] = mapped_column(Integer)
+    shareability: Mapped[Optional[int]] = mapped_column(Integer)
+    attraction_score: Mapped[Optional[int]] = mapped_column(Integer)
+    value_score: Mapped[Optional[int]] = mapped_column(Integer)
+    is_strong_visual: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    is_direct_tryable: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    selected_proof_media: Mapped[Optional[dict]] = mapped_column(JSONB)
+    title_candidates: Mapped[Optional[list]] = mapped_column(JSONB)
+    policy_version: Mapped[str] = mapped_column(String(20), nullable=False, server_default="1.1")
+    score_version: Mapped[Optional[str]] = mapped_column(String(60))
+    ai_analysis_json: Mapped[Optional[dict]] = mapped_column(JSONB)
+    human_override_json: Mapped[Optional[dict]] = mapped_column(JSONB)
+    override_reason: Mapped[Optional[str]] = mapped_column(Text)
+
     # PRD §8.5：主封面单独一个字段（发布准入要求必有，DB 层放宽以容纳草稿，准入在 API 层校验）
     cover_media_url: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -95,6 +119,7 @@ class Project(TimestampMixin, Base):
         Index("ix_projects_content_type_status", "content_type", "status"),
         Index("ix_projects_hot_score", "hot_score"),
         Index("ix_projects_featured_rank", "featured_rank"),
+        Index("ix_projects_slate_quality", "status", "attraction_score", "published_at"),
         Index("ix_projects_domains_gin", "domains", postgresql_using="gin"),
         Index("ix_projects_tools_gin", "tools", postgresql_using="gin"),
         # H-MDL-8：软删列的部分索引——发现页只刷未删的项目

@@ -25,14 +25,22 @@ ACTIONABLE_STATUSES = {"ai_collected", "ai_processed", "pending_review", "edited
 # 必须先经 ai_processed/pending_review 或人工 edited，杜绝跳过整理流程把生料推上线。
 APPROVABLE_STATUSES = {"ai_processed", "pending_review", "edited", "parked"}
 
+_URL_EXPERIENCE_TYPES = {"web", "video", "gallery", "download", "model_page", "game"}
+_EXPERIENCE_TYPES = _URL_EXPERIENCE_TYPES | {"workflow_file", "prompt_content"}
+_BAD_PROOF_MARKERS = (
+    "opengraph.githubassets.com", "github-social", "github-social-preview",
+    "shields.io", "badge", "/logo", "logo.", "/icon", "icon.",
+    "avatars.githubusercontent", "s.wordpress.com/mshots",
+)
+
 
 def badge_for_score(score: Optional[int]) -> str:
-    """决策B（项目总纲 §3）：≥80 high_potential；65-79 worth_a_look；其余 none。staff_pick 仅运营手动。"""
+    """内容宪法 v1.1：≥82 强候选；70-81 可发布；其余不展示 badge。"""
     if score is None:
         return "none"
-    if score >= 80:
+    if score >= 82:
         return "high_potential"
-    if score >= 65:
+    if score >= 70:
         return "worth_a_look"
     return "none"
 
@@ -69,27 +77,116 @@ def ensure_approvable(candidate: CandidateContent) -> None:
         )
 
 
-def check_publish_gate(candidate: CandidateContent) -> None:
-    """发布准入（PRD §2.3 红线）+ 必填字段完整性，不满足全部列在 details 里一次性返回。"""
+def _media_items(candidate: CandidateContent) -> list:
+    return _as_list(candidate.media_json)
+
+
+def is_valid_proof_media(item: object) -> bool:
+    """保守识别成果证据；明确的社交卡/logo/icon/官网截图不能混成 proof。"""
+    if not isinstance(item, dict):
+        return False
+    url = str(item.get("url") or "").strip()
+    kind = str(item.get("media_type") or item.get("type") or "image").lower()
+    if not url or kind not in {"image", "video"}:
+        return False
+    low = url.lower()
+    return not any(marker in low for marker in _BAD_PROOF_MARKERS)
+
+
+def select_proof_media(candidate: CandidateContent, preferred_index: Optional[int] = None) -> Optional[dict]:
+    """按 AI 选择的索引取 proof；索引无效时不擅自把第一张普通图当成果证据。"""
+    items = _media_items(candidate)
+    if preferred_index is None or preferred_index < 0 or preferred_index >= len(items):
+        return None
+    item = items[preferred_index]
+    return dict(item) if is_valid_proof_media(item) else None
+
+
+def proof_media_for_transfer(candidate: CandidateContent) -> list:
+    """selected proof 排第一，其余合格效果媒体随后；发布只转存这组，不带丑卡。"""
+    selected = candidate.selected_proof_media if is_valid_proof_media(candidate.selected_proof_media) else None
+    out = [dict(selected)] if selected else []
+    selected_url = str(selected.get("url")) if selected else None
+    for item in _media_items(candidate):
+        if is_valid_proof_media(item) and str(item.get("url")) != selected_url:
+            out.append(dict(item))
+    return out
+
+
+def _experience_problem(candidate: CandidateContent) -> Optional[str]:
+    kind = (candidate.experience_type or "").strip()
+    url = (candidate.experience_url or "").strip()
+    content = (candidate.experience_content or "").strip()
+    if not kind:
+        return "experience_type 缺失"
+    if kind not in _EXPERIENCE_TYPES:
+        return f"未知 experience_type：{kind}"
+    if kind in _URL_EXPERIENCE_TYPES:
+        if not url:
+            return f"{kind} 类型必须有 experience_url"
+        if not url.startswith(("http://", "https://")):
+            return "experience_url 必须是 http/https 地址"
+    elif kind == "prompt_content" and not content:
+        return "prompt_content 类型必须有 experience_content"
+    elif kind == "workflow_file" and not (url or content):
+        return "workflow_file 必须有 URL 或可复用内容"
+    return None
+
+
+def _rolling_mix_problems(db: Session, candidate: CandidateContent) -> List[str]:
+    recent = db.execute(
+        select(Project.creator_type, Project.access_friction)
+        .where(Project.status == "published", Project.deleted_at.is_(None))
+        .order_by(Project.published_at.desc(), Project.id.desc())
+        .limit(100)
+    ).all()
     problems: List[str] = []
-    if not candidate.title or len(candidate.title) < 2:
-        problems.append("title 缺失或过短（≥2 字）")
+    if candidate.creator_type == "company" and sum(1 for creator, _ in recent if creator == "company") >= 5:
+        problems.append("最近 100 条 company 已达 5 条上限")
+    if candidate.access_friction == "technical" and sum(1 for _, friction in recent if friction == "technical") >= 15:
+        problems.append("最近 100 条 technical 已达 15 条上限")
+    return problems
+
+
+def check_publish_gate(
+    candidate: CandidateContent,
+    *,
+    db: Optional[Session] = None,
+    transferred_media: Optional[list] = None,
+) -> None:
+    """内容宪法 v1.1 发布准入。传 transferred_media 表示最终发布 gate。"""
+    problems: List[str] = []
+    if candidate.is_work is not True:
+        problems.append("不是完整作品（作品/原料闸未通过）")
+    if not candidate.title or not (12 <= len(candidate.title.strip()) <= 28):
+        problems.append("hook_title 必须为 12～28 个可见字符")
     if not candidate.tagline or len(candidate.tagline) < 5:
-        problems.append("tagline 缺失或过短（≥5 字）")
+        problems.append("hook_sentence 缺失或过短（≥5 字）")
     if not candidate.summary or len(candidate.summary) < 20:
         problems.append("summary 缺失或过短（≥20 字）")
     if not candidate.category:
         problems.append("category 缺失")
     if not candidate.domains:
         problems.append("domains 至少 1 个")
-    if not candidate.cover_media_url:
-        problems.append("封面缺失（PRD §8.5 主封面必填）")
-    # 用户硬要求：没有「可去用链接」不发布——try_url = 能开的网页 / App Store / GitHub 三选一。
-    if not (candidate.try_url and candidate.try_url.strip()):
-        problems.append("缺少可去用链接（try_url：能开的网页 / App Store / GitHub 三选一）")
-    # 红线：tools≥1 或 description 含可复现说明（启发式：≥20 字视为有说明）；纯单图无方法不发布
-    if not candidate.tools and not (candidate.description and len(candidate.description.strip()) >= 20):
-        problems.append("准入不满足：tools≥1 或 description 含可复现方法说明（≥20 字）")
+    if not candidate.work_form or not candidate.creator_type or not candidate.access_friction:
+        problems.append("work_form / creator_type / access_friction 不完整")
+    score_fields = ("hook_clarity", "visual_impact", "surprise", "tryability", "shareability", "attraction_score", "value_score")
+    if any(getattr(candidate, field, None) is None for field in score_fields):
+        problems.append("吸引力五维、attraction_score、value_score 必须完整")
+    elif candidate.attraction_score < 70:
+        problems.append("attraction_score < 70：不得发布")
+    if not is_valid_proof_media(candidate.selected_proof_media):
+        problems.append("缺少人工/AI 选定的成果证据媒体 selected_proof_media")
+    if transferred_media is not None and not any(
+        isinstance(item, dict) and item.get("url") and item.get("media_type") in {"image", "video"}
+        for item in transferred_media
+    ):
+        problems.append("成果媒体转存全部失败，不得发布")
+    exp_problem = _experience_problem(candidate)
+    if exp_problem:
+        problems.append(exp_problem)
+    if db is not None:
+        problems.extend(_rolling_mix_problems(db, candidate))
     if problems:
         raise AppError(409, "PUBLISH_GATE_FAILED", "发布准入不满足，不能通过", {"problems": problems})
 
@@ -166,13 +263,14 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
     # 即使 admin 端点已 db.get 过，这里仍要重新 FOR UPDATE：既加行锁，又用 populate_existing
     # 把 identity map 里的旧属性（如 status=pending_review）刷新成数据库提交后的最新值。
     candidate = _lock_approvable(db, candidate)
+    # 先做无外部副作用的字段预检；随后转存 proof，成功后再跑最终 gate。
     check_publish_gate(candidate)
 
-    # 媒体转存：把外部平台（小红书/抖音…）的图/视频下载到我们自己的存储、替换外链
-    # （各平台 CDN 有防盗链，且不该热链他人 CDN；PIPELINE_PLAN 决策4）。失败的自动跳过。
-    transferred = transfer_candidate_media(_as_list(candidate.media_json), candidate.source_platform)
-    # 封面 = 转存后的第一张图（视频不做封面）；都失败则无封面（前端走 CoverArt 占位）。
+    transferred = transfer_candidate_media(proof_media_for_transfer(candidate), candidate.source_platform)
+    check_publish_gate(candidate, db=db, transferred_media=transferred)
     cover_url = next((t["url"] for t in transferred if t.get("media_type") == "image"), None)
+    if cover_url is None and transferred:
+        cover_url = transferred[0].get("thumbnail_url")
 
     # 马甲发布（决策：让外部内容读起来像真实用户自己发的帖）：随机派一个马甲当作者。
     # 「完全不留出处」：原作者名/链接不落到项目上（不展示）；source_url 仍留作去重/内部备查，
@@ -192,6 +290,28 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
         is_original=False,
         source_url=candidate.source_url,  # 内部备查/去重用，不展示
         try_url=candidate.try_url,        # 体验入口（DeepSeek 提取，小红书/抖音成果尤其重要）
+        work_form=candidate.work_form,
+        creator_type=candidate.creator_type,
+        access_friction=candidate.access_friction,
+        experience_type=candidate.experience_type,
+        experience_url=candidate.experience_url,
+        experience_content=candidate.experience_content,
+        hook_clarity=candidate.hook_clarity,
+        visual_impact=candidate.visual_impact,
+        surprise=candidate.surprise,
+        tryability=candidate.tryability,
+        shareability=candidate.shareability,
+        attraction_score=candidate.attraction_score,
+        value_score=candidate.value_score,
+        is_strong_visual=candidate.is_strong_visual,
+        is_direct_tryable=candidate.is_direct_tryable,
+        selected_proof_media=transferred[0] if transferred else None,
+        title_candidates=candidate.title_candidates,
+        policy_version=candidate.policy_version,
+        score_version=candidate.score_version,
+        ai_analysis_json=candidate.ai_analysis_json,
+        human_override_json=candidate.human_override_json,
+        override_reason=candidate.override_reason,
         source_platform=candidate.source_platform,
         original_author_name=None,  # 不留出处
         original_author_url=None,

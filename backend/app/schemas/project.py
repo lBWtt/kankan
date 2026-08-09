@@ -175,6 +175,17 @@ class ProjectCard(BaseModel):
     domains: List[Domain]
     tools: List[str]
     ai_badge: AiBadge
+    work_form: Optional[str] = None
+    creator_type: Optional[str] = None
+    access_friction: Optional[str] = None
+    attraction_score: Optional[int] = None
+    value_score: Optional[int] = None
+    hook_clarity: Optional[int] = None
+    visual_impact: Optional[int] = None
+    is_strong_visual: bool = False
+    is_direct_tryable: bool = False
+    policy_version: str = "1.1"
+    score_version: Optional[str] = None
     author: Optional[UserBrief] = Field(None, description="作者信息，列表端点填充")
     counts: Optional[ProjectCounts] = Field(None, description="互动计数，列表端点填充真实值")
     viewer: Optional[ViewerState] = None
@@ -196,6 +207,11 @@ class ProjectDetail(ProjectCard):
     original_author_name: Optional[str] = None
     original_author_url: Optional[str] = None
     try_url: Optional[str] = Field(None, description="体验链接：作者作品的可去用地址，前端「去体验」打开")
+    experience_type: Optional[str] = None
+    experience_url: Optional[str] = None
+    experience_content: Optional[str] = None
+    selected_proof_media: Optional[dict] = None
+    title_candidates: Optional[List[str]] = None
     media: List[MediaItem] = []
     actions: List[ProjectActionOut] = []
     tags: List[str] = []
@@ -316,6 +332,13 @@ class SimilarProjectsResponse(BaseModel):
     """GET /projects/{id}/similar：仅返回 status=published 的类似作品。"""
 
     items: List[ProjectCard]
+
+
+class HomeSlateResponse(BaseModel):
+    slate_id: str
+    policy_version: str = "1.1"
+    items: List[ProjectCard]
+    shortages: List[str] = Field(default_factory=list)
 
 
 class ImplementationClue(BaseModel):

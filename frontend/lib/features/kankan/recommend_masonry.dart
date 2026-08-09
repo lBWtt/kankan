@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -20,6 +18,7 @@ import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
 import '../shared/empty_state.dart';
+import '../shared/kk_image.dart';
 import '../shared/remote_error.dart';
 
 /// 看看「推荐」Tab —— 小红书式双栏瀑布流。
@@ -39,16 +38,16 @@ class RecommendMasonry extends ConsumerStatefulWidget {
 
 class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
   late final ScrollController _scrollCtrl;
-  // 推荐排序种子：每次下拉刷新变一次 → 重排一批，逛起来有新鲜感（不是固定榜单）。
-  int _seed = DateTime.now().microsecondsSinceEpoch & 0x7fffffff;
-
   @override
   void initState() {
     super.initState();
     _scrollCtrl = ScrollController();
-    InfiniteScroll.attach(_scrollCtrl, onLoadMore: () {
-      ref.read(paginatedProjectsProvider.notifier).loadMore();
-    });
+    InfiniteScroll.attach(
+      _scrollCtrl,
+      onLoadMore: () {
+        ref.read(paginatedProjectsProvider.notifier).loadMore();
+      },
+    );
   }
 
   @override
@@ -85,15 +84,7 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
     if (widget.domain != null) {
       list = list.where((p) => p.domain == widget.domain).toList();
     }
-    // 推荐 = 每次下拉都换一批顺序（不是固定榜单）。随机抖动**占主导**（rng*100），
-    // 拿走数/点赞只做很轻的加权——否则高赞项目永远压在最上面、看着「刷新没换」。
-    // _seed 每次刷新变→整批重排，视觉上明显换一批。
-    final rng = Random(_seed);
-    final score = <String, double>{
-      for (final p in list)
-        p.id: rng.nextDouble() * 100.0 + p.takeawayCount * 0.6 + p.likes * 0.1,
-    };
-    list.sort((a, b) => score[b.id]!.compareTo(score[a.id]!));
+    // 首页首批十条已由后端内容宪法 slate 编排；客户端必须保持返回顺序。
 
     if (list.isEmpty) {
       return ListView(
@@ -105,8 +96,6 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
     return RefreshIndicator(
       color: KkColors.teal,
       onRefresh: () async {
-        // 下拉刷新：换种子 → 重排一批（这就是「刷新换内容」）；同时重拉后端拿新增。
-        setState(() => _seed = DateTime.now().microsecondsSinceEpoch & 0x7fffffff);
         await ref.read(paginatedProjectsProvider.notifier).refresh();
       },
       child: CustomScrollView(
@@ -115,7 +104,11 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
           // 双栏瀑布流
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
-                KkSpacing.md, KkSpacing.sm, KkSpacing.md, KkSpacing.xxl),
+              KkSpacing.md,
+              KkSpacing.sm,
+              KkSpacing.md,
+              KkSpacing.xxl,
+            ),
             sliver: SliverMasonryGrid.count(
               crossAxisCount: 2,
               mainAxisSpacing: KkSpacing.md,
@@ -123,7 +116,9 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
               childCount: list.length + 1,
               itemBuilder: (context, i) {
                 if (i == list.length) {
-                  return LoadMoreIndicator(enabled: state.isLoadingMore);
+                  return LoadMoreIndicator(
+                    enabled: state.isLoadingMore,
+                  );
                 }
                 return _MasonryCard(project: list[i]);
               },
@@ -180,15 +175,11 @@ class _MasonryCard extends ConsumerWidget {
             AspectRatio(
               aspectRatio: ratio,
               child: (coverUrl != null && coverUrl.isNotEmpty)
-                  ? Image.network(
-                      coverUrl,
+                  // 走 KkImage：磁盘缓存，滑走再滑回不重新下载（修封面反复重载）。
+                  ? KkImage(
+                      url: coverUrl,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) =>
-                          progress == null
-                              ? child
-                              : const CoverArt(pattern: 'grid'),
-                      errorBuilder: (context, error, stack) =>
-                          const CoverArt(pattern: 'grid'),
+                      placeholder: (_) => const CoverArt(pattern: 'grid'),
                     )
                   : const CoverArt(pattern: 'grid'),
             ),
@@ -208,13 +199,16 @@ class _MasonryCard extends ConsumerWidget {
                   Row(
                     children: [
                       KkAvatar(
-                          userId: project.authorId, user: author, size: 18),
+                        userId: project.authorId,
+                        user: author,
+                        size: 18,
+                      ),
                       const SizedBox(width: KkSpacing.xs),
                       Expanded(
                         child: Text(
                           author?.name ?? project.authorId,
-                          style: KkType.mono.copyWith(
-                              fontSize: 11, color: KkColors.t3),
+                          style: KkType.mono
+                              .copyWith(fontSize: 11, color: KkColors.t3),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -223,7 +217,9 @@ class _MasonryCard extends ConsumerWidget {
                       GestureDetector(
                         onTap: () {
                           if (!guardLogin(context, ref)) return;
-                          ref.read(appStateProvider.notifier).toggleLike(project.id);
+                          ref
+                              .read(appStateProvider.notifier)
+                              .toggleLike(project.id);
                         },
                         behavior: HitTestBehavior.opaque,
                         child: Row(
@@ -237,8 +233,8 @@ class _MasonryCard extends ConsumerWidget {
                             const SizedBox(width: 3),
                             Text(
                               formatCount(likeCount),
-                              style: KkType.mono.copyWith(
-                                  fontSize: 11, color: KkColors.t3),
+                              style: KkType.mono
+                                  .copyWith(fontSize: 11, color: KkColors.t3),
                             ),
                           ],
                         ),

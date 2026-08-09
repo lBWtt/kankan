@@ -19,6 +19,7 @@ from app.models import User
 from app.schemas.common import Category, ContentType, Domain, Page
 from app.schemas.project import (
     ImplementationClue,
+    HomeSlateResponse,
     ProjectCard,
     ProjectCreate,
     ProjectDetail,
@@ -35,8 +36,22 @@ from app.services.projects import (
     list_published,
     similar_published,
 )
+from app.services.slate import home_slate
 
 router = APIRouter(prefix="/projects", tags=["项目"])
+
+
+@router.get(
+    "/home-slate", response_model=HomeSlateResponse, responses=ERRORS_PUBLIC,
+    summary="内容宪法 v1.1 首页首批十条（游客可用）",
+)
+def get_home_slate(db: Session = Depends(get_db)):
+    result = home_slate(db)
+    return HomeSlateResponse(
+        slate_id=result.slate_id,
+        items=cards_from_projects_with_stats(db, result.projects),
+        shortages=result.shortages,
+    )
 
 
 @router.get(

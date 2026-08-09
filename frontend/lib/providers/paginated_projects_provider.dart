@@ -16,6 +16,8 @@ import '../domain/repositories/project_repository.dart';
 /// mock：一次性返回全部 mock 项目（hasMore=false）——mock 数据量小，无需真分页。
 /// autoDispose：离开看看页释放，回来重新加载。
 class PaginatedProjectsNotifier extends PaginatedNotifier<Project> {
+  static const _afterSlateCursor = '__after_home_slate__';
+
   @override
   int get pageSize => AppConfig.useRemote ? 20 : 999;
 
@@ -28,6 +30,20 @@ class PaginatedProjectsNotifier extends PaginatedNotifier<Project> {
       // mock：全部一次性返回，hasMore=false。
       final all = ref.read(projectRepositoryProvider).all();
       return Page.last(all);
+    }
+    if (cursor == null) {
+      final slate = await ref.read(projectsApiProvider).homeSlate();
+      final isCompleteSlate = slate.length >= 10;
+      return Page<Project>(
+        items: slate,
+        // 宪法要求库存不足时宁可少于十条，不能拿普通时间流悄悄补位。
+        nextCursor: isCompleteSlate ? _afterSlateCursor : null,
+        hasMore: isCompleteSlate,
+      );
+    }
+    if (cursor == _afterSlateCursor) {
+      // 首批十条之后回到普通时间流；取大页并由基类按项目 id 去重。
+      return ref.read(projectsApiProvider).listPaged(limit: 50);
     }
     return ref.read(projectsApiProvider).listPaged(
           limit: pageSize,

@@ -9,9 +9,10 @@
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Callable, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,31 +21,47 @@ from app.core.errors import AppError
 from app.models import CandidateContent
 from app.models.enums import CATEGORY, DOMAIN
 from app.services import ai_budget
-from app.services.candidates import check_post_gate, check_publish_gate
+from app.services.candidates import check_post_gate, check_publish_gate, select_proof_media
 
 logger = logging.getLogger("app.ai_processor")
 
 # 风险标记的固定取值（admin 文档 §4：疑似广告/重复/侵权/低质，AI 标了运营必须人工确认）
 RISK_FLAGS = ("suspected_ad", "duplicate", "copyright_risk", "low_quality")
 
-# ai_curation_score 权重：趣味25%、可分享25%、新鲜20%、实用15%、可去用15%
-# （定位=去看/去用：把旧的"可复刻15%"换成"可去用"——用户能不能直接点进去用/体验。）
-SCORE_WEIGHTS = {"fun": 0.25, "shareable": 0.25, "fresh": 0.20, "useful": 0.15, "usable": 0.15}
+# 内容宪法 v1.1：吸引力五维。总分只在后端计算，模型不得自报 composite。
+POLICY_VERSION = "1.1"
+SCORE_WEIGHTS = {
+    "hook_clarity": 0.25,
+    "visual_impact": 0.25,
+    "surprise": 0.20,
+    "tryability": 0.15,
+    "shareability": 0.15,
+}
+WORK_FORMS = ("app", "website", "workflow", "model", "prompt", "ai_art", "game", "tool")
+EXPERIENCE_TYPES = ("web", "video", "gallery", "download", "model_page", "workflow_file", "prompt_content", "game")
 
 
 class AnalysisScores(BaseModel):
     """五个维度各 0-100；加权合成在 Python 里算，不让模型做算术。"""
-    fun: int = Field(ge=0, le=100, description="趣味：普通用户看到会不会觉得有意思")
-    shareable: int = Field(ge=0, le=100, description="可分享：会不会想转给同事/朋友")
-    fresh: int = Field(ge=0, le=100, description="新鲜：是不是没见过的新玩法")
-    useful: int = Field(ge=0, le=100, description="实用：对目标人群有没有现实落点")
-    usable: int = Field(ge=0, le=100, description="可去用：用户能不能直接点进去用/体验（有可用链接、开箱即用得分高；只是看看/需要自己从头搭得分低）")
+    hook_clarity: int = Field(ge=0, le=100, description="只看标题和封面，五秒能否明白效果")
+    visual_impact: int = Field(ge=0, le=100, description="成果图、前后对比或演示是否有冲击力")
+    surprise: int = Field(ge=0, le=100, description="是否让人产生居然还能这样的感觉")
+    tryability: int = Field(ge=0, le=100, description="能否立即观看、试玩、使用或复用")
+    shareability: int = Field(ge=0, le=100, description="是否值得转给朋友或发群")
 
 
 class CandidateAnalysis(BaseModel):
     """AI 整理的全部产出（结构化输出 schema；中文面向用户，枚举值面向系统）。"""
-    title: str = Field(min_length=2, max_length=80, description="中文标题，6-40 字最佳，清楚不标题党")
-    tagline: str = Field(min_length=5, max_length=140, description="一句话亮点，让普通用户 3 秒懂 AI 做了什么")
+    is_work: bool = Field(description="完整作品=True；通用库/框架/SDK/引擎/数据集/协议/脚手架=False")
+    work_rejection_reason: Optional[str] = Field(default=None, description="is_work=False 时说明为什么只是原料")
+    work_form: Literal[WORK_FORMS]  # type: ignore[valid-type]
+    creator_type: Literal["indie", "company"]
+    access_friction: Literal["instant", "install", "technical"]
+    title_candidates: List[str] = Field(
+        min_length=2, max_length=2,
+        description="两个不同角度的结果导向中文标题；每个 12-28 个可见字符",
+    )
+    hook_sentence: str = Field(min_length=5, max_length=140, description="一句话说明为什么值得看")
     summary: str = Field(min_length=20, max_length=500, description="中文简介，直接介绍项目本身、有网感不堆术语，**别提谁做的/来源平台**，别以「X 是一个」开头，别用「我做了」冒充")
     description: Optional[str] = Field(default=None, description="一段直接介绍这个项目的话：它是什么、能干嘛、怎么用、亮点/注意点。**别提是谁做的、别提来源平台、别说「有人做了/一位用户/转发」**，也别用「我做了/我试了」冒充。有网感、口语（可借鉴动态口吻），但要把项目要点（能干嘛/怎么用/好在哪）讲清楚，别机械说明书、别以「这是一个/X 是一个」开头。**字数多就分 2~3 小段、段间空一行。** 3-6 句，只依据原文不编造，实在没料才留空。")
     category: Literal[CATEGORY] = Field(description="一级分类，必选一个")  # type: ignore[valid-type]
@@ -58,22 +75,26 @@ class CandidateAnalysis(BaseModel):
         description="AI 推测的实现思路，每步一句话、最多 3 步。只在来源/工具清晰、思路可信时填；没把握就 null，宁缺勿错",
     )
     scores: AnalysisScores
+    value_score: int = Field(ge=0, le=100, description="实用价值；不参与 attraction 总分")
     risk_flags: List[Literal[RISK_FLAGS]] = Field(  # type: ignore[valid-type]
         default_factory=list, description="风险标记：suspected_ad 疑似广告 / duplicate 疑似重复 / copyright_risk 疑似侵权 / low_quality 低质"
     )
     risk_note: Optional[str] = Field(default=None, description="标了风险时一句话说明原因")
     why_recommend: Optional[str] = Field(default=None, description="给运营看的一句话推荐理由")
-    # 小红书/抖音 Vibe Coding 专用：分清"真开发者成果" vs 广告/水/教程 + 提体验入口。
-    is_maker_showcase: bool = Field(
-        default=True,
-        description="是不是**真开发者做出来的成果**（有人做了个能用/能看的东西：小程序/APP/网站/工具，配了截图/demo）。"
-        "**不是**的情形要判 False：卖课/培训/引流广告、纯教程无成品、纯观点/资讯、转发搬运、水贴。GitHub 源恒 True。",
-    )
-    try_url: Optional[str] = Field(
-        default=None,
-        description="**体验入口**：从原文提取能去试的东西——网址(http)、小程序名、公众号、TestFlight 等。"
-        "有就填、优先填 http 链接；小红书常屏蔽链接只给'主页/小程序名'，那就填能识别的那个名字；实在没有才 null。不编造。",
-    )
+    experience_type: Literal[EXPERIENCE_TYPES]  # type: ignore[valid-type]
+    experience_url: Optional[str] = Field(default=None, description="web/video/model_page/game 等有链接时填；不编造")
+    experience_content: Optional[str] = Field(default=None, max_length=12000, description="提示词正文或工作流等无独立 URL 的可复用内容")
+    selected_proof_media_index: Optional[int] = Field(default=None, ge=0, description="从输入媒体清单选成果证据；没有可信证据则 null")
+
+    @field_validator("title_candidates")
+    @classmethod
+    def _validate_title_candidates(cls, value: List[str]) -> List[str]:
+        cleaned = [title.strip() for title in value]
+        if len(set(cleaned)) != 2:
+            raise ValueError("两个标题候选必须不同")
+        if any(not 12 <= len(title) <= 28 for title in cleaned):
+            raise ValueError("每个标题候选必须为 12～28 个可见字符")
+        return cleaned
 
 
 class PostAnalysis(BaseModel):
@@ -149,30 +170,45 @@ def _pick_voice() -> str:
         )
     return random.choice(CONTENT_VOICES)
 
-_SYSTEM_PROMPT = f"""你是「AI 创意项目发现 App」的内容编辑。App 给中文用户策展"别人用 AI 做成了什么、你能直接用上"的真实用例。
+def _load_content_constitution() -> str:
+    """把 SSOT 原文放进长上下文；部署包若暂缺 docs，则用严格核心摘要兜底。"""
+    path = Path(__file__).resolve().parents[3] / "docs" / "CONTENT_CONSTITUTION.md"
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        logger.warning("未找到内容宪法文件 %s，AI 将使用内置核心规则", path)
+        return "作品而非原料；吸引力五维；必须有成果证据与可验证体验；标题结果导向；宁缺毋滥。"
 
-把抓取的原始内容整理成候选卡片字段。规则：
-1. 标题/亮点/简介一律中文（原文是外文就翻译+提炼），写给普通用户看，不堆术语、不标题党。
-2. 只依据原文信息，不编造。工具清单原文提到才填；实现思路（implementation_steps）只在来源和工具都清晰、思路可信时给，最多 3 步，没把握就 null——宁缺勿错，这条会展示给高意图用户，幻觉代价最大。
-3. 评分按维度独立打：趣味（普通用户觉得有意思吗）、可分享（想转发吗）、新鲜（没见过吗）、实用（有现实落点吗）、可去用（用户能不能直接点进去用/体验——有可用链接、开箱即用给高分；只能看看、需要自己从头搭给低分）。诚实打分，平庸内容就给低分。
-4. 风险：广告软文味重标 suspected_ad；像搬运拼接标 duplicate；图片/内容可能侵权标 copyright_risk；信息量极低/纯晒图无方法标 low_quality。标了就写 risk_note。
-5. 优先收录标准：有趣新鲜、展示强、普通用户可懂、有现实落点、可收藏可分享。纯论文/技术库、无图无方法的内容评分应该很低。
-6. 【口吻像真人，别像 AI】用平实、具体、有细节的中文，像一个懂行的朋友在介绍，不是营销文案。禁止空泛套话与营销腔（如"赋能/助力/一键/轻松搞定/打造/让 X 更简单/无限可能/开启新纪元"），少用感叹号，别堆形容词。能写具体数字、具体做法、具体效果就写具体。
-7. 【每条尽量充实】description 从原文提炼背景、具体怎么做、用了什么、效果/数据、值得注意的细节，写成 3-6 句的完整介绍，别只留一句或留空；target_users / use_cases 尽量给全。但一切以原文为准，信息不足就如实少写，绝不编造凑数。
-8. 【直接介绍项目本身 + 有网感 + 别套模板】直接介绍这个项目/工具**是什么、能干嘛、怎么用、亮点在哪**，把要点讲清楚。
-   **硬性禁止出现指向来源/作者的词**：作者、开发者、博主、网友、一位用户、有人做了、up主、据说、据原帖、转发、抖音/小红书/GitHub 上… 一个都不许出现——只介绍"这个东西"本身，让用户留在站内，别引导去追原作者/原帖。也别用「我做了/我试了」冒充。
-   **第一句硬禁止**用「{{项目名}}是一个/是一款/是一套/是一种…」这种定义句式（这是最大的模板腔来源，违反就算不合格）。tagline、summary、description 的**开头都不许**这样起。
-   **严格按输入里给的「写作角度」定这条的切入和语气**，第一句直接切进去，示例（不同角度不同开头）：
-     · 亮点先行：「9 分钟就能搓出一个能跑的 App。」
-     · 场景切入：「每周写周报头疼？把工作流水丢给它，自动整理成结构化周报。」
-     · 冷静测评：「用了两周，最省事的是它能……」
-     · 技术视角：「靠节点连线把出图流程拆成一块块，……」
-     · 反差开场：「不用写一行代码，……」
-   让不同项目开头各不一样、像不同的人写的，别所有项目一个说明书腔。口吻自然、有网感，但项目关键点（能干嘛/怎么用/好在哪）必须交代到。structured 字段（category/domains/tools 等）照常客观。
-9. 【分清"我做的作品" vs "教程/介绍/卖课"——小红书/抖音关键，最容易判反！】is_maker_showcase=True 只给一种情况：**发帖人自己用 AI 做出来的一个具体作品**（小程序/APP/网站/游戏/工具/原型），帖子在晒它、展示它——**哪怕只是原型/demo 也算 True**。
-   判 False 的情形（很常见，别漏）：① 教别人怎么用某工具（标题/正文含"教程/入门/上手/安装/速通/攻略/保姆级/从0到1/教学"）；② 介绍·测评·盘点别人的工具、或"AI工具清单"；③ 纯资讯/观点；④ 卖课/培训/引流/加微信（同时标 suspected_ad）；⑤ 转发/水贴。
-   **一句话：在秀「我做的东西」=True；在教别人、介绍别人的工具、卖课 =False。** GitHub 源恒 True。
-10. 【提体验入口 + 有链接优先】try_url：把原文里能去试的入口提出来（网址 / 小程序名 / 公众号 / TestFlight）。**有可去试入口的内容更有价值——usable 维度给更高分**；纯展示、无处可试的 usable 给低分。别编造链接。"""
+
+_CONTENT_CONSTITUTION = _load_content_constitution()
+_SCORING_EXAMPLES = """
+校准例 1（好）：标题“只画一次角色，换十个场景也不会变脸”，有角色多场景对比图、可下载工作流。
+判定：is_work=true, work_form=workflow, access_friction=install；hook/visual/surprise 应高分。
+校准例 2（好）：一段完整提示词能把流水账改成分镜脚本，正文直接给出可复制提示词和前后结果图。
+判定：is_work=true, work_form=prompt, experience_type=prompt_content；没有 URL 也可发布。
+校准例 3（好但有门槛）：专门把普通话微调成某地方言的模型，有音频对比和模型页，需要本地环境。
+判定：is_work=true, work_form=model, access_friction=technical；不能因技术门槛误判为原料。
+校准例 4（坏）：通用向量数据库 SDK，标题是“高性能开源项目推荐”，封面只有 GitHub 社交卡。
+判定：is_work=false（原料），proof=null；star 再高也不能挽救。
+校准例 5（坏）：公司官网首页截图配“一个 AI 效率工具”，没有最终效果、演示或具体场景。
+判定：即使是产品，hook_clarity/visual_impact 应低，proof=null。
+校准例 6（坏）：纯教程、资讯盘点、卖课引流或转发别人的十个工具，没有自己展示的完整作品。
+判定：is_work=false，并给出明确 rejection reason/risk flag。
+"""
+_SYSTEM_PROMPT = """你是 kankan 冷启动阶段的内容总编。下面是完整、唯一有效的《内容宪法 v1.1》；
+旧的 consumer_ready、旧 fun/fresh/useful 分数和“GitHub 天然可发布”等规则全部作废。
+
+你必须先判作品/原料，再独立给五个吸引力分项与 value_score，绝不自己计算 attraction_score。
+标题必须给两个真正不同的结果导向候选，每个 12-28 个可见字符；先说效果，不以项目名/模型名/技术名开头。
+只依据输入事实，不编造体验入口、效果、作者或实现步骤。模型/工作流/提示词只要是有具体用途的完整作品就可收，
+即使需要安装或技术环境，也应通过 access_friction=install/technical 表达，不能误判成原料。
+selected_proof_media_index 只能选择输入媒体清单中确实能证明最终效果的一项；logo、社交卡、官网首页截图必须返回 null。
+文案用具体自然的中文，避免营销腔；不要提来源平台，不要冒充原作者。实现步骤没把握就留空。
+
+----- 内容宪法 v1.1 全文开始 -----
+""" + _CONTENT_CONSTITUTION + """
+----- 内容宪法 v1.1 全文结束 -----
+""" + _SCORING_EXAMPLES
 
 
 _POST_SYSTEM_PROMPT = """你是「AI 创意社区」的运营，把外部抓来的即刻/小红书上 AI 相关的**真人帖**，
@@ -202,13 +238,24 @@ def _post_payload_for(candidate: CandidateContent) -> dict:
 def _payload_for(candidate: CandidateContent) -> dict:
     raw = candidate.raw_json or {}
     known = (raw.get("known_try_url") or "").strip()
+    media = (candidate.media_json or {}).get("items", [])
     payload = {
         "原文标题": raw.get("title") or candidate.title or "",
         "原始正文": (raw.get("text") or "")[:6000],  # 防超长正文撑爆上下文
         "来源平台": candidate.source_platform or "未知",
         "来源链接": candidate.source_url or "",
         "原作者": candidate.original_author_name or "未识别",
-        "媒体数量": len((candidate.media_json or {}).get("items", [])),
+        "媒体清单（按索引选择 proof）": [
+            {
+                "index": i,
+                "url": item.get("url"),
+                "media_type": item.get("media_type") or item.get("type") or "image",
+                "width": item.get("width"),
+                "height": item.get("height"),
+                "alt": item.get("alt") or item.get("description"),
+            }
+            for i, item in enumerate(media[:20]) if isinstance(item, dict)
+        ],
         "语言": candidate.language,
         # 每条随机换一个「写作角度」，让不同项目读起来像不同的人写的（治「一个模板腔」）。
         # 只换切入/语气，仍客观第三方（不注入第一人称口吻，避免"我做了"冒充作者）。
@@ -265,27 +312,41 @@ def deepseek_analyze(payload: dict) -> CandidateAnalysis:
 
     client = OpenAI(api_key=settings.deepseek_api_key, base_url=settings.deepseek_base_url)
     schema = json.dumps(CandidateAnalysis.model_json_schema(), ensure_ascii=False)
-    resp = client.chat.completions.create(
-        model=settings.deepseek_model,
-        temperature=0.7,  # 略高让文风有差异，但别太高（0.85 会常吐坏 JSON）；开头模板由 _strip_definition_open 兜底
-        response_format={"type": "json_object"},
-        messages=[
-            {
-                "role": "system",
-                "content": _SYSTEM_PROMPT
-                + "\n\n只输出一个 JSON 对象，严格符合下面的 JSON Schema"
-                "（字段名与枚举值照抄，不要多余字段、不要 markdown 代码块）：\n"
-                + schema,
-            },
-            {
-                "role": "user",
-                "content": "请整理这条抓取内容，只输出 JSON：\n"
-                + json.dumps(payload, ensure_ascii=False, indent=2),
-            },
-        ],
-    )
-    text = _strip_json_fence(resp.choices[0].message.content or "")
-    return CandidateAnalysis.model_validate_json(text)
+    messages = [
+        {
+            "role": "system",
+            "content": _SYSTEM_PROMPT
+            + "\n\n只输出一个 JSON 对象，严格符合下面的 JSON Schema"
+            "（字段名与枚举值照抄，不要多余字段、不要 markdown 代码块）：\n"
+            + schema,
+        },
+        {
+            "role": "user",
+            "content": "请整理这条抓取内容，只输出 JSON：\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2),
+        },
+    ]
+    # DeepSeek v4-flash 偶尔返回**空响应**或坏 JSON（transient）→ 重试几次，别一次空就判失败。
+    last = "空响应"
+    for attempt in range(3):
+        resp = client.chat.completions.create(
+            model=settings.deepseek_model,
+            temperature=0.7,  # 略高让文风有差异，但别太高（0.85 会常吐坏 JSON）；开头模板由 _strip_definition_open 兜底
+            response_format={"type": "json_object"},
+            # v4-flash 是**推理模型**：答题前先烧 reasoning token。max_tokens 太小（如 2000）会被推理吃光、
+            # 没 token 留给 JSON → finish=length、content 为空（踩过：2000→空，8000→正常）。给足 8000。
+            max_tokens=8000,
+            messages=messages,
+        )
+        text = _strip_json_fence(resp.choices[0].message.content or "")
+        if not text:
+            last = "空响应"
+            continue
+        try:
+            return CandidateAnalysis.model_validate_json(text)
+        except Exception as e:  # 坏 JSON / 字段不合规：重试，可能是 transient
+            last = f"{type(e).__name__}"
+    raise AppError(502, "AI_BAD_OUTPUT", f"DeepSeek 多次未产出有效 JSON（{last}）")
 
 
 def claude_analyze_post(payload: dict) -> PostAnalysis:
@@ -392,7 +453,7 @@ def get_post_analyzer() -> PostAnalyzeFn:
 
 
 def compute_curation_score(scores: AnalysisScores) -> int:
-    """ai_curation_score = 加权合成（PRD §10 权重），四舍五入到整数。"""
+    """内容宪法 v1.1 attraction_score；后端是唯一算分方。"""
     total = sum(getattr(scores, k) * w for k, w in SCORE_WEIGHTS.items())
     return round(total)
 
@@ -413,9 +474,10 @@ _POST_SRC_PLATFORMS = {"douyin", "xiaohongshu", "jike", "x", "weibo"}
 def apply_analysis(db: Session, candidate: CandidateContent, analysis: CandidateAnalysis) -> None:
     """整理结果写回候选行：ai_processed；字段齐到能过发布准入的，直接推进 pending_review
     进审核队列，缺料的（如没封面）停在 ai_processed 等运营补。不在这里 commit。"""
-    candidate.title = analysis.title[:80]
-    # 砍掉「X 是一个/一款…」定义句开头（模板腔根源，prompt 压不住，确定性兜底）。
-    candidate.tagline = _strip_definition_open(analysis.tagline)[:140]
+    titles = [t.strip() for t in analysis.title_candidates[:2]]
+    candidate.title_candidates = titles
+    candidate.title = titles[0][:80]
+    candidate.tagline = (_strip_definition_open(analysis.hook_sentence) or "")[:140]
     candidate.summary = _strip_definition_open(analysis.summary)[:500]
     candidate.description = _paragraphize(_strip_definition_open(analysis.description))
     candidate.category = analysis.category
@@ -425,22 +487,43 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     candidate.target_users = analysis.target_users[:5] or None
     candidate.use_cases = analysis.use_cases[:5] or None
     candidate.ai_implementation_hint = _format_hint(analysis.implementation_steps)
-    candidate.ai_curation_score = compute_curation_score(analysis.scores)
+    candidate.is_work = analysis.is_work
+    candidate.work_rejection_reason = analysis.work_rejection_reason
+    candidate.work_form = analysis.work_form
+    candidate.creator_type = analysis.creator_type
+    candidate.access_friction = analysis.access_friction
+    candidate.hook_clarity = analysis.scores.hook_clarity
+    candidate.visual_impact = analysis.scores.visual_impact
+    candidate.surprise = analysis.scores.surprise
+    candidate.tryability = analysis.scores.tryability
+    candidate.shareability = analysis.scores.shareability
+    candidate.attraction_score = compute_curation_score(analysis.scores)
+    candidate.ai_curation_score = candidate.attraction_score  # 兼容旧后台排序/徽章
+    candidate.value_score = analysis.value_score
+    candidate.policy_version = POLICY_VERSION
+    model_name = settings.deepseek_model if settings.ai_provider == "deepseek" else settings.anthropic_model
+    candidate.score_version = f"constitution-{POLICY_VERSION}:{model_name}"
     candidate.scores_json = {
         **analysis.scores.model_dump(),
         "weights": SCORE_WEIGHTS,
-        "composite": candidate.ai_curation_score,
+        "attraction_score": candidate.attraction_score,
+        "value_score": candidate.value_score,
+        "policy_version": POLICY_VERSION,
+        "score_version": candidate.score_version,
         **({"why_recommend": analysis.why_recommend} if analysis.why_recommend else {}),
     }
     candidate.risk_flags = list(dict.fromkeys(analysis.risk_flags))
     candidate.risk_note = analysis.risk_note
-    # 体验入口：采集器给的确定性外链优先（PH 产品官网 / GitHub homepage / X 外链），
-    # 模型自己提的次之——别让模型从正文瞎猜漏掉真链接。
-    _tu = (analysis.try_url or "").strip() or (candidate.raw_json or {}).get("known_try_url") or None
+    candidate.selected_proof_media = select_proof_media(candidate, analysis.selected_proof_media_index)
+    candidate.cover_media_url = (
+        candidate.selected_proof_media.get("url") if candidate.selected_proof_media else None
+    )
+    candidate.is_strong_visual = bool(candidate.visual_impact >= 80 and candidate.selected_proof_media)
+
+    # 体验入口：采集器确定性外链优先于模型抄写；内容型体验不强塞 URL。
+    _known = ((candidate.raw_json or {}).get("known_try_url") or "").strip()
+    _tu = _known or (analysis.experience_url or "").strip() or None
     _src = candidate.source_url or ""
-    # GitHub 仓库本身就是「去看/去用」入口——没别的链接时用仓库地址兜底（用户明确：GitHub 链接算可去用）。
-    if not _tu and "github.com/" in _src:
-        _tu = _src
     # 帖子类来源（抖音/小红书/即刻/X/微博）的 source_url 是「出处帖子页」不是体验入口——落到它上就清空。
     # 成品类来源（PH / Show HN / HelloGitHub / GitHubDaily / 手动加 / 导航站）的 source_url **就是产品链接
     # 本身**，必须保留（否则会被误杀成"无链接"卡在 ai_processed——真踩过的坑）。
@@ -449,23 +532,33 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     if _tu and ("douyin.com/video" in _tu or "xiaohongshu.com" in _tu
                 or "/note/" in _tu or "v.douyin.com" in _tu):
         _tu = None
-    candidate.try_url = _tu
-    # 评分红线（用户硬要求）：没有「可去用链接」的项目分数压到底（≤20），绝不让它浮上审核/推荐队列顶部。
-    if not candidate.try_url:
-        _capped = min(candidate.ai_curation_score or 0, 20)
-        candidate.ai_curation_score = _capped
-        candidate.scores_json = {
-            **(candidate.scores_json or {}), "composite": _capped, "no_try_url_penalty": True,
-        }
+    candidate.experience_type = analysis.experience_type
+    candidate.experience_url = _tu
+    candidate.experience_content = (analysis.experience_content or "").strip() or None
+    candidate.try_url = _tu  # 旧客户端兼容；新 gate 只看 experience 三件套
+    candidate.is_direct_tryable = bool(
+        (
+            candidate.experience_type in {"web", "video", "gallery", "game"}
+            and candidate.experience_url
+        )
+        or (
+            candidate.experience_type == "prompt_content"
+            and candidate.experience_content
+        )
+    )
+    candidate.ai_analysis_json = analysis.model_dump(mode="json")
+    candidate.human_override_json = None
+    candidate.override_reason = None
 
     candidate.status = "ai_processed"
-    # 分清真成果：不是开发者成果（广告/教程/水）→ 不进待审核队列，留 ai_processed 让运营筛掉。
-    # GitHub 源 is_maker_showcase 恒 True，不受影响；主要拦小红书/抖音的广告水贴。
-    if not analysis.is_maker_showcase:
-        if "low_quality" not in candidate.risk_flags:
-            candidate.risk_flags = list(candidate.risk_flags) + ["low_quality"]
-        candidate.risk_note = (candidate.risk_note or "") + " ｜非开发者成果(广告/教程/水)，已拦在审核前"
+    if not analysis.is_work:
+        candidate.status = "discarded"
         return
+    if candidate.attraction_score < 60:
+        candidate.status = "discarded"
+        return
+    if candidate.attraction_score < 70:
+        return  # 60～69 留候选池，不发布
     try:
         check_publish_gate(candidate)  # 与 approve 同一把尺子，避免审核员点开才发现缺料
         candidate.status = "pending_review"
