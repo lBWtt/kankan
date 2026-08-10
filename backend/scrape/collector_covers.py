@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import html
 import re
-import urllib.parse
 import urllib.request
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) kankan-cover/1.0"
@@ -139,32 +138,22 @@ def page_images(url: str, n: int = 3) -> list[str]:
     return out[:n]
 
 
-def website_screenshot(url: str) -> str:
-    """无 og 图的网站 → 用 mShots 免费截图服务生成一张**真实网页截图**当封面（比空封面强，
-    也比 GitHub 通用卡片对味）。只返回 URL；真正下载/转存在 approve 时做，那时截图已生成好。"""
-    return "https://s.wordpress.com/mshots/v1/" + urllib.parse.quote(url, safe="") + "?w=1200"
-
-
 def best_cover(url: str) -> str | None:
-    """封面优先级：GitHub 仓库 README 真实演示图（GIF 优先）→ og:image → **网页实时截图**兜底。
-    非 GitHub：og:image → 网页截图。保证「成品指向网页」的项目也有真实封面（过发布准入）。"""
+    """只返回源页真实媒体；没有成果 proof 就返回 None，绝不伪造官网截图。"""
     if "github.com/" in url:
-        return github_demo_image(url) or og_image(url) or website_screenshot(url)
-    return og_image(url) or website_screenshot(url)
+        return github_demo_image(url) or og_image(url)
+    return og_image(url)
 
 
 def gather_media(url: str, n: int = 3, extra: list[str] | None = None) -> list[dict]:
     """收集 1~n 张媒体（比单封面丰富，像小红书多图，详情页出图廊）。
-    github：README 多图（GIF 优先）；网站：og 图 + 网页实时截图；`extra` 是采集器自带的图（如
-    appinn/HelloGitHub 正文截图）排最前。去重、至少 1 张。"""
+    github：README 多图（GIF 优先）；网站：og 图 + 页面实际内容图；`extra` 是采集器自带的
+    成果图（如 appinn/HelloGitHub 正文截图）排最前。无真实图则返回空，调用方必须跳过。"""
     urls: list[str] = list(extra or [])
     if "github.com/" in url:
         urls += github_readme_images(url)
     else:
-        urls += page_images(url, n)              # 落地页 og + 内容大图（多张）
-        urls.append(website_screenshot(url))     # 再补一张真实网页截图兜底
-    if not urls:
-        urls.append(website_screenshot(url))
+        urls += page_images(url, n)
     seen: list[str] = []
     for u in urls:
         if u and u not in seen:

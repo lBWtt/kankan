@@ -141,6 +141,24 @@ def cmd_showhn(args):
     print("\nShow HN 内容已进**待审核队列**（DeepSeek 换角度写中文+判成果+带体验链接；人工审后发布）。")
 
 
+def cmd_firstbatch(args):
+    """第一批免登录源：本机只生成标准 JSON；入生产须走 docker cp，绝不误写本地库。"""
+    international = {"reddit", "huggingface", "itch"}
+    generated = []
+    for source in ("reddit", "huggingface", "itch", "modelscope", "liblibai", "sspai"):
+        filename = f"items_{source}_v11.json"
+        env = ({"HTTPS_PROXY": "http://127.0.0.1:7897",
+                "HTTP_PROXY": "http://127.0.0.1:7897"} if source in international else {})
+        try:
+            run([PY, "scrape/first_batch_collectors.py", source, "-o", filename,
+                 "--limit", str(args.per_source)], env)
+            generated.append(filename)
+        except subprocess.CalledProcessError:
+            print(f"  {source}: 本轮不可达或零条，跳过，不用列表页/假 proof 兜底", file=sys.stderr)
+    print("\n已生成标准文件（仅采集，未写数据库）：" + ", ".join(generated))
+    print("复制进生产容器后，逐源运行 app.pipeline collect；再用 process --platform X 调 DeepSeek。")
+
+
 def cmd_appinn(args):
     # 小众软件 appinn：中文老牌实用软件/网站策展，WordPress RSS；按分类过滤掉新闻/补丁/榜单。
     # feed 只给最近 ~10 篇，过滤后每次约 5~7 条软件；封面用正文真实截图。
@@ -243,6 +261,10 @@ def main() -> int:
     shn.add_argument("--limit", type=int, default=30)
     shn.add_argument("--min-points", type=int, default=30)
     shn.set_defaults(func=cmd_showhn)
+
+    fb = sub.add_parser("firstbatch", help="v1.1 第一批六源：只生成作品入口+真实 proof 标准 JSON")
+    fb.add_argument("--per-source", type=int, default=10)
+    fb.set_defaults(func=cmd_firstbatch)
 
     ai = sub.add_parser("appinn", help="项目·小众软件 appinn（人工审核，中文实用软件，无需登录/代理）")
     ai.add_argument("--limit", type=int, default=20)

@@ -93,6 +93,9 @@ def collect(token: str, limit: int, days: int, max_makers: int = 4):
         gallery = [m["url"] for m in (n.get("media") or []) if m.get("url")]
         thumb = (n.get("thumbnail") or {}).get("url")
         extra = ([thumb] if thumb else []) + gallery       # PH 缩略图 + 产品画廊截图（多图，质量高）
+        media = gather_media(product, 4, extra=extra)
+        if not media:
+            continue  # proof 缺失不收，禁止 mShots/官网截图兜底
         desc = " ".join(filter(None, [n.get("tagline"), n.get("description")]))
         item = {
             "source_url": n.get("url") or product,   # PH 永久链接做去重键
@@ -103,7 +106,7 @@ def collect(token: str, limit: int, days: int, max_makers: int = 4):
             "try_url": product,
             "language": "en-US",
             "engagement": {"likes": n.get("votesCount") or 0, "comments": n.get("commentsCount") or 0},
-            "media": gather_media(product, 4, extra=extra),
+            "media": media,
         }
         mk = (n.get("makers") or [])
         if mk:

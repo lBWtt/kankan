@@ -153,10 +153,10 @@ def to_items(feed: list[dict], limit: int, verbose: bool) -> list[dict]:
             "language": "en-US",
             "published_at": e["published_at"],
         }
-        if cover:
-            item["media"] = [{"url": cover, "media_type": "image"}]
-        else:
-            dropped["no_cover"] += 1     # 留着，审核端可补封面；不硬丢
+        if not cover:
+            dropped["no_cover"] += 1
+            continue  # v1.1：采集阶段补不到成果 proof，宁可不收
+        item["media"] = [{"url": cover, "media_type": "image"}]
         items.append(item)
         if verbose:
             tag = "✓" if cover else "⚠无封面"

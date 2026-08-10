@@ -38,7 +38,7 @@ def cmd_collect(args) -> int:
 
 def cmd_process(args) -> int:
     with SessionLocal() as db:
-        stats = process_collected(db, limit=args.limit)
+        stats = process_collected(db, limit=args.limit, source_platform=args.platform)
     print(f"整理完成 {stats['processed']} 条（其中 {stats['to_review']} 条已进待审核队列）；"
           f"失败 {stats['failed']} 条（详见日志，下次运行会重试）")
     return 0 if stats["failed"] == 0 else 1
@@ -57,6 +57,7 @@ def main() -> int:
 
     p_process = sub.add_parser("process", help="调 LLM(Claude/DeepSeek) 整理 ai_collected 的候选 → 待审核")
     p_process.add_argument("--limit", type=int, default=20, help="本次最多整理几条（默认 20）")
+    p_process.add_argument("--platform", default=None, help="只整理指定来源，避免吃掉其他待处理队列")
     p_process.set_defaults(func=cmd_process)
 
     args = parser.parse_args()

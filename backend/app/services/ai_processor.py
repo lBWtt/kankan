@@ -584,19 +584,17 @@ def apply_post_analysis(db: Session, candidate: CandidateContent, analysis: Post
 
 def process_collected(
     db: Session, limit: int = 20, analyze: Optional[AnalyzeFn] = None,
-    analyze_post: Optional[PostAnalyzeFn] = None,
+    analyze_post: Optional[PostAnalyzeFn] = None, source_platform: Optional[str] = None,
 ) -> Dict[str, int]:
     """批量整理：按入池顺序取 ai_collected 的候选逐条整理。单条失败记日志跳过
     （下轮重跑会再取到它），不让一条坏数据卡死整批。返回统计。"""
     analyze = analyze or get_analyzer()
     analyze_post = analyze_post or get_post_analyzer()
     stats = {"processed": 0, "to_review": 0, "failed": 0, "capped": 0}
-    candidates = db.execute(
-        select(CandidateContent)
-        .where(CandidateContent.status == "ai_collected")
-        .order_by(CandidateContent.created_at)
-        .limit(limit)
-    ).scalars().all()
+    stmt = select(CandidateContent).where(CandidateContent.status == "ai_collected")
+    if source_platform:
+        stmt = stmt.where(CandidateContent.source_platform == source_platform)
+    candidates = db.execute(stmt.order_by(CandidateContent.created_at).limit(limit)).scalars().all()
 
     consecutive_failures = 0
     breaker = settings.ai_failure_circuit_breaker
