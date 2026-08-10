@@ -21,11 +21,32 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from collection_standard import parse_count  # 同目录，脚本运行时 scrape/ 在 sys.path
+from collection_standard import evaluate, parse_count  # 同目录，脚本运行时 scrape/ 在 sys.path
+
+
+# 宪法 9.0：搜个人做出来的成果，不以泛词 AI 命中。
+OUTCOME_RE = re.compile(
+    r"我(?:用|拿|让).{0,12}(?:做|搓|写|搭|开发)|我做了|做了个|做了一个|"
+    r"一个人做|独立开发|周末做|我.{0,20}(?:上线|发布|开源)了|做出来",
+    re.I,
+)
+FORMAT_RE = re.compile(r"vibe\s*cod(?:ing|ed)\s*大赏", re.I)
+ARTIFACT_RE = re.compile(
+    r"原型|播放器|生成器|小工具|工具|小游戏|游戏|网站|网页|小程序|app|"
+    r"插件|机器人|可视化|星系|系统|产品|手势|自习室",
+    re.I,
+)
+MATERIAL_RE = re.compile(
+    r"教程|入门|课程|保姆级|怎么用|如何使用|提示词合集|新闻|融资|发布会|"
+    r"盘点|周报|日报|快讯|观点|测评|接单|变现|副业|资料包|训练营|"
+    r"全流程|安装|学习计划|加入我们|必备技能|轻松学会|如何|怎么用|方法|技巧",
+    re.I,
+)
 
 # MediaCrawler 的 PLATFORM 目录名 → 我们候选池里的 source_platform 友好名
 PLATFORM_SOURCE_NAME = {
@@ -100,6 +121,7 @@ def map_xhs(row: Dict) -> Optional[dict]:
         "media": _media(_split_urls(row.get("image_list")), _split_urls(row.get("video_url"))),
         "engagement": _engagement(row, "liked_count", "collected_count"),
         "published_at": _ms_to_iso(row.get("time")),
+        "requires_manual_experience_url": True,
     }
 
 
@@ -126,6 +148,7 @@ def map_dy(row: Dict) -> Optional[dict]:
         # 抖音 store 已把 digg_count→liked_count、collect_count→collected_count（与小红书同名）
         "engagement": _engagement(row, "liked_count", "collected_count"),
         "published_at": _ms_to_iso(row.get("create_time") or row.get("time")),
+        "requires_manual_experience_url": True,
     }
 
 
@@ -135,8 +158,18 @@ MAPPERS = {"xhs": map_xhs, "dy": map_dy}
 def _read_jsonl_files(mc_dir: str, platform: str):
     """读 MediaCrawler 的内容 jsonl：data/{存储目录}/jsonl/*_contents_*.jsonl。返回 (rows, files)。"""
     store_dir = PLATFORM_STORE_DIR.get(platform, platform)
-    pattern = os.path.join(mc_dir, "data", store_dir, "jsonl", "*_contents_*.jsonl")
-    files = sorted(glob.glob(pattern))
+    patterns = [
+        os.path.join(mc_dir, "data", store_dir, "jsonl", "*_contents_*.jsonl"),
+        os.path.join(mc_dir, store_dir, "jsonl", "*_contents_*.jsonl"),
+        os.path.join(mc_dir, "**", f"*{store_dir}*contents*.jsonl"),
+        os.path.join(mc_dir, "**", "*_contents_*.jsonl"),
+    ]
+    files = []
+    for pattern in patterns:
+        matches = sorted(glob.glob(pattern, recursive=True))
+        if matches:
+            files = matches
+            break
     rows: List[Dict] = []
     for fp in files:
         with open(fp, "r", encoding="utf-8") as f:
@@ -151,11 +184,29 @@ def _read_jsonl_files(mc_dir: str, platform: str):
     return rows, files
 
 
+def _constitution_result(item: dict) -> tuple[bool, List[str]]:
+    blob = f"{item.get('title') or ''}\n{item.get('text') or ''}"
+    headline = (item.get("title") or "")[:160]
+    reasons: List[str] = []
+    if not (OUTCOME_RE.search(blob) or (
+        FORMAT_RE.search(headline) and ARTIFACT_RE.search(headline)
+    )):
+        reasons.append("not_outcome_intent")
+    if MATERIAL_RE.search(blob):
+        reasons.append("tutorial_or_material")
+    standard = evaluate(item, item.get("source_platform"))
+    if not standard["passed"]:
+        reasons.extend(["mechanical_gate:" + reason for reason in standard["reasons"]])
+    return not reasons, reasons
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="MediaCrawler jsonl → 管线 collect 标准 JSON")
     ap.add_argument("--dir", default="F:/MediaCrawler", help="MediaCrawler 根目录（含 data/）")
     ap.add_argument("--platform", choices=list(MAPPERS.keys()), default="xhs", help="xhs 小红书 / dy 抖音")
     ap.add_argument("-o", "--out", default=None, help="输出 JSON 文件路径（默认 items_{platform}.json）")
+    ap.add_argument("--constitution", action="store_true",
+                    help="按宪法 9.0 粗筛：成果意图、非教程、有 proof、高互动")
     args = ap.parse_args()
 
     mapper = MAPPERS[args.platform]
@@ -166,12 +217,20 @@ def main() -> int:
         return 1
 
     items, seen = [], set()
+    rejected: Dict[str, int] = {}
     for row in rows:
         item = mapper(row)
         if not item:
             continue
         if item["source_url"] in seen:
             continue
+        if args.constitution:
+            passed, reasons = _constitution_result(item)
+            if not passed:
+                for reason in reasons:
+                    key = reason.split(":", 1)[0]
+                    rejected[key] = rejected.get(key, 0) + 1
+                continue
         seen.add(item["source_url"])
         items.append(item)
 
@@ -179,6 +238,8 @@ def main() -> int:
     with open(out, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
     print(f"读 {len(files)} 个 jsonl、{len(rows)} 行 → 转出 {len(items)} 条标准条目 → {out}")
+    if args.constitution:
+        print("宪法粗筛拦截：" + json.dumps(rejected, ensure_ascii=False, sort_keys=True))
     print(f"下一步：python -m app.pipeline collect {out} --platform {PLATFORM_SOURCE_NAME[args.platform]}")
     return 0
 

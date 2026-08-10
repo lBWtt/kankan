@@ -125,6 +125,8 @@ def ingest_raw_items(
                 **({"engagement": item["engagement"]} if item.get("engagement") else {}),
                 **({"published_at": item["published_at"]} if item.get("published_at") else {}),
                 **({"known_try_url": known_try_url} if known_try_url else {}),
+                **({"requires_manual_experience_url": True}
+                   if item.get("requires_manual_experience_url") else {}),
             },
         ))
         stats["ingested"] += 1
