@@ -3,7 +3,12 @@ import unittest
 from uuid import uuid4
 
 from app.core.errors import AppError
-from app.services.ai_processor import AnalysisScores, compute_curation_score, _resolved_experience_url
+from app.services.ai_processor import (
+    AnalysisScores,
+    _durable_social_proof,
+    _resolved_experience_url,
+    compute_curation_score,
+)
 from app.services.candidates import check_publish_gate
 from app.services.slate import compose_slate
 
@@ -93,6 +98,15 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             _resolved_experience_url(candidate, "https://www.douyin.com/aweme/v1/play/?video_id=abc"),
             "https://example.com/the-work",
         )
+
+    def test_social_ephemeral_video_proof_falls_back_to_cover(self):
+        cover = {"url": "https://p3.douyinpic.com/cover.jpeg?x-expires=2101773600", "media_type": "image"}
+        video = {"url": "https://v26-web.douyinvod.com/temporary/video", "media_type": "video"}
+        candidate = SimpleNamespace(
+            source_platform="douyin",
+            media_json={"items": [cover, video]},
+        )
+        self.assertEqual(_durable_social_proof(candidate, video), cover)
 
     def test_unknown_experience_type_is_rejected(self):
         with self.assertRaises(AppError):

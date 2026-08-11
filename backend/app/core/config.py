@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
+    # V4 上下文窗口是 1M；max_tokens 是输出预算（官方上限 384K），不是上下文长度。
+    # 候选整理默认给 32K，足够推理 + 结构化 JSON，同时避免无意义地预留 384K 输出。
+    deepseek_max_tokens: int = 32768
     # 成本护栏：每天最多调用 AI 整理多少次（跨进程 Redis 计数）。0 = 不限（默认，保持旧行为）。
     #   上线前设一个上限（如 500），DeepSeek 便宜但也别让抓取洪峰把账单打爆。超额→该批停整理、下轮再跑。
     ai_daily_call_cap: int = 0

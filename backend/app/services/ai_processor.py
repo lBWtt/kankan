@@ -241,7 +241,9 @@ def _payload_for(candidate: CandidateContent) -> dict:
     media = (candidate.media_json or {}).get("items", [])
     payload = {
         "原文标题": raw.get("title") or candidate.title or "",
-        "原始正文": (raw.get("text") or "")[:6000],  # 防超长正文撑爆上下文
+        # V4 有 1M 上下文：保留长作品说明，避免旧 6K 截断丢掉体验/实现证据；
+        # 单条仍设 100K 保险，给宪法、schema 和输出留足空间。
+        "原始正文": (raw.get("text") or "")[:100_000],
         "来源平台": candidate.source_platform or "未知",
         "来源链接": candidate.source_url or "",
         "原作者": candidate.original_author_name or "未识别",
@@ -333,9 +335,9 @@ def deepseek_analyze(payload: dict) -> CandidateAnalysis:
             model=settings.deepseek_model,
             temperature=0.7,  # 略高让文风有差异，但别太高（0.85 会常吐坏 JSON）；开头模板由 _strip_definition_open 兜底
             response_format={"type": "json_object"},
-            # v4-flash 是**推理模型**：答题前先烧 reasoning token。max_tokens 太小（如 2000）会被推理吃光、
-            # 没 token 留给 JSON → finish=length、content 为空（踩过：2000→空，8000→正常）。给足 8000。
-            max_tokens=8000,
+            # V4 的 1M 是“输入+输出上下文”，官方单次最大输出为 384K。结构化候选无需输出几十万字，
+            # 默认 32K 足够推理 + JSON；可通过环境变量调高，但不要误把 1M 上下文写成 max_tokens。
+            max_tokens=settings.deepseek_max_tokens,
             messages=messages,
         )
         text = _strip_json_fence(resp.choices[0].message.content or "")
@@ -499,6 +501,25 @@ def _resolved_experience_url(candidate: CandidateContent, analysis_url: Optional
     return url
 
 
+def _durable_social_proof(candidate: CandidateContent, selected: Optional[dict]) -> Optional[dict]:
+    """社交源演示视频多为短期签名 CDN；审核卡优先用同批抓到的长期封面。"""
+    if not selected or (candidate.source_platform or "") not in _POST_SRC_PLATFORMS:
+        return selected
+    url = str(selected.get("url") or "")
+    media_type = selected.get("media_type") or selected.get("type")
+    is_ephemeral_video = media_type == "video" and (
+        "douyinvod.com" in url or "douyin.com/aweme/" in url
+    )
+    if not is_ephemeral_video:
+        return selected
+    for index, item in enumerate((candidate.media_json or {}).get("items", [])):
+        if isinstance(item, dict) and (item.get("media_type") or item.get("type")) == "image":
+            stable = select_proof_media(candidate, index)
+            if stable:
+                return stable
+    return selected
+
+
 def apply_analysis(db: Session, candidate: CandidateContent, analysis: CandidateAnalysis) -> None:
     """整理结果写回候选行：ai_processed；字段齐到能过发布准入的，直接推进 pending_review
     进审核队列，缺料的（如没封面）停在 ai_processed 等运营补。不在这里 commit。"""
@@ -542,7 +563,10 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     }
     candidate.risk_flags = list(dict.fromkeys(analysis.risk_flags))
     candidate.risk_note = analysis.risk_note
-    candidate.selected_proof_media = select_proof_media(candidate, analysis.selected_proof_media_index)
+    candidate.selected_proof_media = _durable_social_proof(
+        candidate,
+        select_proof_media(candidate, analysis.selected_proof_media_index),
+    )
     candidate.cover_media_url = (
         candidate.selected_proof_media.get("url") if candidate.selected_proof_media else None
     )
