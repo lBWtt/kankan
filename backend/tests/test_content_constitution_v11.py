@@ -3,7 +3,7 @@ import unittest
 from uuid import uuid4
 
 from app.core.errors import AppError
-from app.services.ai_processor import AnalysisScores, compute_curation_score
+from app.services.ai_processor import AnalysisScores, compute_curation_score, _resolved_experience_url
 from app.services.candidates import check_publish_gate
 from app.services.slate import compose_slate
 
@@ -70,6 +70,29 @@ class ContentConstitutionV11Tests(unittest.TestCase):
 
     def test_content_experience_can_publish_without_url(self):
         check_publish_gate(_candidate())
+
+    def test_social_discovery_video_cannot_become_experience_url(self):
+        candidate = SimpleNamespace(
+            raw_json={"requires_manual_experience_url": True},
+            source_platform="douyin",
+            source_url="https://www.douyin.com/video/123",
+        )
+        video_cdn = "https://www.douyin.com/aweme/v1/play/?video_id=abc"
+        self.assertIsNone(_resolved_experience_url(candidate, video_cdn))
+
+    def test_social_collector_verified_external_url_wins(self):
+        candidate = SimpleNamespace(
+            raw_json={
+                "requires_manual_experience_url": True,
+                "known_try_url": "https://example.com/the-work",
+            },
+            source_platform="douyin",
+            source_url="https://www.douyin.com/video/123",
+        )
+        self.assertEqual(
+            _resolved_experience_url(candidate, "https://www.douyin.com/aweme/v1/play/?video_id=abc"),
+            "https://example.com/the-work",
+        )
 
     def test_unknown_experience_type_is_rejected(self):
         with self.assertRaises(AppError):

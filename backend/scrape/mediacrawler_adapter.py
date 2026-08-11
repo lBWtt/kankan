@@ -45,7 +45,8 @@ MATERIAL_RE = re.compile(
     r"教程|入门|课程|保姆级|怎么用|如何使用|提示词合集|新闻|融资|发布会|"
     r"盘点|周报|日报|快讯|观点|测评|接单|变现|副业|资料包|训练营|"
     r"全流程|安装|学习计划|加入我们|必备技能|轻松学会|如何|怎么用|方法|技巧|"
-    r"锐评|活动时间|活动主页|参与方式|投稿方向|流量扶持|大赏启动",
+    r"锐评|活动时间|活动主页|参与方式|投稿方向|流量扶持|大赏启动|"
+    r"复刻|骗局|宝藏网站|总结",
     re.I,
 )
 
@@ -201,6 +202,30 @@ def _constitution_result(item: dict) -> tuple[bool, List[str]]:
     return not reasons, reasons
 
 
+def _discovery_result(item: dict) -> tuple[bool, List[str]]:
+    """话题池发现模式：只放宽爆款热度，不放宽作品语义和 proof。
+
+    用于小红书/抖音“先找到、链接由人工补”的候选层；发布仍走 AI 与宪法 gate。
+    """
+    blob = f"{item.get('title') or ''}\n{item.get('text') or ''}"
+    headline = (item.get("title") or "")[:160]
+    reasons: List[str] = []
+    if not (OUTCOME_RE.search(blob) or (
+        FORMAT_RE.search(headline) and ARTIFACT_RE.search(headline)
+    )):
+        reasons.append("not_outcome_intent")
+    if MATERIAL_RE.search(blob):
+        reasons.append("tutorial_or_material")
+    if not item.get("media"):
+        reasons.append("missing_proof")
+    engagement = item.get("engagement") or {}
+    likes = parse_count(engagement.get("likes"))
+    collects = parse_count(engagement.get("collects"))
+    if likes < 10_000 and collects < 2_000:
+        reasons.append("below_discovery_heat")
+    return not reasons, reasons
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="MediaCrawler jsonl → 管线 collect 标准 JSON")
     ap.add_argument("--dir", default="F:/MediaCrawler", help="MediaCrawler 根目录（含 data/）")
@@ -208,7 +233,11 @@ def main() -> int:
     ap.add_argument("-o", "--out", default=None, help="输出 JSON 文件路径（默认 items_{platform}.json）")
     ap.add_argument("--constitution", action="store_true",
                     help="按宪法 9.0 粗筛：成果意图、非教程、有 proof、高互动")
+    ap.add_argument("--discovery", action="store_true",
+                    help="话题池发现模式：成果/proof 闸不变，热度降为赞1万或收藏2千")
     args = ap.parse_args()
+    if args.constitution and args.discovery:
+        ap.error("--constitution 与 --discovery 只能选一个")
 
     mapper = MAPPERS[args.platform]
     rows, files = _read_jsonl_files(args.dir, args.platform)
@@ -225,8 +254,10 @@ def main() -> int:
             continue
         if item["source_url"] in seen:
             continue
-        if args.constitution:
-            passed, reasons = _constitution_result(item)
+        if args.constitution or args.discovery:
+            passed, reasons = (
+                _constitution_result(item) if args.constitution else _discovery_result(item)
+            )
             if not passed:
                 for reason in reasons:
                     key = reason.split(":", 1)[0]
@@ -239,8 +270,9 @@ def main() -> int:
     with open(out, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
     print(f"读 {len(files)} 个 jsonl、{len(rows)} 行 → 转出 {len(items)} 条标准条目 → {out}")
-    if args.constitution:
-        print("宪法粗筛拦截：" + json.dumps(rejected, ensure_ascii=False, sort_keys=True))
+    if args.constitution or args.discovery:
+        label = "宪法粗筛拦截" if args.constitution else "发现模式拦截"
+        print(label + "：" + json.dumps(rejected, ensure_ascii=False, sort_keys=True))
     print(f"下一步：python -m app.pipeline collect {out} --platform {PLATFORM_SOURCE_NAME[args.platform]}")
     return 0
 

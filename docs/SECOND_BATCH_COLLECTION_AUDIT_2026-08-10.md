@@ -47,3 +47,15 @@
   - 3D 简历平台：`attraction=78`、`value=75`，双标题已生成，缺真实体验链接，停 `ai_processed`。
   - 汕头 44 家咖啡店地图：`attraction=69`、`value=75`，双标题已生成，因 `<70` 留候选池。
 - 公开检索发现 3D 简历作品疑似对应 `https://intro3d.com`，页面功能与视频描述高度吻合，但没有从抖音原帖直接解析到，未自动写库，留给人工确认。
+
+## 2026-08-11：话题发现层（允许暂缺体验链接）
+
+- 新增 `--discovery`，只把抖音/小红书候选发现热度放宽到“赞 ≥1 万或收藏 ≥2 千”；成果语义、非教程和 proof 三道闸不变，发布闸完全不变。
+- `vibecoding` 的 126 条话题结果经发现层留下 8 条：前述 4 条作品 + 4 条新增候选。生产 collect 为“新增 4、去重 4”。
+- 新增候选经 DeepSeek v4-flash（`max_tokens=8000`）处理：
+  - 背单词闯关游戏：`attraction=77`、`value=72`；真实体验链接待找。
+  - Codex + Stitch 点菜 App：`attraction=73`、`value=72`；更偏工作流演示，真实成品链接待找。
+  - 100 小时目标进度追踪器：`attraction=70`、`value=70`；真实体验链接待找。
+  - 游戏开发 Agent：`attraction=43`、`value=35`，已自动淘汰。
+- 修复社交源体验链接污染：DeepSeek 从输入媒体抄出的 `douyin.com/aweme/v1/play` 只能算 proof，不能写成 `experience_url`。带 `requires_manual_experience_url` 的候选只接受采集器确认过的 `known_try_url`；生产两条受影响记录已清理并退回 `ai_processed`。
+- 相关宪法/采集器测试共 20 条通过，生产 backend 重建后 healthy。

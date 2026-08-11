@@ -471,6 +471,34 @@ def _format_hint(steps: Optional[List[str]]) -> Optional[str]:
 _POST_SRC_PLATFORMS = {"douyin", "xiaohongshu", "jike", "x", "weibo"}
 
 
+def _resolved_experience_url(candidate: CandidateContent, analysis_url: Optional[str]) -> Optional[str]:
+    """只接受采集器确认过的社交帖外链，不把帖子/视频 CDN 当作品入口。"""
+    raw = candidate.raw_json or {}
+    known = (raw.get("known_try_url") or "").strip()
+    proposed = (analysis_url or "").strip()
+    source_platform = candidate.source_platform or ""
+
+    # 采集器明确标记“待人工补链”时，模型只能判断作品类型，不能从视频地址猜体验入口。
+    if raw.get("requires_manual_experience_url") and not known:
+        return None
+
+    url = known or proposed or None
+    if not url:
+        return None
+    source_url = candidate.source_url or ""
+    if url == source_url and source_platform in _POST_SRC_PLATFORMS:
+        return None
+    if source_platform in _POST_SRC_PLATFORMS and (
+        "douyin.com/video" in url
+        or "douyin.com/aweme/" in url
+        or "v.douyin.com" in url
+        or "xiaohongshu.com" in url
+        or "/note/" in url
+    ):
+        return None
+    return url
+
+
 def apply_analysis(db: Session, candidate: CandidateContent, analysis: CandidateAnalysis) -> None:
     """整理结果写回候选行：ai_processed；字段齐到能过发布准入的，直接推进 pending_review
     进审核队列，缺料的（如没封面）停在 ai_processed 等运营补。不在这里 commit。"""
@@ -521,17 +549,9 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     candidate.is_strong_visual = bool(candidate.visual_impact >= 80 and candidate.selected_proof_media)
 
     # 体验入口：采集器确定性外链优先于模型抄写；内容型体验不强塞 URL。
-    _known = ((candidate.raw_json or {}).get("known_try_url") or "").strip()
-    _tu = _known or (analysis.experience_url or "").strip() or None
-    _src = candidate.source_url or ""
-    # 帖子类来源（抖音/小红书/即刻/X/微博）的 source_url 是「出处帖子页」不是体验入口——落到它上就清空。
-    # 成品类来源（PH / Show HN / HelloGitHub / GitHubDaily / 手动加 / 导航站）的 source_url **就是产品链接
-    # 本身**，必须保留（否则会被误杀成"无链接"卡在 ai_processed——真踩过的坑）。
-    if _tu and _tu == _src and (candidate.source_platform or "") in _POST_SRC_PLATFORMS:
-        _tu = None
-    if _tu and ("douyin.com/video" in _tu or "xiaohongshu.com" in _tu
-                or "/note/" in _tu or "v.douyin.com" in _tu):
-        _tu = None
+    # 成品类来源（PH / Show HN / GitHub 等）的 source_url 可以是产品本身；社交帖只能用采集器
+    # 确认过的帖子外链。DeepSeek 看到的视频 CDN 只算 proof，绝不能变成“去体验”。
+    _tu = _resolved_experience_url(candidate, analysis.experience_url)
     candidate.experience_type = analysis.experience_type
     candidate.experience_url = _tu
     candidate.experience_content = (analysis.experience_content or "").strip() or None

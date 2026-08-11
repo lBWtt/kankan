@@ -94,6 +94,33 @@ class MediaCrawlerConstitutionTests(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("tutorial_or_material", reasons)
 
+    def test_discovery_accepts_save_heavy_work_below_full_douyin_gate(self):
+        item = {
+            "source_url": "https://www.douyin.com/video/4",
+            "source_platform": "douyin",
+            "title": "VibeCoding大赏｜我用AI把背单词做成了游戏",
+            "text": "展示实际游戏画面和操作效果。",
+            "media": [{"url": "https://cdn.example/game.mp4", "media_type": "video"}],
+            "engagement": {"likes": 4751, "collects": 3223},
+        }
+        strict, _ = media_adapter._constitution_result(item)
+        discovery, reasons = media_adapter._discovery_result(item)
+        self.assertFalse(strict)
+        self.assertTrue(discovery, reasons)
+
+    def test_discovery_still_rejects_tutorial(self):
+        item = {
+            "source_url": "https://www.douyin.com/video/5",
+            "source_platform": "douyin",
+            "title": "VibeCoding保姆级教程",
+            "text": "十秒教你复刻热门网站。",
+            "media": [{"url": "https://cdn.example/tutorial.mp4", "media_type": "video"}],
+            "engagement": {"likes": 50000, "collects": 5000},
+        }
+        passed, reasons = media_adapter._discovery_result(item)
+        self.assertFalse(passed)
+        self.assertIn("tutorial_or_material", reasons)
+
 
 if __name__ == "__main__":
     unittest.main()
