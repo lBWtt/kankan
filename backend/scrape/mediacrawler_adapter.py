@@ -50,6 +50,14 @@ MATERIAL_RE = re.compile(
     re.I,
 )
 
+# 平台互动只能在各自内部校准。数值即使暂时相同也分开配置，禁止把抖音实验参数
+# 隐式套给小红书；后续拿到各平台分布后分别调整。
+DISCOVERY_HEAT_THRESHOLDS = {
+    "douyin": {"likes": 10_000, "collects": 2_000},
+    "xiaohongshu": {"likes": 10_000, "collects": 2_000},
+}
+DEFAULT_DISCOVERY_HEAT = {"likes": 10_000, "collects": 2_000}
+
 # MediaCrawler 的 PLATFORM 目录名 → 我们候选池里的 source_platform 友好名
 PLATFORM_SOURCE_NAME = {
     "xhs": "xiaohongshu",
@@ -221,17 +229,20 @@ def _discovery_result(item: dict) -> tuple[bool, List[str]]:
     engagement = item.get("engagement") or {}
     likes = parse_count(engagement.get("likes"))
     collects = parse_count(engagement.get("collects"))
-    if likes < 10_000 and collects < 2_000:
+    platform = item.get("source_platform") or ""
+    threshold = DISCOVERY_HEAT_THRESHOLDS.get(platform, DEFAULT_DISCOVERY_HEAT)
+    if likes < threshold["likes"] and collects < threshold["collects"]:
         reasons.append("below_discovery_heat")
     return not reasons, reasons
 
 
 def _engagement_priority(item: dict) -> int:
-    """发现队列先处理真实受欢迎的作品；收藏意图比随手点赞更强，因此权重为 2。"""
+    """平台内发现排序；抖音已验证收藏权重 2，其它平台暂不套用该实验系数。"""
     engagement = item.get("engagement") or {}
     likes = parse_count(engagement.get("likes"))
     collects = parse_count(engagement.get("collects"))
-    return likes + 2 * collects
+    collect_weight = 2 if item.get("source_platform") == "douyin" else 1
+    return likes + collect_weight * collects
 
 
 def main() -> int:

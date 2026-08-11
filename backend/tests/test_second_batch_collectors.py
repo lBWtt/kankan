@@ -122,9 +122,17 @@ class MediaCrawlerConstitutionTests(unittest.TestCase):
         self.assertIn("tutorial_or_material", reasons)
 
     def test_engagement_priority_weights_collects_more_than_likes(self):
-        save_heavy = {"engagement": {"likes": 5000, "collects": 4000}}
-        like_heavy = {"engagement": {"likes": 10000, "collects": 1000}}
+        save_heavy = {"source_platform": "douyin", "engagement": {"likes": 5000, "collects": 4000}}
+        like_heavy = {"source_platform": "douyin", "engagement": {"likes": 10000, "collects": 1000}}
         self.assertGreater(
+            media_adapter._engagement_priority(save_heavy),
+            media_adapter._engagement_priority(like_heavy),
+        )
+
+    def test_douyin_collect_weight_is_not_applied_to_xiaohongshu(self):
+        save_heavy = {"source_platform": "xiaohongshu", "engagement": {"likes": 5000, "collects": 4000}}
+        like_heavy = {"source_platform": "xiaohongshu", "engagement": {"likes": 10000, "collects": 1000}}
+        self.assertLess(
             media_adapter._engagement_priority(save_heavy),
             media_adapter._engagement_priority(like_heavy),
         )
