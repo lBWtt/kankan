@@ -84,6 +84,9 @@ class ContentConstitutionV11Tests(unittest.TestCase):
         )
         video_cdn = "https://www.douyin.com/aweme/v1/play/?video_id=abc"
         self.assertIsNone(_resolved_experience_url(candidate, video_cdn))
+        self.assertIsNone(
+            _resolved_experience_url(candidate, "https://v26-web.douyinvod.com/temporary/video")
+        )
 
     def test_social_collector_verified_external_url_wins(self):
         candidate = SimpleNamespace(
@@ -117,6 +120,7 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             {"attraction_score": 69},
             {"selected_proof_media": None},
             {"experience_type": "web", "experience_url": "not-a-url", "experience_content": None},
+            {"experience_type": "web", "experience_url": "https://github.com/example/project", "experience_content": None},
         ]
         for changes in failures:
             with self.subTest(changes=changes), self.assertRaises(AppError):

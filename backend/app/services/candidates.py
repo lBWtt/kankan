@@ -8,6 +8,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -126,6 +127,14 @@ def _experience_problem(candidate: CandidateContent) -> Optional[str]:
             return f"{kind} 类型必须有 experience_url"
         if not url.startswith(("http://", "https://")):
             return "experience_url 必须是 http/https 地址"
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        # 宪法 9.2：GitHub repo 是代码出处，不是作品体验。GitHub Pages（github.io）不受影响；
+        # download 类型允许直达 release 资产，但普通仓库/README/releases 列表都要补官网或 hosted demo。
+        if host in {"github.com", "www.github.com"} and not (
+            kind == "download" and "/releases/download/" in parsed.path.lower()
+        ):
+            return "GitHub 仓库页不能作为体验入口；请补 hosted demo、官网或直接下载地址"
     elif kind == "prompt_content" and not content:
         return "prompt_content 类型必须有 experience_content"
     elif kind == "workflow_file" and not (url or content):

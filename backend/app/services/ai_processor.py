@@ -493,6 +493,7 @@ def _resolved_experience_url(candidate: CandidateContent, analysis_url: Optional
     if source_platform in _POST_SRC_PLATFORMS and (
         "douyin.com/video" in url
         or "douyin.com/aweme/" in url
+        or "douyinvod.com" in url
         or "v.douyin.com" in url
         or "xiaohongshu.com" in url
         or "/note/" in url

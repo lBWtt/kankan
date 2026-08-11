@@ -74,6 +74,29 @@ def _existing_source_urls(db: Session, urls: List[str]) -> set:
     return found
 
 
+def _existing_experience_urls(db: Session, urls: List[str]) -> set:
+    """同一个真实作品可能被多个帖子/版本视频介绍；体验入口相同仍只收一张卡。"""
+    if not urls:
+        return set()
+    raw_url = CandidateContent.raw_json["known_try_url"].as_string()
+    found = set(db.execute(
+        select(raw_url).where(raw_url.in_(urls))
+    ).scalars())
+    found |= set(db.execute(
+        select(CandidateContent.experience_url).where(CandidateContent.experience_url.in_(urls))
+    ).scalars())
+    found |= set(db.execute(
+        select(Project.experience_url).where(Project.experience_url.in_(urls))
+    ).scalars())
+    return {url for url in found if url}
+
+
+def _known_try_url(item: dict) -> str:
+    return (
+        item.get("try_url") or item.get("homepage") or item.get("try_url_hint") or ""
+    ).strip()
+
+
 def ingest_raw_items(
     db: Session, items: List[dict], default_platform: Optional[str] = None,
     default_kind: str = "project",
@@ -84,6 +107,8 @@ def ingest_raw_items(
     stats = {"ingested": 0, "duplicate": 0, "invalid": 0}
     urls = [i.get("source_url") for i in items if isinstance(i, dict) and i.get("source_url")]
     seen = _existing_source_urls(db, urls) if urls else set()
+    try_urls = [_known_try_url(i) for i in items if isinstance(i, dict)]
+    seen_try = _existing_experience_urls(db, [url for url in try_urls if url])
 
     for item in items:
         if not isinstance(item, dict) or not item.get("source_url") or not item.get("title"):
@@ -95,13 +120,17 @@ def ingest_raw_items(
             continue
         seen.add(url)
 
+        known_try_url = _known_try_url(item)
+        if known_try_url and known_try_url in seen_try:
+            stats["duplicate"] += 1
+            continue
+        if known_try_url:
+            seen_try.add(known_try_url)
+
         media = _normalize_media(item.get("media"))
         # 采集器已确定的「体验入口」外链（PH 的产品官网 / GitHub homepage / X 帖里的外链）。
         # 这是**确定性事实**，别让 DeepSeek 去正文里猜——存进 raw_json，整理时优先用它填 try_url。
         # （历史坑：GitHub 采到 homepage 但没落库、DeepSeek 又看不到→28 个项目 try_url 全空。）
-        known_try_url = (
-            item.get("try_url") or item.get("homepage") or item.get("try_url_hint") or ""
-        ).strip()
         db.add(CandidateContent(
             status="ai_collected",
             source_type="ai_crawled",
