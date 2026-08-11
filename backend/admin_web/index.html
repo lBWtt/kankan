@@ -534,25 +534,60 @@ function normTryUrl(u){ u=(u||"").trim(); if(u && !/^https?:\/\//i.test(u)) u="h
 
 async function saveEdit(){
   if(!current) return;
+  try{
+    const body=changedCandidateFields();
+    if(!Object.keys(body).length){ toast("没有需要保存的修改"); return current; }
+    if(candidateQualityFields(body).length && !body.override_reason){
+      body.override_reason=document.getElementById("e_override_reason").value.trim();
+    }
+    if(candidateQualityFields(body).length && !body.override_reason){
+      throw new Error("修改标题、体验入口或成果证据时，请填写人工覆盖理由");
+    }
+    const c = await api("/admin/candidates/"+current.id,{method:"PATCH",body:JSON.stringify(body)});
+    current=c; toast("已保存（状态→已编辑）"); refreshPending();
+    // 若当前筛的是待审，编辑后状态变 edited，可能不再属于该列表——刷新行标签即可，不强制移除。
+    const row=document.querySelector('.row[data-id="'+c.id+'"] .rtitle'); if(row) row.textContent=c.title||"(无标题)";
+    return c;
+  }catch(e){
+    toast("保存失败："+(e.body&&e.body.message||e.message));
+    return null;
+  }
+}
+
+function candidateQualityFields(body){
+  const quality=new Set(["title","experience_type","experience_url","experience_content","selected_proof_media"]);
+  return Object.keys(body).filter(k=>quality.has(k));
+}
+
+function changedCandidateFields(){
   const proofRadio=document.querySelector('input[name="proof_media"]:checked');
   const proofItems=candidateMediaItems(current);
-  const body={
+  const form={
     title:document.getElementById("e_title").value.trim(),
     tagline:document.getElementById("e_tagline").value.trim(),
     summary:document.getElementById("e_summary").value.trim(),
     description:document.getElementById("e_description").value.trim(),
     experience_type:document.getElementById("e_experience_type").value,
     experience_url:normTryUrl(document.getElementById("e_try_url").value),
-    experience_content:document.getElementById("e_experience_content").value.trim()||null,
+    experience_content:document.getElementById("e_experience_content").value.trim(),
     selected_proof_media:proofRadio?proofItems[Number(proofRadio.value)]:null,
     override_reason:document.getElementById("e_override_reason").value.trim(),
   };
-  try{
-    const c = await api("/admin/candidates/"+current.id,{method:"PATCH",body:JSON.stringify(body)});
-    current=c; toast("已保存（状态→已编辑）"); refreshPending();
-    // 若当前筛的是待审，编辑后状态变 edited，可能不再属于该列表——刷新行标签即可，不强制移除。
-    const row=document.querySelector('.row[data-id="'+c.id+'"] .rtitle'); if(row) row.textContent=c.title||"(无标题)";
-  }catch(e){ toast("保存失败："+(e.body&&e.body.message||e.message)); }
+  const old={
+    title:(current.title||"").trim(), tagline:(current.tagline||"").trim(),
+    summary:(current.summary||"").trim(), description:(current.description||"").trim(),
+    experience_type:current.experience_type||"", experience_url:normTryUrl(current.experience_url||current.try_url||""),
+    experience_content:(current.experience_content||"").trim(), selected_proof_media:current.selected_proof_media||null,
+  };
+  const body={};
+  for(const key of ["title","tagline","summary","description","experience_type","experience_url","experience_content"]){
+    if(form[key]!==old[key]) body[key]=form[key]||null;
+  }
+  const oldProof=(old.selected_proof_media&&old.selected_proof_media.url)||"";
+  const newProof=(form.selected_proof_media&&form.selected_proof_media.url)||"";
+  if(oldProof!==newProof) body.selected_proof_media=form.selected_proof_media;
+  if(Object.keys(body).length && form.override_reason) body.override_reason=form.override_reason;
+  return body;
 }
 
 // 已通过内容「再剪辑」：改动直接落到线上项目（PATCH /admin/projects/{project_id}）。
@@ -590,8 +625,16 @@ async function restoreProject(projId){
 }
 
 async function approve(id){
-  if(!confirm("确认通过并发布？将随机派一个马甲作者、把封面转存到本地/OSS。")) return;
+  if(!confirm("确认保存当前修改并发布？将随机派一个马甲作者、把封面转存到本地/OSS。")) return;
   try{
+    // 审核员常在补完真实体验链接后直接点发布。先持久化表单，避免审批仍读取数据库旧值。
+    const pending=changedCandidateFields();
+    if(Object.keys(pending).length){
+      if(candidateQualityFields(pending).length && !pending.override_reason){
+        pending.override_reason="审核员发布前补充或修正候选信息";
+      }
+      current=await api("/admin/candidates/"+id,{method:"PATCH",body:JSON.stringify(pending)});
+    }
     const r = await api("/admin/candidates/"+id+"/approve",{method:"POST"});
     toast("已发布 · 作者马甲："+(r.persona_name||"—"));
     dropCurrentRow(id); refreshPending();
