@@ -530,6 +530,28 @@ function dropCurrentRow(id){
   current=null;
 }
 
+async function dropCurrentRowAndOpenNext(id){
+  const row=document.querySelector('.row[data-id="'+id+'"]');
+  const next=row&&row.nextElementSibling&&row.nextElementSibling.classList.contains('row')
+    ? row.nextElementSibling : null;
+  const previous=row&&row.previousElementSibling&&row.previousElementSibling.classList.contains('row')
+    ? row.previousElementSibling : null;
+  const beforeIds=new Set(Array.from(document.querySelectorAll('.row[data-id]')).map(e=>e.dataset.id));
+  if(row) row.remove();
+  current=null;
+
+  if(next){ await openDetail(next.dataset.id,next); return; }
+  // 当前是已加载列表最后一条：有后续游标时先拉下一页，并优先打开新出现的第一条。
+  if(cursor){
+    await loadMore(false);
+    const newlyLoaded=Array.from(document.querySelectorAll('.row[data-id]'))
+      .find(e=>!beforeIds.has(e.dataset.id));
+    if(newlyLoaded){ await openDetail(newlyLoaded.dataset.id,newlyLoaded); return; }
+  }
+  if(previous){ await openDetail(previous.dataset.id,previous); return; }
+  document.getElementById("detail").innerHTML='<div class="empty">这个状态下没有更多内容</div>';
+}
+
 // 体验链接容错：只输了域名(如 a.com)自动补 https://，省得因缺前缀报「参数校验失败」。
 function normTryUrl(u){ u=(u||"").trim(); if(u && !/^https?:\/\//i.test(u)) u="https://"+u; return u; }
 
@@ -670,7 +692,7 @@ async function discard(id){
   // 直接不推荐，不再弹框问理由（决定本身已记进 admin_actions，供偏好学习用）。
   try{
     await api("/admin/candidates/"+id+"/discard",{method:"POST",body:JSON.stringify({reason:null})});
-    toast("已标记不推荐"); dropCurrentRow(id); refreshPending();
+    toast("已标记不推荐"); await dropCurrentRowAndOpenNext(id); refreshPending();
   }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
 }
 
