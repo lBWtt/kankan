@@ -460,7 +460,7 @@ function renderDetail(c){
   const d=document.getElementById("detail");
   const proofItems = candidateMediaItems(c);
   const selectedProofUrl = c.selected_proof_media && c.selected_proof_media.url;
-  const mediaEditable = !(c.status==='approved' && c.project_id);
+  const mediaEditable = !(c.status==='approved' && c.project_id) && c.status!=='discarded';
   const media = proofItems.map((m,i)=>`<label class="candidate-media" style="display:inline-block;text-align:center"><img src="${esc(m.thumbnail_url||m.url)}" onerror="this.style.display='none'"><br><input type="radio" name="proof_media" value="${i}" ${m.url===selectedProofUrl?'checked':''} onchange="selectProofMedia(this)" ${mediaEditable?'':'disabled'}> 成果证据${mediaEditable?`<br><input type="checkbox" name="keep_media" value="${i}" checked onchange="toggleCandidateMedia(this)"> 发布时保留`:''}</label>`).join("");
   const risks = (c.risk_flags||[]).map(r=>`<span class="pill risk">${esc(r)}</span>`).join("");
   const tools = (c.tools||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
@@ -500,7 +500,9 @@ function renderDetail(c){
     ${tryHint}
     <div>${(c.status==='approved' && c.project_id)
       ? `<button class="saveedit" onclick="saveEditProject()">保存修改（改线上项目）</button>`
-      : `<button class="saveedit" onclick="saveEdit()">保存修改（→已编辑）</button>`}</div>
+      : c.status==='discarded'
+        ? `<span class="muted">已不推荐；先撤销不推荐，才能继续编辑或发布。</span>`
+        : `<button class="saveedit" onclick="saveEdit()">保存修改（→已编辑）</button>`}</div>
 
     <div class="field">
       <div class="kv"><b>采集来源（内部，不展示给用户）：</b>${src}</div>
@@ -515,6 +517,12 @@ function renderDetail(c){
       ${(c.status==='approved' && c.project_id)
         ? `<button class="btn-danger" onclick="takeDownProject('${c.project_id}','${c.id}')">⬇ 下架</button>
            <button class="btn-ghost" onclick="restoreProject('${c.project_id}')">↺ 恢复上架</button>`
+        : c.status==='discarded'
+          ? `<button class="btn-primary" onclick="restoreCandidate('${c.id}')">↶ 撤销不推荐</button>`
+        : c.status==='ai_collected'
+          ? `<span class="muted">尚未完成 AI 整理，不能发布</span>
+             <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
+             <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`
         : `<button class="btn-primary" onclick="approve('${c.id}')">✓ 通过并发布</button>
            <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
            <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`}
@@ -694,6 +702,18 @@ async function discard(id){
     await api("/admin/candidates/"+id+"/discard",{method:"POST",body:JSON.stringify({reason:null})});
     toast("已标记不推荐"); await dropCurrentRowAndOpenNext(id); refreshPending();
   }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function restoreCandidate(id){
+  try{
+    const restored=await api("/admin/candidates/"+id+"/restore",{method:"POST"});
+    const labels={ai_collected:"刚采集",ai_processed:"AI已整理",pending_review:"待审核",edited:"已编辑",parked:"暂存"};
+    toast("已撤销不推荐，恢复到“"+(labels[restored.status]||restored.status)+"”");
+    const filter=document.getElementById("fStatus").value;
+    if(filter==='discarded') await dropCurrentRowAndOpenNext(id);
+    else await reload();
+    refreshPending();
+  }catch(e){ toast("恢复失败："+(e.body&&e.body.message||e.message)); }
 }
 
 async function park(id){

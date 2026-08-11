@@ -11,7 +11,7 @@ from app.services.ai_processor import (
     calibrate_evidence_scores,
     compute_curation_score,
 )
-from app.services.candidates import check_publish_gate
+from app.services.candidates import _inferred_restore_status, check_publish_gate
 from app.services.slate import compose_slate
 
 
@@ -212,6 +212,32 @@ class ContentConstitutionV11Tests(unittest.TestCase):
         for changes in failures:
             with self.subTest(changes=changes), self.assertRaises(AppError):
                 check_publish_gate(_candidate(**changes))
+
+    def test_legacy_discard_restore_infers_original_workflow_layer(self):
+        raw = SimpleNamespace(
+            human_override_json=None, ai_analysis_json=None, ai_curation_score=None,
+            content_kind="project",
+        )
+        self.assertEqual(_inferred_restore_status(raw), "ai_collected")
+
+        ready = _candidate()
+        ready.content_kind = "project"
+        ready.human_override_json = None
+        ready.ai_analysis_json = {"is_work": True}
+        ready.ai_curation_score = ready.attraction_score
+        self.assertEqual(_inferred_restore_status(ready), "pending_review")
+
+        missing_experience = _candidate(
+            experience_type="web", experience_url=None, experience_content=None,
+        )
+        missing_experience.content_kind = "project"
+        missing_experience.human_override_json = None
+        missing_experience.ai_analysis_json = {"is_work": True}
+        missing_experience.ai_curation_score = missing_experience.attraction_score
+        self.assertEqual(_inferred_restore_status(missing_experience), "ai_processed")
+
+        missing_experience.human_override_json = {"experience_url": None}
+        self.assertEqual(_inferred_restore_status(missing_experience), "edited")
 
     def test_slate_satisfies_all_v11_constraints_when_inventory_allows(self):
         forms = ["app", "website", "game", "tool", "prompt", "ai_art", "model", "workflow", "app", "website", "game", "tool"]

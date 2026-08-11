@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models import CandidateContent, Post, PostMedia, Project, ProjectMedia, User
+from app.models import AdminAction, CandidateContent, Post, PostMedia, Project, ProjectMedia, User
 from app.services.audit import log_admin_action
 from app.services.media_transfer import transfer_candidate_media
 from app.services.personas import pick_persona_for
@@ -368,8 +368,56 @@ def transition_candidate(
 ) -> None:
     """discard / park 共用的简单状态流转 + 留痕。"""
     ensure_actionable(candidate, new_status)
+    previous_status = candidate.status
     candidate.status = new_status
     candidate.reviewed_by_user_id = admin.id
     candidate.reviewed_at = datetime.now(timezone.utc)
     log_admin_action(db, admin.id, f"{new_status}_candidate", "candidate", candidate.id,
-                     {"reason": reason} if reason else None)
+                     {"previous_status": previous_status, **({"reason": reason} if reason else {})})
+
+
+def _inferred_restore_status(candidate: CandidateContent) -> str:
+    """兼容旧审计日志：按候选现有字段推回丢弃前最合理的工作流层。"""
+    if candidate.human_override_json:
+        return "edited"
+    if not candidate.ai_analysis_json and candidate.ai_curation_score is None:
+        return "ai_collected"
+    try:
+        if candidate.content_kind == "post":
+            check_post_gate(candidate)
+        else:
+            check_publish_gate(candidate)
+        return "pending_review"
+    except AppError:
+        return "ai_processed"
+
+
+def restore_discarded_candidate(db: Session, candidate: CandidateContent, admin: User) -> str:
+    """撤销不推荐：优先恢复审计记录中的原状态，旧记录则由字段/gate安全推断。"""
+    if candidate.status != "discarded":
+        raise AppError(
+            409, "CANDIDATE_INVALID_STATE",
+            f"候选当前状态为 {candidate.status}，只有 discarded 可以撤销不推荐",
+            {"status": candidate.status},
+        )
+    action = db.execute(
+        select(AdminAction)
+        .where(
+            AdminAction.target_type == "candidate",
+            AdminAction.target_id == candidate.id,
+            AdminAction.action == "discarded_candidate",
+        )
+        .order_by(AdminAction.created_at.desc(), AdminAction.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    previous = (action.detail or {}).get("previous_status") if action else None
+    allowed = {"ai_collected", "ai_processed", "pending_review", "edited", "parked"}
+    restored_status = previous if previous in allowed else _inferred_restore_status(candidate)
+    candidate.status = restored_status
+    candidate.reviewed_by_user_id = admin.id
+    candidate.reviewed_at = datetime.now(timezone.utc)
+    log_admin_action(
+        db, admin.id, "restore_discarded_candidate", "candidate", candidate.id,
+        {"from_status": "discarded", "to_status": restored_status},
+    )
+    return restored_status

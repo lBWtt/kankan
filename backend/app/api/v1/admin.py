@@ -78,6 +78,7 @@ from app.services.candidates import (
     approve_candidate,
     approve_candidate_as_post,
     ensure_actionable,
+    restore_discarded_candidate,
     transition_candidate,
 )
 from app.services.ingestion import ingest_raw_items
@@ -283,6 +284,23 @@ def discard(
     transition_candidate(db, cand, admin, "discarded", body.reason)
     db.commit()
     return OkResponse()
+
+
+@router.post(
+    "/candidates/{candidate_id}/restore",
+    response_model=CandidateDetail,
+    summary="撤销不推荐（恢复到丢弃前工作流状态）",
+)
+def restore_discarded(
+    candidate_id: uuid.UUID,
+    admin: User = Depends(admin_required),
+    db: Session = Depends(get_db),
+):
+    cand = _get_candidate(db, candidate_id)
+    restore_discarded_candidate(db, cand, admin)
+    db.commit()
+    db.refresh(cand)
+    return CandidateDetail.model_validate(cand)
 
 
 @router.post("/candidates/{candidate_id}/park", response_model=OkResponse, summary="暂存（→parked，补全端点）")
