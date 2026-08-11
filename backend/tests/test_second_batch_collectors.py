@@ -81,6 +81,19 @@ class MediaCrawlerConstitutionTests(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("tutorial_or_material", reasons)
 
+    def test_topic_announcement_is_not_a_work(self):
+        item = {
+            "source_url": "https://www.douyin.com/video/3",
+            "source_platform": "douyin",
+            "title": "VibeCoding大赏启动，优秀作品获得流量扶持",
+            "text": "活动时间到八月底，参与方式是带话题投稿。",
+            "media": [{"url": "https://cdn.example/poster.jpg", "media_type": "image"}],
+            "engagement": {"likes": 30000, "collects": 3000},
+        }
+        passed, reasons = media_adapter._constitution_result(item)
+        self.assertFalse(passed)
+        self.assertIn("tutorial_or_material", reasons)
+
 
 if __name__ == "__main__":
     unittest.main()
