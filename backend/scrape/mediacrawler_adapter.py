@@ -226,6 +226,14 @@ def _discovery_result(item: dict) -> tuple[bool, List[str]]:
     return not reasons, reasons
 
 
+def _engagement_priority(item: dict) -> int:
+    """发现队列先处理真实受欢迎的作品；收藏意图比随手点赞更强，因此权重为 2。"""
+    engagement = item.get("engagement") or {}
+    likes = parse_count(engagement.get("likes"))
+    collects = parse_count(engagement.get("collects"))
+    return likes + 2 * collects
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="MediaCrawler jsonl → 管线 collect 标准 JSON")
     ap.add_argument("--dir", default="F:/MediaCrawler", help="MediaCrawler 根目录（含 data/）")
@@ -265,6 +273,11 @@ def main() -> int:
                 continue
         seen.add(item["source_url"])
         items.append(item)
+
+    if args.constitution or args.discovery:
+        # 搜索接口原顺序偏平台相关性/个性化；在已通过成果语义与 proof 后，
+        # 用点赞+2×收藏决定有限 DeepSeek 预算先处理谁。
+        items.sort(key=_engagement_priority, reverse=True)
 
     out = args.out or f"items_{args.platform}.json"
     with open(out, "w", encoding="utf-8") as f:

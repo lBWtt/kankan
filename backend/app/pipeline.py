@@ -24,7 +24,8 @@ from app.services.ingestion import ingest_raw_items
 
 
 def cmd_collect(args) -> int:
-    with open(args.file, "r", encoding="utf-8") as f:
+    # Windows PowerShell 5 的 UTF-8 输出默认带 BOM；utf-8-sig 同时兼容有/无 BOM 文件。
+    with open(args.file, "r", encoding="utf-8-sig") as f:
         items = json.load(f)
     if not isinstance(items, list):
         print("文件内容必须是 JSON 数组（每个元素一条抓取内容）", file=sys.stderr)

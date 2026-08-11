@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 import unittest
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.core.errors import AppError
@@ -7,6 +8,7 @@ from app.services.ai_processor import (
     AnalysisScores,
     _durable_social_proof,
     _resolved_experience_url,
+    calibrate_evidence_scores,
     compute_curation_score,
 )
 from app.services.candidates import check_publish_gate
@@ -72,6 +74,74 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             shareability=50,
         )
         self.assertEqual(compute_curation_score(scores), 73)
+
+    def test_unverified_visual_and_missing_experience_are_capped(self):
+        candidate = SimpleNamespace(
+            source_platform="douyin",
+            raw_json={"published_at": "2026-08-10T00:00:00Z", "engagement": {"likes": 10}},
+            human_override_json=None,
+        )
+        scores = AnalysisScores(
+            hook_clarity=85,
+            visual_impact=90,
+            surprise=85,
+            tryability=70,
+            shareability=80,
+        )
+        calibrated, attraction, rules = calibrate_evidence_scores(
+            candidate, scores, None, now=datetime(2026, 8, 11, tzinfo=timezone.utc)
+        )
+        self.assertEqual(calibrated.visual_impact, 70)
+        self.assertEqual(calibrated.tryability, 50)
+        self.assertEqual(attraction, 75)
+        self.assertEqual(
+            rules,
+            ["unverified_visual_cap_70", "missing_experience_tryability_cap_50"],
+        )
+
+    def test_old_low_like_douyin_cannot_reach_82_without_confirmation(self):
+        candidate = SimpleNamespace(
+            source_platform="douyin",
+            raw_json={"published_at": "2026-07-01T00:00:00Z", "engagement": {"likes": 29}},
+            human_override_json=None,
+        )
+        scores = AnalysisScores(
+            hook_clarity=100,
+            visual_impact=70,
+            surprise=100,
+            tryability=100,
+            shareability=100,
+        )
+        _, attraction, rules = calibrate_evidence_scores(
+            candidate, scores, "https://example.com", now=datetime(2026, 8, 11, tzinfo=timezone.utc)
+        )
+        self.assertEqual(attraction, 81)
+        self.assertIn("douyin_old_low_engagement_cap_81", rules)
+
+    def test_verified_visual_and_human_confirmation_bypass_caps(self):
+        candidate = SimpleNamespace(
+            source_platform="douyin",
+            raw_json={
+                "published_at": "2026-07-01T00:00:00Z",
+                "engagement": {"likes": 29},
+                "visual_verification_status": "human_checked",
+                "human_score_confirmed": True,
+            },
+            human_override_json=None,
+        )
+        scores = AnalysisScores(
+            hook_clarity=100,
+            visual_impact=90,
+            surprise=100,
+            tryability=100,
+            shareability=100,
+        )
+        calibrated, attraction, rules = calibrate_evidence_scores(
+            candidate, scores, "https://example.com", now=datetime(2026, 8, 11, tzinfo=timezone.utc)
+        )
+        self.assertEqual(calibrated.visual_impact, 90)
+        self.assertEqual(attraction, 98)
+        self.assertEqual(rules, [])
 
     def test_content_experience_can_publish_without_url(self):
         check_publish_gate(_candidate())

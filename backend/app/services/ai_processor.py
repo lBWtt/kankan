@@ -9,8 +9,9 @@
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Literal, Optional
+from typing import Callable, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
@@ -37,6 +38,11 @@ SCORE_WEIGHTS = {
     "tryability": 0.15,
     "shareability": 0.15,
 }
+DOUYIN_LOW_ENGAGEMENT_DAYS = 14
+DOUYIN_LOW_LIKES = 100
+UNVERIFIED_VISUAL_CAP = 70
+MISSING_EXPERIENCE_TRYABILITY_CAP = 50
+EVIDENCE_CALIBRATION_VERSION = "evidence-caps-2026-08-11"
 WORK_FORMS = ("app", "website", "workflow", "model", "prompt", "ai_art", "game", "tool")
 EXPERIENCE_TYPES = ("web", "video", "gallery", "download", "model_page", "workflow_file", "prompt_content", "game")
 
@@ -203,6 +209,8 @@ _SYSTEM_PROMPT = """你是 kankan 冷启动阶段的内容总编。下面是完�
 只依据输入事实，不编造体验入口、效果、作者或实现步骤。模型/工作流/提示词只要是有具体用途的完整作品就可收，
 即使需要安装或技术环境，也应通过 access_friction=install/technical 表达，不能误判成原料。
 selected_proof_media_index 只能选择输入媒体清单中确实能证明最终效果的一项；logo、社交卡、官网首页截图必须返回 null。
+来源互动数据是实际传播证据：点赞、收藏、分享可用于校准 shareability 与内容置信度，收藏尤其代表“以后还想用”；
+但高互动不能把教程/观点救成作品，也不能替代视觉核验或真实体验入口。互动低也不能单独否定新发布或小众作品。
 文案用具体自然的中文，避免营销腔；不要提来源平台，不要冒充原作者。实现步骤没把握就留空。
 
 ----- 内容宪法 v1.1 全文开始 -----
@@ -247,6 +255,8 @@ def _payload_for(candidate: CandidateContent) -> dict:
         "来源平台": candidate.source_platform or "未知",
         "来源链接": candidate.source_url or "",
         "原作者": candidate.original_author_name or "未识别",
+        "发布时间": raw.get("published_at"),
+        "来源互动数据": raw.get("engagement") or {},
         "媒体清单（按索引选择 proof）": [
             {
                 "index": i,
@@ -460,6 +470,62 @@ def compute_curation_score(scores: AnalysisScores) -> int:
     return round(total)
 
 
+def _iso_datetime(value: object) -> Optional[datetime]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=parsed.tzinfo or timezone.utc)
+    except ValueError:
+        return None
+
+
+def calibrate_evidence_scores(
+    candidate: CandidateContent,
+    scores: AnalysisScores,
+    experience_url: Optional[str],
+    *,
+    now: Optional[datetime] = None,
+) -> Tuple[AnalysisScores, int, List[str]]:
+    """对文本模型无法确认的事实做确定性限分；不覆盖 ai_analysis_json 里的模型原值。"""
+    raw = candidate.raw_json or {}
+    overrides = candidate.human_override_json or {}
+    values = scores.model_dump()
+    applied: List[str] = []
+
+    visual_status = raw.get("visual_verification_status") or overrides.get("visual_verification_status")
+    visual_verified = visual_status in {"frame_checked", "demo_checked", "human_checked"}
+    if not visual_verified and values["visual_impact"] > UNVERIFIED_VISUAL_CAP:
+        values["visual_impact"] = UNVERIFIED_VISUAL_CAP
+        applied.append("unverified_visual_cap_70")
+
+    if not experience_url and values["tryability"] > MISSING_EXPERIENCE_TRYABILITY_CAP:
+        values["tryability"] = MISSING_EXPERIENCE_TRYABILITY_CAP
+        applied.append("missing_experience_tryability_cap_50")
+
+    calibrated = scores.model_copy(update=values)
+    attraction = compute_curation_score(calibrated)
+
+    if (candidate.source_platform or "") == "douyin":
+        published_at = _iso_datetime(raw.get("published_at"))
+        likes = (raw.get("engagement") or {}).get("likes")
+        human_confirmed = bool(raw.get("human_score_confirmed") or overrides.get("score_confirmed"))
+        current = now or datetime.now(timezone.utc)
+        try:
+            old_low_engagement = (
+                published_at is not None
+                and (current - published_at.astimezone(timezone.utc)).days > DOUYIN_LOW_ENGAGEMENT_DAYS
+                and float(likes) < DOUYIN_LOW_LIKES
+            )
+        except (TypeError, ValueError):
+            old_low_engagement = False
+        if old_low_engagement and not human_confirmed and attraction >= 82:
+            attraction = 81
+            applied.append("douyin_old_low_engagement_cap_81")
+
+    return calibrated, attraction, applied
+
+
 def _format_hint(steps: Optional[List[str]]) -> Optional[str]:
     """实现思路落库格式：标注"AI 推测"（admin 文档 §4 要求），分步编号。"""
     steps = [s.strip() for s in (steps or []) if s and s.strip()]
@@ -542,19 +608,29 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     candidate.work_form = analysis.work_form
     candidate.creator_type = analysis.creator_type
     candidate.access_friction = analysis.access_friction
-    candidate.hook_clarity = analysis.scores.hook_clarity
-    candidate.visual_impact = analysis.scores.visual_impact
-    candidate.surprise = analysis.scores.surprise
-    candidate.tryability = analysis.scores.tryability
-    candidate.shareability = analysis.scores.shareability
-    candidate.attraction_score = compute_curation_score(analysis.scores)
+    # 先解析真实体验入口，再对 DeepSeek 无法亲自确认的视觉/体验事实限分。
+    # 原始模型分仍完整保存在 ai_analysis_json，便于随时比较或回滚校准规则。
+    _tu = _resolved_experience_url(candidate, analysis.experience_url)
+    calibrated_scores, calibrated_attraction, calibration_rules = calibrate_evidence_scores(
+        candidate, analysis.scores, _tu
+    )
+    candidate.hook_clarity = calibrated_scores.hook_clarity
+    candidate.visual_impact = calibrated_scores.visual_impact
+    candidate.surprise = calibrated_scores.surprise
+    candidate.tryability = calibrated_scores.tryability
+    candidate.shareability = calibrated_scores.shareability
+    candidate.attraction_score = calibrated_attraction
     candidate.ai_curation_score = candidate.attraction_score  # 兼容旧后台排序/徽章
     candidate.value_score = analysis.value_score
     candidate.policy_version = POLICY_VERSION
     model_name = settings.deepseek_model if settings.ai_provider == "deepseek" else settings.anthropic_model
-    candidate.score_version = f"constitution-{POLICY_VERSION}:{model_name}"
+    candidate.score_version = (
+        f"constitution-{POLICY_VERSION}:{model_name}+{EVIDENCE_CALIBRATION_VERSION}"
+    )
     candidate.scores_json = {
-        **analysis.scores.model_dump(),
+        **calibrated_scores.model_dump(),
+        "model_scores": analysis.scores.model_dump(),
+        "calibration_rules": calibration_rules,
         "weights": SCORE_WEIGHTS,
         "attraction_score": candidate.attraction_score,
         "value_score": candidate.value_score,
@@ -576,7 +652,6 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     # 体验入口：采集器确定性外链优先于模型抄写；内容型体验不强塞 URL。
     # 成品类来源（PH / Show HN / GitHub 等）的 source_url 可以是产品本身；社交帖只能用采集器
     # 确认过的帖子外链。DeepSeek 看到的视频 CDN 只算 proof，绝不能变成“去体验”。
-    _tu = _resolved_experience_url(candidate, analysis.experience_url)
     candidate.experience_type = analysis.experience_type
     candidate.experience_url = _tu
     candidate.experience_content = (analysis.experience_content or "").strip() or None

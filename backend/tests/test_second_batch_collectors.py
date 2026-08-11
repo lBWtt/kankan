@@ -121,6 +121,14 @@ class MediaCrawlerConstitutionTests(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("tutorial_or_material", reasons)
 
+    def test_engagement_priority_weights_collects_more_than_likes(self):
+        save_heavy = {"engagement": {"likes": 5000, "collects": 4000}}
+        like_heavy = {"engagement": {"likes": 10000, "collects": 1000}}
+        self.assertGreater(
+            media_adapter._engagement_priority(save_heavy),
+            media_adapter._engagement_priority(like_heavy),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
