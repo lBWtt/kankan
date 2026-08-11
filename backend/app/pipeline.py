@@ -21,6 +21,7 @@ import sys
 from app.core.db import SessionLocal
 from app.services.ai_processor import process_collected
 from app.services.ingestion import ingest_raw_items
+from app.services.video_frames import backfill_candidate_frames
 
 
 def cmd_collect(args) -> int:
@@ -45,6 +46,16 @@ def cmd_process(args) -> int:
     return 0 if stats["failed"] == 0 else 1
 
 
+def cmd_frames(args) -> int:
+    with SessionLocal() as db:
+        stats = backfill_candidate_frames(db, limit=args.limit, source_platform=args.platform)
+    print(
+        f"扫描 {stats['scanned']} 条；补图 {stats['enriched']} 条、共 {stats['frames']} 张；"
+        f"失败 {stats['failed']} 条"
+    )
+    return 0 if stats["failed"] == 0 else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="python -m app.pipeline", description="AI 抓取管线操作台")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -60,6 +71,11 @@ def main() -> int:
     p_process.add_argument("--limit", type=int, default=20, help="本次最多整理几条（默认 20）")
     p_process.add_argument("--platform", default=None, help="只整理指定来源，避免吃掉其他待处理队列")
     p_process.set_defaults(func=cmd_process)
+
+    p_frames = sub.add_parser("frames", help="给已整理未发布的社交视频候选自动补关键帧")
+    p_frames.add_argument("--limit", type=int, default=20, help="本次最多扫描几条（默认 20）")
+    p_frames.add_argument("--platform", default=None, help="只补指定来源，如 douyin")
+    p_frames.set_defaults(func=cmd_frames)
 
     args = parser.parse_args()
     return args.func(args)

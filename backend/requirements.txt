@@ -21,3 +21,5 @@ boto3>=1.34,<2
 anthropic>=0.69,<1
 # DeepSeek 走 OpenAI 兼容接口（ai_processor.deepseek_analyze）；不配 key 时不会被导入。
 openai>=1.30,<2
+# 社交平台视频候选自动抽取成果关键帧；headless 版不依赖桌面图形库。
+opencv-python-headless>=4.10,<5

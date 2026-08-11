@@ -195,7 +195,7 @@ def patch_candidate(
     changes = body.model_dump(exclude_unset=True)
     quality_fields = {
         "title", "is_work", "work_form", "creator_type", "access_friction",
-        "experience_type", "experience_url", "experience_content", "selected_proof_media",
+        "experience_type", "experience_url", "experience_content", "media_json", "selected_proof_media",
         "title_candidates", "hook_clarity", "visual_impact", "surprise", "tryability",
         "shareability", "value_score",
     }
@@ -212,6 +212,16 @@ def patch_candidate(
         cand.experience_url = cand.try_url
     if "selected_proof_media" in changes:
         cand.cover_media_url = (cand.selected_proof_media or {}).get("url")
+    if "media_json" in changes:
+        media_items = (cand.media_json or {}).get("items", []) if isinstance(cand.media_json, dict) else []
+        media_urls = {item.get("url") for item in media_items if isinstance(item, dict)}
+        if cand.selected_proof_media and cand.selected_proof_media.get("url") not in media_urls:
+            cand.selected_proof_media = None
+            cand.cover_media_url = next(
+                (item.get("url") for item in media_items
+                 if isinstance(item, dict) and item.get("media_type") == "image"),
+                None,
+            )
     score_fields = ("hook_clarity", "visual_impact", "surprise", "tryability", "shareability")
     if any(field in changes for field in score_fields) and all(getattr(cand, field) is not None for field in score_fields):
         cand.attraction_score = round(

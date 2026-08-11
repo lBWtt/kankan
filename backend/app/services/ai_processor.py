@@ -23,6 +23,7 @@ from app.models import CandidateContent
 from app.models.enums import CATEGORY, DOMAIN
 from app.services import ai_budget
 from app.services.candidates import check_post_gate, check_publish_gate, select_proof_media
+from app.services.video_frames import extract_candidate_frames
 
 logger = logging.getLogger("app.ai_processor")
 
@@ -655,6 +656,17 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
         candidate.selected_proof_media.get("url") if candidate.selected_proof_media else None
     )
     candidate.is_strong_visual = bool(candidate.visual_impact >= 80 and candidate.selected_proof_media)
+
+    # 社交视频通常只有一张平台封面。Python 自动抽最多 3 张清晰、不重复的关键帧，
+    # 仅作为审核员可选/可删的视觉证据；不会因此自动解除 visual_impact=70 的证据上限。
+    generated_frames = (
+        extract_candidate_frames(candidate)
+        if analysis.is_work and candidate.attraction_score >= 60 else []
+    )
+    if generated_frames:
+        media_items = list((candidate.media_json or {}).get("items") or [])
+        media_items.extend(generated_frames)
+        candidate.media_json = {"items": media_items}
 
     # 体验入口：采集器确定性外链优先于模型抄写；内容型体验不强塞 URL。
     # 成品类来源（PH / Show HN / GitHub 等）的 source_url 可以是产品本身；社交帖只能用采集器

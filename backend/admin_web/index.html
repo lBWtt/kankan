@@ -460,7 +460,8 @@ function renderDetail(c){
   const d=document.getElementById("detail");
   const proofItems = candidateMediaItems(c);
   const selectedProofUrl = c.selected_proof_media && c.selected_proof_media.url;
-  const media = proofItems.map((m,i)=>`<label style="display:inline-block;text-align:center"><img src="${esc(m.url)}" onerror="this.style.display='none'"><br><input type="radio" name="proof_media" value="${i}" ${m.url===selectedProofUrl?'checked':''}> 成果证据</label>`).join("");
+  const mediaEditable = !(c.status==='approved' && c.project_id);
+  const media = proofItems.map((m,i)=>`<label class="candidate-media" style="display:inline-block;text-align:center"><img src="${esc(m.thumbnail_url||m.url)}" onerror="this.style.display='none'"><br><input type="radio" name="proof_media" value="${i}" ${m.url===selectedProofUrl?'checked':''} onchange="selectProofMedia(this)" ${mediaEditable?'':'disabled'}> 成果证据${mediaEditable?`<br><input type="checkbox" name="keep_media" value="${i}" checked onchange="toggleCandidateMedia(this)"> 发布时保留`:''}</label>`).join("");
   const risks = (c.risk_flags||[]).map(r=>`<span class="pill risk">${esc(r)}</span>`).join("");
   const tools = (c.tools||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
   const domains = (c.domains||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
@@ -555,13 +556,15 @@ async function saveEdit(){
 }
 
 function candidateQualityFields(body){
-  const quality=new Set(["title","experience_type","experience_url","experience_content","selected_proof_media"]);
+  const quality=new Set(["title","experience_type","experience_url","experience_content","media_json","selected_proof_media"]);
   return Object.keys(body).filter(k=>quality.has(k));
 }
 
 function changedCandidateFields(){
   const proofRadio=document.querySelector('input[name="proof_media"]:checked');
   const proofItems=candidateMediaItems(current);
+  const keepIndexes=new Set(Array.from(document.querySelectorAll('input[name="keep_media"]:checked')).map(e=>Number(e.value)));
+  const keptMedia=proofItems.filter((_,i)=>keepIndexes.has(i));
   const form={
     title:document.getElementById("e_title").value.trim(),
     tagline:document.getElementById("e_tagline").value.trim(),
@@ -586,8 +589,26 @@ function changedCandidateFields(){
   const oldProof=(old.selected_proof_media&&old.selected_proof_media.url)||"";
   const newProof=(form.selected_proof_media&&form.selected_proof_media.url)||"";
   if(oldProof!==newProof) body.selected_proof_media=form.selected_proof_media;
+  if(JSON.stringify(keptMedia.map(m=>m.url))!==JSON.stringify(proofItems.map(m=>m.url))){
+    body.media_json={items:keptMedia};
+  }
   if(Object.keys(body).length && form.override_reason) body.override_reason=form.override_reason;
   return body;
+}
+
+function toggleCandidateMedia(checkbox){
+  const label=checkbox.closest('.candidate-media');
+  if(label) label.style.opacity=checkbox.checked?'1':'0.35';
+  if(!checkbox.checked){
+    const proof=label&&label.querySelector('input[name="proof_media"]');
+    if(proof) proof.checked=false;
+  }
+}
+
+function selectProofMedia(radio){
+  const label=radio.closest('.candidate-media');
+  const keep=label&&label.querySelector('input[name="keep_media"]');
+  if(keep){ keep.checked=true; label.style.opacity='1'; }
 }
 
 // 已通过内容「再剪辑」：改动直接落到线上项目（PATCH /admin/projects/{project_id}）。
