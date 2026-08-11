@@ -483,7 +483,7 @@ def _iso_datetime(value: object) -> Optional[datetime]:
 def calibrate_evidence_scores(
     candidate: CandidateContent,
     scores: AnalysisScores,
-    experience_url: Optional[str],
+    experience_available: bool,
     *,
     now: Optional[datetime] = None,
 ) -> Tuple[AnalysisScores, int, List[str]]:
@@ -499,7 +499,7 @@ def calibrate_evidence_scores(
         values["visual_impact"] = UNVERIFIED_VISUAL_CAP
         applied.append("unverified_visual_cap_70")
 
-    if not experience_url and values["tryability"] > MISSING_EXPERIENCE_TRYABILITY_CAP:
+    if not experience_available and values["tryability"] > MISSING_EXPERIENCE_TRYABILITY_CAP:
         values["tryability"] = MISSING_EXPERIENCE_TRYABILITY_CAP
         applied.append("missing_experience_tryability_cap_50")
 
@@ -611,8 +611,15 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     # 先解析真实体验入口，再对 DeepSeek 无法亲自确认的视觉/体验事实限分。
     # 原始模型分仍完整保存在 ai_analysis_json，便于随时比较或回滚校准规则。
     _tu = _resolved_experience_url(candidate, analysis.experience_url)
+    has_experience = bool(
+        _tu
+        or (
+            analysis.experience_type in {"prompt_content", "workflow_file"}
+            and (analysis.experience_content or "").strip()
+        )
+    )
     calibrated_scores, calibrated_attraction, calibration_rules = calibrate_evidence_scores(
-        candidate, analysis.scores, _tu
+        candidate, analysis.scores, has_experience
     )
     candidate.hook_clarity = calibrated_scores.hook_clarity
     candidate.visual_impact = calibrated_scores.visual_impact

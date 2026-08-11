@@ -89,7 +89,7 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             shareability=80,
         )
         calibrated, attraction, rules = calibrate_evidence_scores(
-            candidate, scores, None, now=datetime(2026, 8, 11, tzinfo=timezone.utc)
+            candidate, scores, False, now=datetime(2026, 8, 11, tzinfo=timezone.utc)
         )
         self.assertEqual(calibrated.visual_impact, 70)
         self.assertEqual(calibrated.tryability, 50)
@@ -113,10 +113,27 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             shareability=100,
         )
         _, attraction, rules = calibrate_evidence_scores(
-            candidate, scores, "https://example.com", now=datetime(2026, 8, 11, tzinfo=timezone.utc)
+            candidate, scores, True, now=datetime(2026, 8, 11, tzinfo=timezone.utc)
         )
         self.assertEqual(attraction, 81)
         self.assertIn("douyin_old_low_engagement_cap_81", rules)
+
+    def test_content_experience_counts_as_available_without_url(self):
+        candidate = SimpleNamespace(
+            source_platform="jike",
+            raw_json={},
+            human_override_json=None,
+        )
+        scores = AnalysisScores(
+            hook_clarity=80,
+            visual_impact=70,
+            surprise=70,
+            tryability=85,
+            shareability=70,
+        )
+        calibrated, _, rules = calibrate_evidence_scores(candidate, scores, True)
+        self.assertEqual(calibrated.tryability, 85)
+        self.assertNotIn("missing_experience_tryability_cap_50", rules)
 
     def test_verified_visual_and_human_confirmation_bypass_caps(self):
         candidate = SimpleNamespace(
@@ -137,7 +154,7 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             shareability=100,
         )
         calibrated, attraction, rules = calibrate_evidence_scores(
-            candidate, scores, "https://example.com", now=datetime(2026, 8, 11, tzinfo=timezone.utc)
+            candidate, scores, True, now=datetime(2026, 8, 11, tzinfo=timezone.utc)
         )
         self.assertEqual(calibrated.visual_impact, 90)
         self.assertEqual(attraction, 98)
