@@ -19,6 +19,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 import urllib.request
 
@@ -31,6 +32,14 @@ except Exception:
 
 OAUTH = "https://api.producthunt.com/v2/oauth/token"
 GQL = "https://api.producthunt.com/v2/api/graphql"
+
+COMPANY_AD_RE = re.compile(
+    r"\b(?:google|microsoft|meta|adobe|salesforce|hubspot|canva|notion|openai)\b|"
+    r"\b(?:customers?|companies|enterprise|crm|leads?|sales|outreach|campaigns?|ads?|advertis(?:ing|ement)|"
+    r"acquisition|conversion|high-converting|multi-channel|target people|target audience|roi|revenue)\b|"
+    r"获客|客户|销售|广告|投放|转化率|营销|企业级|增长",
+    re.I,
+)
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) kankan-ph-gql/1.0"
 
 
@@ -86,6 +95,11 @@ def collect(token: str, limit: int, days: int, max_makers: int = 4):
         # 广告过滤：maker 一大堆 = 公司级 SaaS 在打广告（Pazi/Tencent 那种），不是"个人做的有意思的东西"。
         # 只留 maker ≤ max_makers 的（个人/小团队），更对味、图也更像真截图而非营销banner。
         if len(n.get("makers") or []) > max_makers:
+            continue
+        # maker 少不等于独立作品：成熟公司也会只挂少数发布人。明显品牌/获客/销售/广告文案机械拦截，
+        # 避免把大型 App 的 Product Hunt 发布稿送进“个体做出来的成果”候选池。
+        ad_blob = " ".join(filter(None, [n.get("name"), n.get("tagline"), n.get("description")]))
+        if COMPANY_AD_RE.search(ad_blob):
             continue
         product = _resolve(n["website"]) if n.get("website") else None
         if not product or "producthunt.com" in product:

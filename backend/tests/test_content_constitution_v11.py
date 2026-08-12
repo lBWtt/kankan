@@ -25,6 +25,7 @@ def _candidate(**overrides):
         domains=["design"],
         work_form="prompt",
         creator_type="indie",
+        risk_flags=[],
         access_friction="instant",
         hook_clarity=80,
         visual_impact=80,
@@ -219,6 +220,12 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             check_publish_gate(
                 _candidate(attraction_score=63, selected_proof_media=None),
                 allow_score_override=True,
+            )
+
+    def test_company_ad_cannot_publish_even_with_high_score(self):
+        with self.assertRaises(AppError):
+            check_publish_gate(
+                _candidate(creator_type="company", risk_flags=["suspected_ad"], attraction_score=90)
             )
 
     def test_legacy_discard_restore_infers_original_workflow_layer(self):

@@ -168,6 +168,8 @@ def check_publish_gate(
     problems: List[str] = []
     if candidate.is_work is not True:
         problems.append("不是完整作品（作品/原料闸未通过）")
+    if candidate.creator_type == "company" and "suspected_ad" in (candidate.risk_flags or []):
+        problems.append("公司/品牌产品广告不得发布")
     if not candidate.title or not (12 <= len(candidate.title.strip()) <= 28):
         problems.append("hook_title 必须为 12～28 个可见字符")
     if not candidate.tagline or len(candidate.tagline) < 5:

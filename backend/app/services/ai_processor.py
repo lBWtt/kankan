@@ -201,6 +201,11 @@ _SCORING_EXAMPLES = """
 判定：即使是产品，hook_clarity/visual_impact 应低，proof=null。
 校准例 6（坏）：纯教程、资讯盘点、卖课引流或转发别人的十个工具，没有自己展示的完整作品。
 判定：is_work=false，并给出明确 rejection reason/risk flag。
+校准例 7（坏）：大型公司/成熟品牌在 Product Hunt 或官网发布 App，正文是“几秒生成高保真 UI”、
+“自动找客户并跟进”、“获客成本下降 60%”等产品功能与转化宣传，配标准营销截图或落地页。
+判定：这是公司产品广告/发布稿，不是“个体做出来的成果”；is_work=false，标 suspected_ad。
+注意：maker 人数少、产品可体验、票数高都不能挽救；只有内容能证明是个人/小团队的具体创作过程与成果展示，
+而不是品牌获客文案时，才可判 indie 作品。
 """
 _SYSTEM_PROMPT = """你是 kankan 冷启动阶段的内容总编。下面是完整、唯一有效的《内容宪法 v1.1》；
 旧的 consumer_ready、旧 fun/fresh/useful 分数和“GitHub 天然可发布”等规则全部作废。
@@ -212,12 +217,33 @@ _SYSTEM_PROMPT = """你是 kankan 冷启动阶段的内容总编。下面是完�
 selected_proof_media_index 只能选择输入媒体清单中确实能证明最终效果的一项；logo、社交卡、官网首页截图必须返回 null。
 来源互动数据是实际传播证据：点赞、收藏、分享可用于校准 shareability 与内容置信度，收藏尤其代表“以后还想用”；
 但高互动不能把教程/观点救成作品，也不能替代视觉核验或真实体验入口。互动低也不能单独否定新发布或小众作品。
+公司/品牌产品发布稿、成熟 SaaS/App 的获客宣传、以转化指标/客户触达/广告投放为卖点的营销内容，
+即使功能完整且有真实官网，也判 is_work=false 并标 suspected_ad；不要把“能使用的公司产品”误当成个体作品。
 文案用具体自然的中文，避免营销腔；不要提来源平台，不要冒充原作者。实现步骤没把握就留空。
 
 ----- 内容宪法 v1.1 全文开始 -----
 """ + _CONTENT_CONSTITUTION + """
 ----- 内容宪法 v1.1 全文结束 -----
 """ + _SCORING_EXAMPLES
+
+_COMPANY_AD_RE = re.compile(
+    r"\b(?:google|microsoft|meta|adobe|salesforce|hubspot|canva|notion|openai)\b|"
+    r"\b(?:customers?|enterprise|crm|leads?|sales|outreach|campaigns?|ads?|advertis(?:ing|ement)|"
+    r"acquisition|conversion|high-converting|multi-channel|target people|target audience|roi|revenue)\b|"
+    r"获客|目标客户|客户触达|销售跟进|广告创意|广告投放|转化率|获客成本|企业级",
+    re.I,
+)
+
+
+def _is_company_product_ad(candidate: CandidateContent, analysis: CandidateAnalysis) -> bool:
+    """确定性兜底：公司身份 + 明显品牌/获客发布稿，不允许靠模型分数进入审核池。"""
+    if analysis.creator_type != "company":
+        return False
+    raw = candidate.raw_json or {}
+    blob = "\n".join(str(v or "") for v in (
+        raw.get("title"), raw.get("text"), candidate.title, candidate.summary,
+    ))
+    return bool(_COMPANY_AD_RE.search(blob))
 
 
 _POST_SYSTEM_PROMPT = """你是「AI 创意社区」的运营，把外部抓来的即刻/小红书上 AI 相关的**真人帖**，
@@ -604,8 +630,12 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     candidate.target_users = analysis.target_users[:5] or None
     candidate.use_cases = analysis.use_cases[:5] or None
     candidate.ai_implementation_hint = _format_hint(analysis.implementation_steps)
-    candidate.is_work = analysis.is_work
-    candidate.work_rejection_reason = analysis.work_rejection_reason
+    company_ad = _is_company_product_ad(candidate, analysis)
+    candidate.is_work = analysis.is_work and not company_ad
+    candidate.work_rejection_reason = (
+        "公司/品牌产品发布稿或获客广告，不属于个体成果"
+        if company_ad else analysis.work_rejection_reason
+    )
     candidate.work_form = analysis.work_form
     candidate.creator_type = analysis.creator_type
     candidate.access_friction = analysis.access_friction
@@ -647,6 +677,8 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
         **({"why_recommend": analysis.why_recommend} if analysis.why_recommend else {}),
     }
     candidate.risk_flags = list(dict.fromkeys(analysis.risk_flags))
+    if company_ad and "suspected_ad" not in candidate.risk_flags:
+        candidate.risk_flags.append("suspected_ad")
     candidate.risk_note = analysis.risk_note
     candidate.selected_proof_media = _durable_social_proof(
         candidate,
@@ -690,7 +722,7 @@ def apply_analysis(db: Session, candidate: CandidateContent, analysis: Candidate
     candidate.override_reason = None
 
     candidate.status = "ai_processed"
-    if not analysis.is_work:
+    if not candidate.is_work:
         candidate.status = "discarded"
         return
     if candidate.attraction_score < 60:
