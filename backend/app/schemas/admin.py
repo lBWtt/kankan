@@ -164,6 +164,12 @@ class CandidateApproveResponse(BaseModel):
     persona_name: Optional[str] = None
 
 
+class CandidateOverrideApproveRequest(BaseModel):
+    """人工破格发布：只允许豁免模型分数线，其他发布准入项仍必须通过。"""
+
+    reason: str = Field(min_length=2, max_length=1000)
+
+
 class AdminProjectEditRequest(BaseModel):
     """PATCH /admin/projects/{id}：管理员「再剪辑」已发布项目的文案（不改所有权/媒体）。"""
 

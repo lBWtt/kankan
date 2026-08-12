@@ -45,6 +45,7 @@ from app.schemas.admin import (
     CandidateListItem,
     CandidateManualCreate,
     CandidateManualCreateResponse,
+    CandidateOverrideApproveRequest,
     CandidatePatch,
     DailyPickPushRequest,
     DailyPickPushResponse,
@@ -266,6 +267,32 @@ def approve(candidate_id: uuid.UUID, admin: User = Depends(admin_required), db: 
     project = approve_candidate(db, cand, admin)
     db.commit()
     # 返回实际派到的马甲昵称（作者），让审核员知道发布后作者显示成谁。
+    author = db.get(User, project.author_user_id) if project.author_user_id else None
+    return CandidateApproveResponse(
+        project_id=project.id,
+        persona_name=author.nickname if author else None,
+    )
+
+
+@router.post(
+    "/candidates/{candidate_id}/approve-override",
+    response_model=CandidateApproveResponse,
+    status_code=201,
+    summary="人工破格发布：只豁免模型分数线，其他准入项不变",
+)
+def approve_override(
+    candidate_id: uuid.UUID,
+    body: CandidateOverrideApproveRequest,
+    admin: User = Depends(admin_required),
+    db: Session = Depends(get_db),
+):
+    cand = _get_candidate(db, candidate_id)
+    if cand.content_kind != "project":
+        raise AppError(422, "VALIDATION_FAILED", "动态候选不支持分数破格发布")
+    if cand.attraction_score is None or cand.attraction_score >= 70:
+        raise AppError(409, "SCORE_OVERRIDE_NOT_NEEDED", "该候选不需要分数破格，请使用普通发布")
+    project = approve_candidate(db, cand, admin, score_override_reason=body.reason.strip())
+    db.commit()
     author = db.get(User, project.author_user_id) if project.author_user_id else None
     return CandidateApproveResponse(
         project_id=project.id,

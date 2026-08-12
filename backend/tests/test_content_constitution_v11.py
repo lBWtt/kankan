@@ -213,6 +213,14 @@ class ContentConstitutionV11Tests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(AppError):
                 check_publish_gate(_candidate(**changes))
 
+    def test_manual_score_override_only_bypasses_score_floor(self):
+        check_publish_gate(_candidate(attraction_score=63), allow_score_override=True)
+        with self.assertRaises(AppError):
+            check_publish_gate(
+                _candidate(attraction_score=63, selected_proof_media=None),
+                allow_score_override=True,
+            )
+
     def test_legacy_discard_restore_infers_original_workflow_layer(self):
         raw = SimpleNamespace(
             human_override_json=None, ai_analysis_json=None, ai_curation_score=None,

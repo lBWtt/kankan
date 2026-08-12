@@ -523,7 +523,12 @@ function renderDetail(c){
           ? `<span class="muted">尚未完成 AI 整理，不能发布</span>
              <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
              <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`
-        : `<button class="btn-primary" onclick="approve('${c.id}')">✓ 通过并发布</button>
+        : (c.attraction_score!=null && c.attraction_score<70)
+          ? `<button class="btn-primary" onclick="approveOverride('${c.id}')">✓ 人工破格发布</button>
+             <span class="muted">模型分 ${c.attraction_score}＜70；仅人工确认可越过分数线</span>
+             <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
+             <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`
+          : `<button class="btn-primary" onclick="approve('${c.id}')">✓ 通过并发布</button>
            <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
            <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`}
     </div>
@@ -693,6 +698,27 @@ async function approve(id){
     // 准入闸失败会带 details.problems
     const probs = e.body && e.body.details && e.body.details.problems;
     toast("发布失败："+(e.body&&e.body.message||e.message)+(probs?("（"+probs.join("；")+"）"):""));
+  }
+}
+
+async function approveOverride(id){
+  if(!confirm("模型分低于 70。确认由人工承担判断，只豁免分数线并发布？其他作品、体验和成果证据准入仍会校验。")) return;
+  try{
+    const pending=changedCandidateFields();
+    if(Object.keys(pending).length){
+      if(candidateQualityFields(pending).length && !pending.override_reason){
+        pending.override_reason="人工确认内容质量并修正候选信息";
+      }
+      current=await api("/admin/candidates/"+id,{method:"PATCH",body:JSON.stringify(pending)});
+    }
+    const typed=document.getElementById("e_override_reason").value.trim();
+    const reason=typed||"人工审核认为内容质量可发布，豁免模型吸引力分数线";
+    const r=await api("/admin/candidates/"+id+"/approve-override",{method:"POST",body:JSON.stringify({reason})});
+    toast("已人工破格发布 · 作者马甲："+(r.persona_name||"—"));
+    dropCurrentRow(id); refreshPending();
+  }catch(e){
+    const probs=e.body&&e.body.details&&e.body.details.problems;
+    toast("破格发布失败："+(e.body&&e.body.message||e.message)+(probs?("（"+probs.join("；")+"）"):""));
   }
 }
 

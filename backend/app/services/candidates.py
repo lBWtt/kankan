@@ -162,6 +162,7 @@ def check_publish_gate(
     *,
     db: Optional[Session] = None,
     transferred_media: Optional[list] = None,
+    allow_score_override: bool = False,
 ) -> None:
     """内容宪法 v1.1 发布准入。传 transferred_media 表示最终发布 gate。"""
     problems: List[str] = []
@@ -182,7 +183,7 @@ def check_publish_gate(
     score_fields = ("hook_clarity", "visual_impact", "surprise", "tryability", "shareability", "attraction_score", "value_score")
     if any(getattr(candidate, field, None) is None for field in score_fields):
         problems.append("吸引力五维、attraction_score、value_score 必须完整")
-    elif candidate.attraction_score < 70:
+    elif candidate.attraction_score < 70 and not allow_score_override:
         problems.append("attraction_score < 70：不得发布")
     if not is_valid_proof_media(candidate.selected_proof_media):
         problems.append("缺少人工/AI 选定的成果证据媒体 selected_proof_media")
@@ -260,7 +261,13 @@ def approve_candidate_as_post(db: Session, candidate: CandidateContent, admin: U
     return post
 
 
-def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> Project:
+def approve_candidate(
+    db: Session,
+    candidate: CandidateContent,
+    admin: User,
+    *,
+    score_override_reason: Optional[str] = None,
+) -> Project:
     """§5.3 复制 + 关联：候选 → 正式项目（published，hot_score=0），媒体/标签一并落表，回写 project_id。
 
     并发安全（C-SVC-1）：approve 入口用 SELECT ... FOR UPDATE 重新加载候选行并刷新
@@ -273,10 +280,16 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
     # 把 identity map 里的旧属性（如 status=pending_review）刷新成数据库提交后的最新值。
     candidate = _lock_approvable(db, candidate)
     # 先做无外部副作用的字段预检；随后转存 proof，成功后再跑最终 gate。
-    check_publish_gate(candidate)
+    allow_score_override = bool(score_override_reason and (candidate.attraction_score or 0) < 70)
+    check_publish_gate(candidate, allow_score_override=allow_score_override)
 
     transferred = transfer_candidate_media(proof_media_for_transfer(candidate), candidate.source_platform)
-    check_publish_gate(candidate, db=db, transferred_media=transferred)
+    check_publish_gate(
+        candidate,
+        db=db,
+        transferred_media=transferred,
+        allow_score_override=allow_score_override,
+    )
     cover_url = next((t["url"] for t in transferred if t.get("media_type") == "image"), None)
     if cover_url is None and transferred:
         cover_url = transferred[0].get("thumbnail_url")
@@ -358,8 +371,21 @@ def approve_candidate(db: Session, candidate: CandidateContent, admin: User) -> 
     candidate.reviewed_by_user_id = admin.id
     candidate.reviewed_at = now
 
-    log_admin_action(db, admin.id, "approve_candidate", "candidate", candidate.id,
-                     {"project_id": str(project.id)})
+    audit_detail = {"project_id": str(project.id)}
+    if allow_score_override:
+        candidate.override_reason = score_override_reason
+        candidate.human_override_json = {
+            **(candidate.human_override_json or {}),
+            "attraction_score_gate": {
+                "model_score": candidate.attraction_score,
+                "minimum": 70,
+                "reason": score_override_reason,
+            },
+        }
+        project.override_reason = candidate.override_reason
+        project.human_override_json = candidate.human_override_json
+        audit_detail["score_override"] = candidate.human_override_json["attraction_score_gate"]
+    log_admin_action(db, admin.id, "approve_candidate", "candidate", candidate.id, audit_detail)
     return project
 
 
