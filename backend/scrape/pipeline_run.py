@@ -83,10 +83,11 @@ def cmd_jike(args):
     if args.headful:
         jargs.append("--headful")
     run(jargs)
-    refresh_voice_bank()  # 用真帖刷新口吻样本库
-    run([PY, "-m", "app.pipeline", "collect", "items_jike.json", "--platform", "jike", "--kind", "post"])
+    # jike_collector 只输出带真实站外作品入口+proof 的 content_kind=project；
+    # 不走即刻动态改写，也不刷新动态口吻样本库。
+    run([PY, "-m", "app.pipeline", "collect", "items_jike.json", "--platform", "jike", "--kind", "project"])
     _process()
-    print("\n即刻动态已进**待审核队列**（人工审核后发布：管理员端 approve → 建 Post）。")
+    print("\n即刻具体作品已进项目审核队列；无站外作品入口或 proof 的帖子不会输出。")
 
 
 def cmd_x(args):
@@ -240,7 +241,7 @@ def main() -> int:
     g.add_argument("--limit", type=int, default=40)
     g.set_defaults(func=cmd_github)
 
-    j = sub.add_parser("jike", help="动态·即刻（人工审核）")
+    j = sub.add_parser("jike", help="项目·即刻（只提取站外具体作品，不处理动态）")
     j.add_argument("--scrolls", type=int, default=10)
     j.add_argument("--headful", action="store_true", help="首次扫码登录用")
     j.set_defaults(func=cmd_jike)
