@@ -206,6 +206,12 @@
           <option value="project">只看项目</option>
         </select>
         <input id="fPlatform" placeholder="平台(如 producthunt)" onchange="reload()">
+        <select id="fSort" onchange="reload()">
+          <option value="score_desc">评分：高到低</option>
+          <option value="score_asc">评分：低到高</option>
+          <option value="newest">加入时间：最新</option>
+          <option value="oldest">加入时间：最早</option>
+        </select>
       </div>
       <div class="list" id="list"></div>
     </div>
@@ -394,10 +400,12 @@ async function loadMore(fresh){
   const status=document.getElementById("fStatus").value;
   const kind=document.getElementById("fKind").value;
   const platform=document.getElementById("fPlatform").value.trim();
+  const sort=document.getElementById("fSort").value;
   let q = "/admin/candidates?page_size=30";
   if(status) q+="&status="+encodeURIComponent(status);
   if(kind) q+="&content_kind="+encodeURIComponent(kind);
   if(platform) q+="&source_platform="+encodeURIComponent(platform);
+  q+="&sort="+encodeURIComponent(sort);
   if(cursor) q+="&cursor="+encodeURIComponent(cursor);
   try{
     const page = await api(q);

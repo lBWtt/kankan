@@ -127,6 +127,11 @@ def list_candidates(
     source_platform: Optional[str] = None,
     language: Optional[Language] = None,
     q: Optional[str] = Query(None, max_length=80),
+    sort: str = Query(
+        "score_desc",
+        pattern="^(score_desc|score_asc|newest|oldest)$",
+        description="score_desc/score_asc/newest/oldest",
+    ),
     cursor: Optional[str] = None,
     page_size: int = Query(20, ge=1, le=50),
     db: Session = Depends(get_db),
@@ -154,27 +159,47 @@ def list_candidates(
         # 使用 safe_like_pattern 转义特殊字符 % 和 _，防止模式注入
         stmt = stmt.where(CandidateContent.title.ilike(safe_like_pattern(q)))
 
-    # 按 AI 评分排序：高分优先（无分的用 -1 沉底），同分再按新→旧。
-    # 审核台默认让「最该发的」浮到最上面，边审边毙，效率最高（无分 = 还没 AI 打分，排最后）。
-    score_key = func.coalesce(CandidateContent.ai_curation_score, -1)
-    stmt = stmt.order_by(score_key.desc(), CandidateContent.created_at.desc(), CandidateContent.id.desc())
-    if cursor:
-        c_score_s, c_dt_s, c_id_s = decode_cursor(cursor, 3)
-        c_score, c_dt, c_id = int(c_score_s), datetime.fromisoformat(c_dt_s), uuid.UUID(c_id_s)
-        stmt = stmt.where(
-            tuple_(score_key, CandidateContent.created_at, CandidateContent.id) < (c_score, c_dt, c_id)
+    # 四种稳定排序均带 id 兜底，游标翻页不会重复/漏项。评分排序中无分统一沉底。
+    score_key = func.coalesce(
+        CandidateContent.ai_curation_score,
+        101 if sort == "score_asc" else -1,
+    )
+    if sort in {"score_desc", "score_asc"}:
+        descending = sort == "score_desc"
+        order = (score_key.desc(), CandidateContent.created_at.desc(), CandidateContent.id.desc()) if descending else (
+            # 无分不能排到“低分优先”最前面；先按是否无分，再按实际分数升序。
+            score_key.asc(), CandidateContent.created_at.asc(), CandidateContent.id.asc()
         )
+        stmt = stmt.order_by(*order)
+        if cursor:
+            c_score_s, c_dt_s, c_id_s = decode_cursor(cursor, 3)
+            key = (int(c_score_s), datetime.fromisoformat(c_dt_s), uuid.UUID(c_id_s))
+            row_key = tuple_(score_key, CandidateContent.created_at, CandidateContent.id)
+            stmt = stmt.where(row_key < key if descending else row_key > key)
+    else:
+        descending = sort == "newest"
+        order = (CandidateContent.created_at.desc(), CandidateContent.id.desc()) if descending else (
+            CandidateContent.created_at.asc(), CandidateContent.id.asc()
+        )
+        stmt = stmt.order_by(*order)
+        if cursor:
+            c_dt_s, c_id_s = decode_cursor(cursor, 2)
+            key = (datetime.fromisoformat(c_dt_s), uuid.UUID(c_id_s))
+            row_key = tuple_(CandidateContent.created_at, CandidateContent.id)
+            stmt = stmt.where(row_key < key if descending else row_key > key)
 
     rows = db.scalars(stmt.limit(page_size + 1)).all()
     has_more = len(rows) > page_size
     rows = rows[:page_size]
-    next_cursor = (
-        encode_cursor([
-            str(rows[-1].ai_curation_score if rows[-1].ai_curation_score is not None else -1),
-            rows[-1].created_at.isoformat(),
-            str(rows[-1].id),
-        ]) if has_more and rows else None
-    )
+    if has_more and rows:
+        last = rows[-1]
+        next_cursor = encode_cursor(
+            [str(last.ai_curation_score if last.ai_curation_score is not None else (101 if sort == "score_asc" else -1)), last.created_at.isoformat(), str(last.id)]
+            if sort in {"score_desc", "score_asc"}
+            else [last.created_at.isoformat(), str(last.id)]
+        )
+    else:
+        next_cursor = None
     return Page[CandidateListItem](
         items=[CandidateListItem.model_validate(r) for r in rows], next_cursor=next_cursor, has_more=has_more
     )
