@@ -37,17 +37,30 @@ class JikeProjectContractTests(unittest.TestCase):
         self.assertEqual(item["try_url"], "https://work.example/app")
         self.assertEqual(item["content_kind"], "project")
 
-    def test_social_link_is_not_experience(self):
+    def test_social_link_is_not_experience_but_can_wait_for_manual_link(self):
         post = self.post()
         post["urlsInText"] = [{"url": "https://www.bilibili.com/video/BV1"}]
         post["content"] = "我做了个小游戏 https://www.bilibili.com/video/BV1"
-        self.assertIsNone(jike._to_project_item(post))
+        item = jike._to_project_item(post)
+        self.assertIsNotNone(item)
+        self.assertNotIn("try_url", item)
+        self.assertTrue(item["requires_manual_experience_url"])
 
     def test_no_proof_means_skip(self):
         post = self.post()
         post["pictures"] = []
         with patch.object(jike, "gather_media", return_value=[]):
             self.assertIsNone(jike._to_project_item(post))
+
+    def test_project_with_post_proof_can_wait_for_manual_experience_url(self):
+        post = self.post()
+        post["urlsInText"] = []
+        post["content"] = "我用 AI 做了个免费的教授视频生成器，已经做出来了"
+        item = jike._to_project_item(post)
+        self.assertIsNotNone(item)
+        self.assertNotIn("try_url", item)
+        self.assertTrue(item["requires_manual_experience_url"])
+        self.assertEqual(item["content_kind"], "project")
 
     def test_tutorial_is_material_not_work(self):
         post = self.post()
@@ -56,6 +69,18 @@ class JikeProjectContractTests(unittest.TestCase):
 
 
 class MediaCrawlerConstitutionTests(unittest.TestCase):
+    def test_xhs_project_can_wait_for_manual_experience_url(self):
+        item = media_adapter.map_xhs({
+            "note_url": "https://www.xiaohongshu.com/explore/1",
+            "title": "我做了一个会跟着音乐跳动的网页",
+            "desc": "已经上线，视频里是最终效果",
+            "image_list": "https://cdn.example/proof.jpg",
+        })
+        self.assertIsNotNone(item)
+        self.assertNotIn("try_url", item)
+        self.assertTrue(item["requires_manual_experience_url"])
+        self.assertTrue(item["media"])
+
     def test_outcome_passes_with_proof_and_heat(self):
         item = {
             "source_url": "https://www.douyin.com/video/1",

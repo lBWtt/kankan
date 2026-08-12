@@ -1,8 +1,8 @@
 """Collect concrete vibe-coding works from Jike.
 
 The Jike post is provenance only. A candidate is emitted only when the post
-contains a real external work URL and proof media can be obtained either from
-the post or from the work page itself.
+contains concrete outcome evidence. A real external work URL is preferred but
+may be added later by a human; proof media is still mandatory.
 """
 from __future__ import annotations
 
@@ -116,10 +116,15 @@ def _to_project_item(obj: dict) -> Optional[dict]:
     if len(content) < 8 or not _is_outcome(content):
         return None
     targets = _external_urls(obj)
-    if not targets:
-        return None
-    target = targets[0]
-    media = gather_media(target, 3, extra=_pic_urls(obj))
+    target = targets[0] if targets else None
+    post_proof = _pic_urls(obj)
+    # 有真实作品入口时同时核验作品页；没有入口时允许用即刻帖内成果图/视频封面先入池，
+    # 标记待人工补链接。proof 仍是硬闸，纯文字自述不能进项目池。
+    media = (
+        gather_media(target, 3, extra=post_proof)
+        if target else
+        [{"url": url, "media_type": "image"} for url in post_proof[:3]]
+    )
     if not media:
         return None
 
@@ -129,9 +134,8 @@ def _to_project_item(obj: dict) -> Optional[dict]:
         f"jike://post/{hashlib.md5(content.encode('utf-8')).hexdigest()}"
     )
     user = obj.get("user") or {}
-    return {
+    item = {
         "source_url": source,
-        "try_url": target,
         "title": content[:80],
         "text": content,
         "source_platform": "jike",
@@ -144,7 +148,11 @@ def _to_project_item(obj: dict) -> Optional[dict]:
             "comments": obj.get("commentCount") or 0,
             "shares": obj.get("repostCount") or obj.get("shareCount") or 0,
         },
+        "requires_manual_experience_url": not bool(target),
     }
+    if target:
+        item["try_url"] = target
+    return item
 
 
 def convert_posts(posts: Iterable[dict]) -> List[dict]:
