@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import random
 import re
 import sys
 from typing import Iterable, List, Optional
@@ -19,6 +20,7 @@ from collector_covers import gather_media
 
 
 EXPLORE_URL = "https://web.okjike.com/explore"
+DEFAULT_KEYWORDS = "vibecoding,我做了个网站,我做了个APP,独立开发上线,用AI做了个"
 API_HOSTS = ("okjike.com/api", "web-api.okjike.com", "api.ruguoapp.com")
 OUTCOME_RE = re.compile(
     r"我(?:用|拿|让).{0,12}(?:做|搓|写|搭|开发)|我做了|做了个|做了一个|"
@@ -179,7 +181,7 @@ def convert_raw(raw_path: str, out: str) -> int:
 
 
 def collect(out: str, scrolls: int, headful: bool, user_data_dir: str,
-            dump_raw: Optional[str] = None) -> int:
+            dump_raw: Optional[str] = None, keywords: str = DEFAULT_KEYWORDS) -> int:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -216,10 +218,23 @@ def collect(out: str, scrolls: int, headful: bool, user_data_dir: str,
                 page.wait_for_timeout(5000)
                 if captured:
                     break
-        for index in range(scrolls):
-            page.mouse.wheel(0, 3000)
-            page.wait_for_timeout(2500)
-            print(f"scroll {index + 1}/{scrolls}, captured nodes={len(captured)}")
+        queries = [value.strip() for value in keywords.split(",") if value.strip()]
+        for query in queries:
+            search = page.locator("input").first
+            search.wait_for(state="visible", timeout=30000)
+            # 即刻会弹“为你推荐新内容”toast，可能短暂遮挡搜索框。focus 不走鼠标命中，
+            # 再用键盘全选清空，既能避开浮层，也保持逐字输入的正常用户行为。
+            search.focus()
+            search.press("Control+A")
+            search.press("Backspace")
+            search.press_sequentially(query, delay=random.randint(70, 140))
+            page.wait_for_timeout(random.randint(500, 1100))
+            search.press("Enter")
+            page.wait_for_timeout(random.randint(2200, 3600))
+            for index in range(scrolls):
+                page.mouse.wheel(0, random.randint(1700, 2800))
+                page.wait_for_timeout(random.randint(1500, 2600))
+            print(f"query={query!r}, captured nodes={len(captured)}")
         context.close()
 
     items = convert_posts(captured)
@@ -237,13 +252,16 @@ def main() -> int:
     parser.add_argument("-o", "--out", default="items_jike_projects.json")
     parser.add_argument("--from-raw", help="Convert an earlier raw API dump without logging in")
     parser.add_argument("--scrolls", type=int, default=8)
+    parser.add_argument("--keywords", default=DEFAULT_KEYWORDS,
+                        help="Comma-separated outcome-oriented search terms")
     parser.add_argument("--headful", action="store_true")
     parser.add_argument("--dump-raw")
     parser.add_argument("--user-data-dir", default=os.path.abspath("./.jike_userdata"))
     args = parser.parse_args()
     if args.from_raw:
         return convert_raw(args.from_raw, args.out)
-    return collect(args.out, args.scrolls, args.headful, args.user_data_dir, args.dump_raw)
+    return collect(args.out, args.scrolls, args.headful, args.user_data_dir,
+                   args.dump_raw, args.keywords)
 
 
 if __name__ == "__main__":
