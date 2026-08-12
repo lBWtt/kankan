@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ from app.services.ai_processor import (
     AnalysisScores,
     _durable_social_proof,
     _resolved_experience_url,
+    _transfer_social_proof_before_analysis,
     calibrate_evidence_scores,
     compute_curation_score,
 )
@@ -66,6 +68,40 @@ def _project(index: int, form: str, **overrides):
 
 
 class ContentConstitutionV11Tests(unittest.TestCase):
+    def test_social_proof_is_transferred_before_analysis(self):
+        candidate = SimpleNamespace(
+            source_platform="xiaohongshu",
+            media_json={"items": [{"url": "https://sns.example/proof.jpg", "media_type": "image"}]},
+            cover_media_url="https://sns.example/proof.jpg",
+            status="ai_collected",
+            risk_flags=[],
+            work_rejection_reason=None,
+        )
+        with patch(
+            "app.services.ai_processor.transfer_candidate_media",
+            return_value=[{"url": "/uploads/proof.jpg", "media_type": "image"}],
+        ):
+            self.assertTrue(_transfer_social_proof_before_analysis(candidate))
+        self.assertEqual(candidate.cover_media_url, "/uploads/proof.jpg")
+        self.assertEqual(candidate.media_json["items"][0]["url"], "/uploads/proof.jpg")
+
+    def test_social_candidate_is_discarded_when_no_proof_can_be_transferred(self):
+        candidate = SimpleNamespace(
+            source_platform="jike",
+            media_json={"items": [{"url": "https://cdn.example/proof.jpg", "media_type": "image"}]},
+            cover_media_url="https://cdn.example/proof.jpg",
+            status="ai_collected",
+            risk_flags=[],
+            work_rejection_reason=None,
+        )
+        with patch(
+            "app.services.ai_processor.transfer_candidate_media", return_value=[]
+        ):
+            self.assertFalse(_transfer_social_proof_before_analysis(candidate))
+        self.assertEqual(candidate.status, "discarded")
+        self.assertIsNone(candidate.cover_media_url)
+        self.assertIn("low_quality", candidate.risk_flags)
+
     def test_attraction_score_is_computed_by_backend_weights(self):
         scores = AnalysisScores(
             hook_clarity=80,

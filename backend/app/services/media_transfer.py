@@ -44,6 +44,7 @@ _UA = (
 # **新增平台就往这里加一行**（source_platform 用 ingestion 里的友好名，小写）。
 _PLATFORM_HEADERS = {
     "xiaohongshu": {"Referer": "https://www.xiaohongshu.com/"},
+    "jike": {"Referer": "https://web.okjike.com/"},
     "douyin": {"Referer": "https://www.douyin.com/"},
     "kuaishou": {"Referer": "https://www.kuaishou.com/"},
     "bilibili": {"Referer": "https://www.bilibili.com/"},

@@ -23,9 +23,28 @@ from app.models import CandidateContent
 from app.models.enums import CATEGORY, DOMAIN
 from app.services import ai_budget
 from app.services.candidates import check_post_gate, check_publish_gate, select_proof_media
+from app.services.media_transfer import transfer_candidate_media
 from app.services.video_frames import extract_candidate_frames
 
 logger = logging.getLogger("app.ai_processor")
+
+_SOCIAL_MEDIA_TRANSFER_PLATFORMS = {"xiaohongshu", "douyin", "jike"}
+
+
+def _transfer_social_proof_before_analysis(candidate: CandidateContent) -> bool:
+    """Make social proof durable before AI/gates; raw CDN URLs are not reviewable proof."""
+    if candidate.source_platform not in _SOCIAL_MEDIA_TRANSFER_PLATFORMS:
+        return True
+    items = list((candidate.media_json or {}).get("items") or [])
+    durable = transfer_candidate_media(items, candidate.source_platform)
+    candidate.media_json = {"items": durable}
+    candidate.cover_media_url = durable[0].get("url") if durable else None
+    if durable:
+        return True
+    candidate.status = "discarded"
+    candidate.risk_flags = list(dict.fromkeys([*(candidate.risk_flags or []), "low_quality"]))
+    candidate.work_rejection_reason = "成果媒体转存失败，审核台无法核验 proof"
+    return False
 
 # 风险标记的固定取值（admin 文档 §4：疑似广告/重复/侵权/低质，AI 标了运营必须人工确认）
 RISK_FLAGS = ("suspected_ad", "duplicate", "copyright_risk", "low_quality")
@@ -779,6 +798,11 @@ def process_collected(
             if candidate.content_kind == "post":
                 apply_post_analysis(db, candidate, analyze_post(_post_payload_for(candidate)))
             else:
+                if not _transfer_social_proof_before_analysis(candidate):
+                    db.commit()
+                    stats["processed"] += 1
+                    consecutive_failures = 0
+                    continue
                 apply_analysis(db, candidate, analyze(_payload_for(candidate)))
             db.commit()
             stats["processed"] += 1
