@@ -803,6 +803,11 @@ def process_collected(
                     stats["processed"] += 1
                     consecutive_failures = 0
                     continue
+                # Media transfer is a factual, durable preprocessing step. Commit it before
+                # calling DeepSeek so an AI timeout/bad response cannot roll the proof URLs
+                # back to expiring/hotlink-protected social CDN addresses.
+                if candidate.source_platform in _SOCIAL_MEDIA_TRANSFER_PLATFORMS:
+                    db.commit()
                 apply_analysis(db, candidate, analyze(_payload_for(candidate)))
             db.commit()
             stats["processed"] += 1
