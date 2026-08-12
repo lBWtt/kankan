@@ -153,7 +153,13 @@ def main() -> int:
     adapter = Path(__file__).with_name("mediacrawler_adapter.py")
     adapt_cmd = [sys.executable, str(adapter), "--dir", str(work_dir), "--platform", "dy", "--discovery", "-o", str(Path(args.out).resolve())]
     adapted = _run(adapt_cmd, Path.cwd())
-    stats["adapter_exit"] = adapted.returncode
+    # 某轮所有通道均为空不是程序错误；仍产出空标准数组，便于调度器继续下一轮。
+    if adapted.returncode and "没找到 jsonl" in ((adapted.stdout or "") + (adapted.stderr or "")):
+        Path(args.out).resolve().write_text("[]\n", encoding="utf-8")
+        stats["adapter_exit"] = 0
+        stats["empty_round"] = True
+    else:
+        stats["adapter_exit"] = adapted.returncode
     stats["finished_at"] = datetime.now(timezone.utc).isoformat()
     stats["channels"] = Counter({
         "station_search": len(queries),
@@ -164,7 +170,7 @@ def main() -> int:
     audit_path = work_dir / "discovery_audit.json"
     audit_path.write_text(json.dumps(stats, ensure_ascii=False, indent=2, default=dict), encoding="utf-8")
     print(json.dumps(stats, ensure_ascii=False, indent=2, default=dict))
-    return adapted.returncode
+    return stats["adapter_exit"]
 
 
 if __name__ == "__main__":

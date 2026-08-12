@@ -236,6 +236,22 @@ def _discovery_result(item: dict) -> tuple[bool, List[str]]:
     return not reasons, reasons
 
 
+def _review_pool_result(item: dict) -> tuple[bool, List[str]]:
+    """扩大 DeepSeek 审查面：成果/非教程/proof 三道闸不变，不设绝对热度线。"""
+    blob = f"{item.get('title') or ''}\n{item.get('text') or ''}"
+    headline = (item.get("title") or "")[:160]
+    reasons: List[str] = []
+    if not (OUTCOME_RE.search(blob) or (
+        FORMAT_RE.search(headline) and ARTIFACT_RE.search(headline)
+    )):
+        reasons.append("not_outcome_intent")
+    if MATERIAL_RE.search(blob):
+        reasons.append("tutorial_or_material")
+    if not item.get("media"):
+        reasons.append("missing_proof")
+    return not reasons, reasons
+
+
 def _engagement_priority(item: dict) -> int:
     """平台内发现排序；抖音已验证收藏权重 2，其它平台暂不套用该实验系数。"""
     engagement = item.get("engagement") or {}
@@ -254,9 +270,12 @@ def main() -> int:
                     help="按宪法 9.0 粗筛：成果意图、非教程、有 proof、高互动")
     ap.add_argument("--discovery", action="store_true",
                     help="话题池发现模式：成果/proof 闸不变，热度降为赞1万或收藏2千")
+    ap.add_argument("--review-pool", action="store_true",
+                    help="扩大DeepSeek审查面：成果/非教程/proof闸不变，按互动排序而不设绝对热度线")
+    ap.add_argument("--max-items", type=int, default=0, help="排序后最多输出多少条；0=不限")
     args = ap.parse_args()
-    if args.constitution and args.discovery:
-        ap.error("--constitution 与 --discovery 只能选一个")
+    if sum(bool(x) for x in (args.constitution, args.discovery, args.review_pool)) > 1:
+        ap.error("--constitution / --discovery / --review-pool 只能选一个")
 
     mapper = MAPPERS[args.platform]
     rows, files = _read_jsonl_files(args.dir, args.platform)
@@ -273,9 +292,11 @@ def main() -> int:
             continue
         if item["source_url"] in seen:
             continue
-        if args.constitution or args.discovery:
+        if args.constitution or args.discovery or args.review_pool:
             passed, reasons = (
-                _constitution_result(item) if args.constitution else _discovery_result(item)
+                _constitution_result(item) if args.constitution else
+                _discovery_result(item) if args.discovery else
+                _review_pool_result(item)
             )
             if not passed:
                 for reason in reasons:
@@ -285,17 +306,19 @@ def main() -> int:
         seen.add(item["source_url"])
         items.append(item)
 
-    if args.constitution or args.discovery:
+    if args.constitution or args.discovery or args.review_pool:
         # 搜索接口原顺序偏平台相关性/个性化；在已通过成果语义与 proof 后，
         # 用点赞+2×收藏决定有限 DeepSeek 预算先处理谁。
         items.sort(key=_engagement_priority, reverse=True)
+        if args.max_items > 0:
+            items = items[:args.max_items]
 
     out = args.out or f"items_{args.platform}.json"
     with open(out, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
     print(f"读 {len(files)} 个 jsonl、{len(rows)} 行 → 转出 {len(items)} 条标准条目 → {out}")
-    if args.constitution or args.discovery:
-        label = "宪法粗筛拦截" if args.constitution else "发现模式拦截"
+    if args.constitution or args.discovery or args.review_pool:
+        label = "宪法粗筛拦截" if args.constitution else "发现模式拦截" if args.discovery else "扩大送审池拦截"
         print(label + "：" + json.dumps(rejected, ensure_ascii=False, sort_keys=True))
     print(f"下一步：python -m app.pipeline collect {out} --platform {PLATFORM_SOURCE_NAME[args.platform]}")
     return 0

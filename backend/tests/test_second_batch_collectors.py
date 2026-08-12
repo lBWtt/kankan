@@ -121,6 +121,25 @@ class MediaCrawlerConstitutionTests(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("tutorial_or_material", reasons)
 
+    def test_review_pool_expands_heat_only(self):
+        item = {
+            "source_url": "https://www.douyin.com/video/6",
+            "source_platform": "douyin",
+            "title": "我做了个能玩的音乐可视化网站",
+            "text": "展示完整成果画面和实际操作效果。",
+            "media": [{"url": "https://cdn.example/work.mp4", "media_type": "video"}],
+            "engagement": {"likes": 120, "collects": 35},
+        }
+        discovery, _ = media_adapter._discovery_result(item)
+        review_pool, reasons = media_adapter._review_pool_result(item)
+        self.assertFalse(discovery)
+        self.assertTrue(review_pool, reasons)
+
+        item["title"] = "保姆级教程：教你做音乐可视化"
+        review_pool, reasons = media_adapter._review_pool_result(item)
+        self.assertFalse(review_pool)
+        self.assertIn("tutorial_or_material", reasons)
+
     def test_engagement_priority_weights_collects_more_than_likes(self):
         save_heavy = {"source_platform": "douyin", "engagement": {"likes": 5000, "collects": 4000}}
         like_heavy = {"source_platform": "douyin", "engagement": {"likes": 10000, "collects": 1000}}
