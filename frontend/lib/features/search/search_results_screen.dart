@@ -243,12 +243,20 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
         textAlignVertical: TextAlignVertical.center,
         style: KkType.body.copyWith(color: KkColors.t1),
         decoration: InputDecoration(
+          hintText: '搜索',
+          hintStyle: KkType.body.copyWith(color: KkColors.t4),
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: KkSpacing.md),
+          // 修 bug：原来只有横向 padding + prefixIcon minHeight:42（顶满容器高），
+          // 让 isDense 输入框的文字基线被挤出可见区 → 搜索词「明明有（× 清除键在）却不显示」。
+          // 对齐输入页 search_screen 那套已验证正常的配置：加纵向 padding + 图标 minHeight:36。
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: KkSpacing.md,
+            vertical: KkSpacing.sm,
+          ),
           prefixIcon: const Icon(Icons.search, size: 18, color: KkColors.t3),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 36,
-            minHeight: 42,
+            minHeight: 36,
           ),
           suffixIcon: _ctrl.text.isNotEmpty
               ? Tappable(
@@ -257,6 +265,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
                   child: const Icon(Icons.close, size: 16, color: KkColors.t3),
                 )
               : null,
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 36,
+            minHeight: 36,
+          ),
           border: InputBorder.none,
         ),
         onSubmitted: _search,

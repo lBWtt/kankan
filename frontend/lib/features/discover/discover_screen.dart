@@ -230,7 +230,10 @@ class _RecommendFeedState extends ConsumerState<_RecommendFeed> {
   Widget build(BuildContext context) {
     // 任务⑬:推荐流顶部「今日话题」横条(话题空则不渲染,零旁白)。
     // 统一走 topTopicsProvider：mock 读内存、remote 读 /topics；加载中/失败 → 空 → 不渲染。
-    final topics = ref.watch(topTopicsProvider(8)).asData?.value ?? const [];
+    // 「今日话题」= 取高热池 top-30，按当天日期滚动窗口取 8 个 → 每天换一批、但仍是真实高热话题
+    // （后端只按 heat 定序，冷启动内容少时 top-8 天天一样，会「固定死」；这里按日轮换消除固定感）。
+    final pool = ref.watch(topTopicsProvider(30)).asData?.value ?? const <Topic>[];
+    final topics = _todayTopics(pool, 8);
 
     final Widget feed;
     final state = ref.watch(paginatedPostsProvider);
@@ -290,6 +293,19 @@ class _RecommendFeedState extends ConsumerState<_RecommendFeed> {
         Expanded(child: feed),
       ],
     );
+  }
+
+  /// 「今日话题」按天轮换：从高热池里以当天日期为种子滑动出 [take] 个。
+  /// 同一天内稳定（不会每次 rebuild 抖动），跨天自动换一批 → 消除「固定死」。
+  /// 池不够 take 时原样返回（零旁白：不足就少显示几个，不编造）。
+  List<Topic> _todayTopics(List<Topic> pool, int take) {
+    if (pool.length <= take) return pool;
+    final now = DateTime.now();
+    final epochDay =
+        DateTime(now.year, now.month, now.day).millisecondsSinceEpoch ~/
+            Duration.millisecondsPerDay;
+    final start = (epochDay * take) % pool.length;
+    return [for (var i = 0; i < take; i++) pool[(start + i) % pool.length]];
   }
 
   /// 本地日期串 yyyy-mm-dd（用于「今日话题」按天记忆关闭态）。
