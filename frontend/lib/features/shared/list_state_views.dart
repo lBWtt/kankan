@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/kk_colors.dart';
@@ -20,13 +22,20 @@ class ListLoadingState extends StatefulWidget {
 
 class _ListLoadingStateState extends State<ListLoadingState> {
   bool _showSlowMessage = false;
+  Timer? _slowMessageTimer;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(seconds: 4), () {
+    _slowMessageTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _showSlowMessage = true);
     });
+  }
+
+  @override
+  void dispose() {
+    _slowMessageTimer?.cancel();
+    super.dispose();
   }
 
   @override

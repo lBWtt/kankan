@@ -18,9 +18,11 @@ from typing import Optional
 # 平台 → 热度门槛（collects 收藏为主，likes 点赞为辅）。圈子大小不同，门槛不同。
 # 起步值：先跑一周看真实分布再收紧（阈值是可调旋钮，不是铁律）。
 PLATFORM_THRESHOLDS = {
-    "xiaohongshu": {"collects": 200, "likes": 500},
-    "douyin": {"collects": 300, "likes": 2000},   # 抖音赞虚高，收藏/转发更真
-    "kuaishou": {"collects": 300, "likes": 2000},
+    # 抖音/小红书/快手：链接不外露，产品链接靠**人工补**，所以只留「真正火」的（赞+收藏都要高，见
+    # REQUIRE_BOTH_PLATFORMS），把量压到很小、只挑最值得人工去找链接的爆款。门槛调高、可再调。
+    "xiaohongshu": {"collects": 1000, "likes": 3000},
+    "douyin": {"collects": 2000, "likes": 20000},   # 抖音赞虚高，收藏/转发更真，故收藏门槛也拉高
+    "kuaishou": {"collects": 2000, "likes": 20000},
     "bilibili": {"collects": 300, "likes": 1000},
     "jike": {"collects": 20, "likes": 50},          # 圈子小浓度高，门槛低很多
     # GitHub：collector 已按 star 增速/主题白名单精选，这里只做**完整性+活性兜底**门槛。
@@ -28,6 +30,11 @@ PLATFORM_THRESHOLDS = {
     "github": {"collects": 30, "likes": 5},
 }
 DEFAULT_THRESHOLD = {"collects": 200, "likes": 500}
+
+# 「赞和收藏都要够」的平台（2026-08-09 改）：抖音/小红书/快手 链接不外露，只能人工补链接，
+# 所以只挑**真正的爆款**——收藏 AND 点赞**同时**过高门槛（普通「或」太松会放进一堆没链接的水贴）。
+# 这些进池后没 try_url，会停在 ai_processed 等你人工补链接+审。别的平台仍是「收藏或点赞任一达标」。
+REQUIRE_BOTH_PLATFORMS = {"douyin", "xiaohongshu", "kuaishou"}
 
 # 完整性门槛（无图/纯晒图/无外链，粗筛就砍）
 MIN_TEXT_LEN = 10   # 正文太短多半是纯晒图无内容
@@ -87,8 +94,14 @@ def evaluate(item: dict, platform: Optional[str]) -> dict:
     # 收藏率仅作参考指标（不再当红线，见文件头）：收藏/点赞。
     save_rate = round(collects / likes, 3) if likes > 0 else None
 
-    # 热度粗筛（收藏为主信号；纯砍长尾，与定位无关）
-    if collects < th["collects"] and likes < th["likes"]:
+    # 热度粗筛。抖音/小红书/快手（链接靠人工补）：**收藏 AND 点赞都要过高门槛**，只留真爆款；
+    # 其它平台：收藏 或 点赞 任一达标即过（从宽，精判交 DeepSeek）。
+    if (platform or "").lower() in REQUIRE_BOTH_PLATFORMS:
+        if collects < th["collects"] or likes < th["likes"]:
+            reasons.append(
+                f"未达爆款门槛（需 收藏≥{th['collects']} 且 点赞≥{th['likes']}；实际 收藏{collects}/点赞{likes}）"
+            )
+    elif collects < th["collects"] and likes < th["likes"]:
         reasons.append(
             f"热度不足（收藏 {collects}<{th['collects']} 且 点赞 {likes}<{th['likes']}）"
         )

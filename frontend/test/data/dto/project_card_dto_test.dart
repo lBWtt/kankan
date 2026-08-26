@@ -341,7 +341,8 @@ void main() {
       expect(p.id, 'd1');
       expect(p.title, '水墨游鱼');
       expect(p.summary, '可灵 AI 做的水墨风游鱼');
-      expect(p.authorNote, '试了 7 次才稳定。'); // 详情层有 intro
+      expect(p.authorNote, isNull);
+      expect(p.resultData.text, '试了 7 次才稳定。');
       expect(p.authorId, 'lin');
       expect(p.tags, ['可灵', '水墨']);
       expect(p.domain, 'ai_video');
@@ -407,13 +408,14 @@ void main() {
       expect(p.resultData.media.first.type, 'image');
     });
 
-    test('authorNote:intro 缺失 → 退到 description', () {
+    test('详情正文:intro 缺失 → description 进入 resultData.text', () {
       const j = <String, dynamic>{
         'id': 'd7',
         'description': '从 description 来',
       };
       final p = projectFromDetailJson(j);
-      expect(p.authorNote, '从 description 来');
+      expect(p.authorNote, isNull);
+      expect(p.resultData.text, '从 description 来');
     });
 
     test('authorNote:intro 与 description 都缺 → null', () {
@@ -438,12 +440,18 @@ void main() {
       const j = <String, dynamic>{
         'id': 'd11',
         'media': [
-          {'type': 'video', 'url': '/uploads/v.mp4', 'poster': '/uploads/p.jpg'},
+          {
+            'type': 'video',
+            'url': '/uploads/v.mp4',
+            'poster': '/uploads/p.jpg'
+          },
         ],
       };
       final p = projectFromDetailJson(j);
-      expect(p.resultData.media.first.url, 'http://127.0.0.1:8000/uploads/v.mp4');
-      expect(p.resultData.media.first.poster, 'http://127.0.0.1:8000/uploads/p.jpg');
+      expect(
+          p.resultData.media.first.url, 'http://127.0.0.1:8000/uploads/v.mp4');
+      expect(p.resultData.media.first.poster,
+          'http://127.0.0.1:8000/uploads/p.jpg');
     });
 
     test('published_at 缺失 → 用 now(时间戳 > 0)', () {

@@ -7,6 +7,7 @@
 import os
 import tempfile
 import uuid
+from typing import Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
@@ -45,20 +46,19 @@ def _magic_matches(content_type: str, head: bytes) -> bool:
     return False
 
 
-@router.post("", response_model=MediaUploadResponse, status_code=201, summary="上传图片/视频（需登录，补全端点）")
-def upload_media(
-    file: UploadFile = File(..., description="图片≤10MB（jpg/png/webp）；视频≤100MB（mp4）"),
-    user: User = Depends(auth_required),
-    db: Session = Depends(get_db),
-):
-    """超限/格式不支持 → 422 VALIDATION_FAILED。返回的 id 填进 POST /projects 的 media_ids。
-    先写临时文件边写边校验大小，过了再交给存储层（local 落盘 / s3 上传对象存储）。"""
-    # H-API-2: 用户级频控——每分钟最多 20 个上传，防磁盘填满 DoS（攻击者循环上传大文件撑爆存储）
-    rate_limit(f"media:ul:{user.id}", limit=20, window=60)
-    if file.content_type not in _ALLOWED:
+def store_uploaded_file(file: UploadFile, allowed_content_types: Optional[Set[str]] = None) -> Tuple[str, str]:
+    """校验并持久化一个上传文件，返回 (media_type, url)。
+
+    普通发布和内部审核台共用同一套格式、魔数与大小限制，避免后台补图成为安全旁路。
+    本函数只负责文件；是否创建 ProjectMedia 或挂到候选由调用方决定。
+    """
+    if file.content_type not in _ALLOWED or (
+        allowed_content_types is not None and file.content_type not in allowed_content_types
+    ):
+        allowed = sorted(allowed_content_types or _ALLOWED)
         raise AppError(
             422, "VALIDATION_FAILED", "不支持的文件类型",
-            {"content_type": file.content_type, "allowed": list(_ALLOWED)},
+            {"content_type": file.content_type, "allowed": allowed},
         )
     ext, media_type, max_bytes = _ALLOWED[file.content_type]
     filename = f"{uuid.uuid4().hex}.{ext}"
@@ -71,7 +71,7 @@ def upload_media(
             chunk = file.file.read(_CHUNK)
             if not chunk:
                 break
-            if not head:  # 首个分块就够看字节头：内容与声明类型不符立刻拒绝，不必落整个盘
+            if not head:
                 head = chunk[:16]
                 if not _magic_matches(file.content_type, head):
                     raise AppError(
@@ -88,12 +88,25 @@ def upload_media(
         tmp.close()
         if written == 0:
             raise AppError(422, "VALIDATION_FAILED", "文件为空")
-        url = save_media_file(tmp.name, filename)
+        return media_type, save_media_file(tmp.name, filename)
     except Exception:
         tmp.close()
         if os.path.exists(tmp.name):
-            os.remove(tmp.name)  # 半截文件不留盘
+            os.remove(tmp.name)
         raise
+
+
+@router.post("", response_model=MediaUploadResponse, status_code=201, summary="上传图片/视频（需登录，补全端点）")
+def upload_media(
+    file: UploadFile = File(..., description="图片≤10MB（jpg/png/webp）；视频≤100MB（mp4）"),
+    user: User = Depends(auth_required),
+    db: Session = Depends(get_db),
+):
+    """超限/格式不支持 → 422 VALIDATION_FAILED。返回的 id 填进 POST /projects 的 media_ids。
+    先写临时文件边写边校验大小，过了再交给存储层（local 落盘 / s3 上传对象存储）。"""
+    # H-API-2: 用户级频控——每分钟最多 20 个上传，防磁盘填满 DoS（攻击者循环上传大文件撑爆存储）
+    rate_limit(f"media:ul:{user.id}", limit=20, window=60)
+    media_type, url = store_uploaded_file(file)
 
     media = ProjectMedia(project_id=None, uploader_user_id=user.id, media_type=media_type, url=url)
     db.add(media)

@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime, time as time_cls, timedelta, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy import func, insert, select, tuple_
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from app.api.deps import ERRORS_AUTHED, admin_required
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
+from app.core.ratelimit import rate_limit
 from app.core.utils import parse_datetime_cursor, safe_like_pattern
 from app.models import (
     AdminAction,
@@ -88,6 +89,7 @@ from app.services.moderation import resolve_report as svc_resolve_report
 from app.services.personas import is_persona, persona_recent_content, personas_with_stats
 from app.services.projects import cards_from_projects_with_stats
 from app.services.slate import home_slate
+from app.api.v1.media import store_uploaded_file
 
 # 全部后台接口：需登录 + is_admin=true，否则 403 FORBIDDEN
 router = APIRouter(prefix="/admin", tags=["后台"], dependencies=[Depends(admin_required)], responses=ERRORS_AUTHED)
@@ -208,6 +210,47 @@ def list_candidates(
 @router.get("/candidates/{candidate_id}", response_model=CandidateDetail, summary="候选详情")
 def get_candidate(candidate_id: uuid.UUID, db: Session = Depends(get_db)):
     return CandidateDetail.model_validate(_get_candidate(db, candidate_id))
+
+
+@router.post(
+    "/candidates/{candidate_id}/media",
+    response_model=CandidateDetail,
+    summary="审核员给候选补充成果图片（支持文件选择/剪贴板粘贴）",
+)
+def upload_candidate_media(
+    candidate_id: uuid.UUID,
+    file: UploadFile = File(..., description="jpg/png/webp，单张不超过 10MB"),
+    admin: User = Depends(admin_required),
+    db: Session = Depends(get_db),
+):
+    cand = _get_candidate(db, candidate_id)
+    ensure_actionable(cand, "补充图片")
+    rate_limit(f"admin:candidate-media:{admin.id}", limit=30, window=60)
+    items = list((cand.media_json or {}).get("items") or [])
+    if len(items) >= 20:
+        raise AppError(422, "VALIDATION_FAILED", "候选图片已达到 20 张上限，请先删除不需要的图片")
+
+    _, url = store_uploaded_file(
+        file,
+        allowed_content_types={"image/jpeg", "image/png", "image/webp"},
+    )
+    item = {"url": url, "media_type": "image", "manually_uploaded": True}
+    items.append(item)
+    cand.media_json = {"items": items}
+    cand.status = "edited"
+    uploads = list((cand.human_override_json or {}).get("manual_media_uploads") or [])
+    uploads.append(url)
+    cand.human_override_json = {
+        **(cand.human_override_json or {}),
+        "manual_media_uploads": uploads,
+    }
+    log_admin_action(
+        db, admin.id, "upload_candidate_media", "candidate", cand.id,
+        {"url": url, "filename": file.filename},
+    )
+    db.commit()
+    db.refresh(cand)
+    return CandidateDetail.model_validate(cand)
 
 
 @router.patch("/candidates/{candidate_id}", response_model=CandidateDetail, summary="编辑候选（状态自动→edited）")

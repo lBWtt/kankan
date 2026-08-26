@@ -516,6 +516,78 @@ sources:
   region_hint: global
   status: proposed
   found_by: ph_makers
+- name: PH maker @zvonimir_sabljic1（Zvonimir Sabljic）
+  kind: directory
+  url: https://www.producthunt.com/@zvonimir_sabljic1
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @leon_ostrez（Leon Ostrež）
+  kind: directory
+  url: https://www.producthunt.com/@leon_ostrez
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @liliiashamrai（Liliia Shamrai）
+  kind: directory
+  url: https://www.producthunt.com/@liliiashamrai
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @bladen_lam（Bladen Lam）
+  kind: directory
+  url: https://www.producthunt.com/@bladen_lam
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @krzysztof_kulig（Krzysztof Kulig）
+  kind: directory
+  url: https://www.producthunt.com/@krzysztof_kulig
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @philip_kubinski（Philip Kubinski）
+  kind: directory
+  url: https://www.producthunt.com/@philip_kubinski
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @anoop_balakrishnan（Anoop Balakrishnan）
+  kind: directory
+  url: https://www.producthunt.com/@anoop_balakrishnan
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @richgalulu（RichgaLu）
+  kind: directory
+  url: https://www.producthunt.com/@richgalulu
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
+- name: PH maker @anyt（Bin Sheng）
+  kind: directory
+  url: https://www.producthunt.com/@anyt
+  lang: en
+  focus: indie-products
+  region_hint: global
+  status: proposed
+  found_by: ph_makers
 discovery_hints:
   x_hashtags: [buildinpublic, indiehackers, solofounder]
   site_queries:

@@ -116,6 +116,9 @@ def collect(limit: int) -> list[dict]:
             continue  # 找不到真实产品链接就不收——不拿 appinn 介绍页当「去用」入口（用户明确）。
         excerpt = _clean(body)[:500]
         text = title if not excerpt else f"{title}。{excerpt}"
+        media = gather_media(official, 3, extra=_body_images(body, 3))
+        if not media:
+            continue  # 不拿官网截图/空封面凑数
         out.append({
             "source_url": article,   # appinn 文章页仅作去重键（不展示、不当 try_url）
             "title": title[:80],
@@ -125,7 +128,7 @@ def collect(limit: int) -> list[dict]:
             "try_url": official,     # 真实产品链接（官网 / github / steam …）
             "language": "zh-CN",
             # 多图：正文真实截图（排前）+ 产品页 og/截图，像小红书多图，不再一封面一段文字。
-            "media": gather_media(official, 3, extra=_body_images(body, 3)),
+            "media": media,
         })
     n_cover = sum(1 for it in out if it.get("media"))
     print(f"产出 {len(out)} 条（{n_cover} 条有封面）。")

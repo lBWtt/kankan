@@ -10,9 +10,14 @@ int parseCount(dynamic value) {
   if (value == null) return 0;
   if (value is int) return value;
   if (value is num) return value.toInt();
-  final s =
-      value.toString().trim().toLowerCase().replaceAll(',', '').replaceAll('+', '');
+  final s = value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replaceAll(',', '')
+      .replaceAll('+', '');
   if (s.isEmpty) return 0;
+  if (s.startsWith('-')) return 0; // 互动计数不可能为负；脏负值不能被误读成正数。
   double mult = 1;
   if (s.contains('亿')) {
     mult = 1e8;

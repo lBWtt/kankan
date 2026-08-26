@@ -190,10 +190,11 @@ def _to_item(repo: Dict, bucket: str) -> Optional[dict]:
         "source_platform": "github",
         "original_author_name": owner.get("login") or None,
         "original_author_url": owner.get("html_url") or None,
-        # 封面：**有 token 时**才扒 README 真实截图（每仓库多一次 API 调用，无 token 会限流/变慢）；
-        # 没 token 就直接用社交卡兜底（快、稳）。
-        "media": [{"url": ((readme_cover(full) if _has_github_token() else None)
-                           or _social_preview(full)), "media_type": "image"}],
+        # 封面：只用 README 里的**真实截图/GIF**（每仓库多一次 API 调用，需 GITHUB_TOKEN）。
+        # 拿不到真截图就**不给封面**——不再用 opengraph 社交卡兜底（那种灰底+仓库名的卡片千篇一律、
+        # 用户反馈"很恶心"）。没封面 → 过不了发布闸 → 只有带真截图的 github 仓库才会发布。
+        "media": ([{"url": _c, "media_type": "image"}]
+                  if (_c := (readme_cover(full) if _has_github_token() else None)) else []),
         "language": "en-US",
         "published_at": _iso(repo.get("created_at")),
         # stars→collects（主信号/排序）、forks→likes；对齐 prefilter 的收藏/点赞两档

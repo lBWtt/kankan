@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/config/app_config.dart';
@@ -58,8 +59,9 @@ class KkAvatar extends StatelessWidget {
     // （否则被当同源解析失败 → 一直回退首字母，用户以为「没头像」）。
     final avatarUrl = AppConfig.resolveMedia(rawAvatar);
     return ClipOval(
-      child: Image.network(
-        avatarUrl,
+      // 磁盘缓存：feed 里头像反复出现，缓存后不重下、不闪首字母。
+      child: Image(
+        image: CachedNetworkImageProvider(avatarUrl),
         width: size,
         height: size,
         fit: BoxFit.cover,

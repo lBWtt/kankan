@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 /// 统一封面/配图渲染：
@@ -47,7 +48,8 @@ class KkImage extends StatelessWidget {
     const maxSide = 1080;
     return Image(
       image: ResizeImage(
-        NetworkImage(url),
+        // 磁盘缓存 provider：滑走再滑回不重新下载（修封面反复重载）。
+        CachedNetworkImageProvider(url),
         width: maxSide,
         height: maxSide,
         policy: ResizeImagePolicy.fit,

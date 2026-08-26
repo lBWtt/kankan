@@ -78,6 +78,10 @@
   .detail .tagline{color:var(--t2);font-size:15px;margin-bottom:14px}
   .detail .media{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
   .detail .media img{max-height:180px;border-radius:10px;border:1px solid var(--bd)}
+  .media-upload{border:1px dashed #9bbeb7;border-radius:10px;padding:10px 12px;margin:10px 0;background:#f7fbfa;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--t2)}
+  .media-upload.dragging{border-color:var(--teal);background:#e8f3f0}
+  .media-upload .upload-hint{font-size:12.5px;color:var(--t3)}
   .field{margin:16px 0}
   .field label{display:block;font-size:12px;color:var(--t3);margin-bottom:5px;font-weight:600;letter-spacing:.02em}
   .actions{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(245,246,247,0),var(--bg) 24px);
@@ -205,7 +209,8 @@
           <option value="post">只看动态</option>
           <option value="project">只看项目</option>
         </select>
-        <input id="fPlatform" placeholder="平台(如 producthunt)" onchange="reload()">
+        <input id="fQuery" placeholder="搜标题(如 旅居/城市)" onkeydown="if(event.key==='Enter') reload()" onchange="reload()">
+        <input id="fPlatform" placeholder="来源平台(可空，如 jike)" onchange="reload()">
         <select id="fSort" onchange="reload()">
           <option value="score_desc">评分：高到低</option>
           <option value="score_asc">评分：低到高</option>
@@ -337,7 +342,8 @@ function tryRefresh(){
 }
 
 async function api(path, opts={}, _retried){
-  const headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
+  const isForm = opts.body instanceof FormData;
+  const headers = Object.assign(isForm?{}:{"Content-Type":"application/json"}, opts.headers||{});
   if(TOKEN) headers["Authorization"] = "Bearer "+TOKEN;
   const res = await fetch(API+path, Object.assign({}, opts, {headers}));
   // access 过期先试静默续期，成功就用新 token 重试一次（避免因 2h 过期就弹回登录）
@@ -377,11 +383,24 @@ function logout(){ TOKEN=""; localStorage.removeItem("kk_admin_token"); localSto
 function enterApp(){
   document.getElementById("login").style.display="none";
   document.getElementById("app").style.display="flex";
+  bindQueueAutoLoad();
   reload(); refreshPending();
 }
 
 // ---------- 队列 ----------
 function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+function bindQueueAutoLoad(){
+  const list=document.getElementById("list");
+  if(!list || list.dataset.autoLoadBound==="1") return;
+  list.dataset.autoLoadBound="1";
+  list.addEventListener("scroll",()=>{
+    if(!cursor || loading) return;
+    if(list.scrollTop + list.clientHeight >= list.scrollHeight - 80){
+      loadMore(false);
+    }
+  });
+}
 
 async function refreshPending(){
   try{ const d = await api("/admin/dashboard");
@@ -400,11 +419,13 @@ async function loadMore(fresh){
   const status=document.getElementById("fStatus").value;
   const kind=document.getElementById("fKind").value;
   const platform=document.getElementById("fPlatform").value.trim();
+  const query=document.getElementById("fQuery").value.trim();
   const sort=document.getElementById("fSort").value;
   let q = "/admin/candidates?page_size=30";
   if(status) q+="&status="+encodeURIComponent(status);
   if(kind) q+="&content_kind="+encodeURIComponent(kind);
   if(platform) q+="&source_platform="+encodeURIComponent(platform);
+  if(query) q+="&q="+encodeURIComponent(query);
   q+="&sort="+encodeURIComponent(sort);
   if(cursor) q+="&cursor="+encodeURIComponent(cursor);
   try{
@@ -495,6 +516,12 @@ function renderDetail(c){
     <div>${scoreP}<span class="pill">价值 ${c.value_score??'—'}</span><span class="pill">${esc(c.status)}</span><span class="pill">${esc(c.source_platform||"")}</span>${risks}</div>
     <div class="kv">hook ${c.hook_clarity??'—'} · visual ${c.visual_impact??'—'} · surprise ${c.surprise??'—'} · try ${c.tryability??'—'} · share ${c.shareability??'—'}</div>
     <div class="kv">${esc(c.work_form||'—')} · ${esc(c.creator_type||'—')} · ${esc(c.access_friction||'—')} · score ${esc(c.score_version||'—')}</div>
+    ${mediaEditable?`<div id="candidate_media_upload" class="media-upload" tabindex="0"
+      ondragover="candidateMediaDrag(event,true)" ondragleave="candidateMediaDrag(event,false)" ondrop="dropCandidateImages(event)">
+      <button type="button" class="btn-ghost" onclick="document.getElementById('candidate_media_files').click()">＋ 从文件夹选图片</button>
+      <input id="candidate_media_files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onchange="uploadCandidateImages(this.files)">
+      <span class="upload-hint">也可以复制图片后直接按 Ctrl+V，或拖到这里（jpg/png/webp，单张≤10MB）</span>
+    </div>`:""}
     ${media?`<div class="media">${media}</div>`:""}
 
     <div class="field"><label>双标题候选（点选后仍可编辑）</label><div>${titleChoices||'<span class="muted">模型尚未生成</span>'}</div><input id="e_title" value="${esc(c.title||"")}" minlength="12" maxlength="28"></div>
@@ -654,6 +681,81 @@ function selectProofMedia(radio){
   if(keep){ keep.checked=true; label.style.opacity='1'; }
 }
 
+let candidateMediaUploading=false;
+
+function captureCandidateEditorState(){
+  const ids=['e_title','e_tagline','e_summary','e_description','e_experience_type','e_try_url','e_experience_content','e_override_reason'];
+  const values={};
+  for(const id of ids){ const el=document.getElementById(id); if(el) values[id]=el.value; }
+  const items=candidateMediaItems(current);
+  const keep={};
+  document.querySelectorAll('input[name="keep_media"]').forEach(el=>{
+    const item=items[Number(el.value)]; if(item) keep[item.url]=el.checked;
+  });
+  const proof=document.querySelector('input[name="proof_media"]:checked');
+  return {values,keep,proofUrl:proof&&items[Number(proof.value)]&&items[Number(proof.value)].url};
+}
+
+function restoreCandidateEditorState(state){
+  if(!state) return;
+  for(const [id,value] of Object.entries(state.values||{})){
+    const el=document.getElementById(id); if(el) el.value=value;
+  }
+  const items=candidateMediaItems(current);
+  document.querySelectorAll('input[name="keep_media"]').forEach(el=>{
+    const item=items[Number(el.value)];
+    if(item && Object.prototype.hasOwnProperty.call(state.keep,item.url)){
+      el.checked=state.keep[item.url]; toggleCandidateMedia(el);
+    }
+  });
+  if(state.proofUrl){
+    document.querySelectorAll('input[name="proof_media"]').forEach(el=>{
+      const item=items[Number(el.value)]; el.checked=!!item&&item.url===state.proofUrl;
+    });
+  }
+}
+
+async function uploadCandidateImages(files){
+  if(!current || !files || !files.length || candidateMediaUploading) return;
+  const images=Array.from(files).filter(f=>['image/jpeg','image/png','image/webp'].includes(f.type));
+  if(!images.length){ toast('请选择 jpg、png 或 webp 图片'); return; }
+  const editorState=captureCandidateEditorState();
+  candidateMediaUploading=true;
+  try{
+    for(let i=0;i<images.length;i++){
+      toast(`上传图片 ${i+1}/${images.length}…`);
+      const form=new FormData(); form.append('file',images[i],images[i].name||`clipboard-${Date.now()}.png`);
+      current=await api(`/admin/candidates/${current.id}/media`,{method:'POST',body:form});
+    }
+    renderDetail(current); restoreCandidateEditorState(editorState);
+    toast(`已添加 ${images.length} 张图片，可继续选择成果证据`);
+  }catch(e){
+    toast('上传失败：'+(e.body&&e.body.message||e.message));
+  }finally{
+    candidateMediaUploading=false;
+    const input=document.getElementById('candidate_media_files'); if(input) input.value='';
+  }
+}
+
+function candidateMediaDrag(event,on){
+  event.preventDefault();
+  const box=document.getElementById('candidate_media_upload');
+  if(box) box.classList.toggle('dragging',on);
+}
+
+function dropCandidateImages(event){
+  event.preventDefault(); candidateMediaDrag(event,false);
+  uploadCandidateImages(event.dataTransfer&&event.dataTransfer.files);
+}
+
+document.addEventListener('paste',event=>{
+  if(!current || candidateMediaUploading) return;
+  const files=Array.from(event.clipboardData&&event.clipboardData.items||[])
+    .filter(item=>item.kind==='file' && item.type.startsWith('image/'))
+    .map(item=>item.getAsFile()).filter(Boolean);
+  if(files.length){ event.preventDefault(); uploadCandidateImages(files); }
+});
+
 // 已通过内容「再剪辑」：改动直接落到线上项目（PATCH /admin/projects/{project_id}）。
 async function saveEditProject(){
   if(!current || !current.project_id) return;
@@ -676,7 +778,7 @@ async function takeDownProject(projId, candId){
   if(!confirm("确认下架这个线上项目？用户将看不到，可再恢复。")) return;
   try{
     await api("/admin/projects/"+projId+"/take-down",{method:"POST",body:JSON.stringify({reason:"审核台下架"})});
-    toast("已下架（可恢复）"); dropCurrentRow(candId); refreshPending();
+    toast("已下架（可恢复）"); await dropCurrentRowAndOpenNext(candId); refreshPending();
   }catch(e){ toast("下架失败："+(e.body&&e.body.message||e.message)); }
 }
 
@@ -701,7 +803,7 @@ async function approve(id){
     }
     const r = await api("/admin/candidates/"+id+"/approve",{method:"POST"});
     toast("已发布 · 作者马甲："+(r.persona_name||"—"));
-    dropCurrentRow(id); refreshPending();
+    await dropCurrentRowAndOpenNext(id); refreshPending();
   }catch(e){
     // 准入闸失败会带 details.problems
     const probs = e.body && e.body.details && e.body.details.problems;
@@ -723,7 +825,7 @@ async function approveOverride(id){
     const reason=typed||"人工审核认为内容质量可发布，豁免模型吸引力分数线";
     const r=await api("/admin/candidates/"+id+"/approve-override",{method:"POST",body:JSON.stringify({reason})});
     toast("已人工破格发布 · 作者马甲："+(r.persona_name||"—"));
-    dropCurrentRow(id); refreshPending();
+    await dropCurrentRowAndOpenNext(id); refreshPending();
   }catch(e){
     const probs=e.body&&e.body.details&&e.body.details.problems;
     toast("破格发布失败："+(e.body&&e.body.message||e.message)+(probs?("（"+probs.join("；")+"）"):""));
@@ -753,7 +855,7 @@ async function restoreCandidate(id){
 async function park(id){
   try{
     await api("/admin/candidates/"+id+"/park",{method:"POST"});
-    toast("已暂存"); dropCurrentRow(id);
+    toast("已暂存"); await dropCurrentRowAndOpenNext(id); refreshPending();
   }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
 }
 

@@ -5,6 +5,7 @@
 """
 import logging
 import os
+import shutil
 import tempfile
 import uuid
 from typing import Optional
@@ -16,6 +17,7 @@ except ImportError:  # 部署依赖异常时不能拖垮整个 API；抽帧降�
 
 from app.services.media_transfer import _headers_for, _make_client
 from app.services.storage import save_media_file
+from app.core.config import settings
 
 logger = logging.getLogger("app.video_frames")
 
@@ -27,6 +29,16 @@ _MAX_VIDEO_BYTES = 80 * 1024 * 1024
 def _download_video(url: str, platform: Optional[str]) -> Optional[str]:
     path = None
     try:
+        # 媒体转存后 URL 是 /uploads/...；它在后端容器里已经是本地文件，
+        # 不应再交给 httpx 当公网地址下载，否则每条都会报 missing protocol 并超时。
+        if url.startswith("/uploads/"):
+            source = os.path.join(settings.upload_dir, url.removeprefix("/uploads/"))
+            if not os.path.isfile(source):
+                raise FileNotFoundError(f"站内视频不存在: {source}")
+            fd, path = tempfile.mkstemp(suffix=os.path.splitext(source)[1] or ".mp4")
+            os.close(fd)
+            shutil.copyfile(source, path)
+            return path
         fd, path = tempfile.mkstemp(suffix=".mp4")
         total = 0
         with os.fdopen(fd, "wb") as out, _make_client() as client:

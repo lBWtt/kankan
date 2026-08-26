@@ -69,6 +69,8 @@ def collect(limit: int, min_points: int) -> list[dict]:
         desc = og_description(url) or ""
         text = title if not desc else f"{title}。{desc}"
         media = gather_media(url, 3)   # 多图（github README 多图 / 网站 og+截图）
+        if not media:
+            continue  # 宪法 v1.1：没有真实成果 proof 不入池
         item = {
             "source_url": url,
             "title": title[:80],

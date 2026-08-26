@@ -96,10 +96,11 @@ AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-xxx python -m app.pipeline process
 > 封面用 GitHub 社交预览图（`opengraph.githubassets.com`，公开可下载、无防盗链），
 > approve→建项目时的媒体转存能直接转到本地/OSS。`homepage` 字段是体验链接候选（可填项目 try_url）。
 
-## 三·六、即刻采集（动态来源，content_kind=post）
+## 三·六、即刻项目提取（content_kind=project）
 
 即刻 explore 是登录态 SPA，直连只有空壳。用 **Playwright 带登录态跑浏览器、拦 feed 的 API 响应**
-（干净 JSON，改版也不怕）。抓到的 AI 动态 → DeepSeek「用自己的话重讲一遍」→ 马甲发出。
+（干净 JSON）。只提取同时具备「个体成果语义 + proof」的具体项目；真实站外作品入口优先，
+但允许暂缺并标记为待人工补链接。普通动态、观点、教程和无成果证据的纯文字内容全部跳过。
 
 > 跑在 **mediacrawler conda 环境**（3.11 + chromium，已装）。首次 `--headful` 扫码登录，登录态存
 > `.jike_userdata/`，之后免扫、可 headless。
@@ -109,18 +110,17 @@ AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-xxx python -m app.pipeline process
 D:/conda/envs/mediacrawler/python.exe scrape/jike_collector.py -o items_jike.json --scrolls 8 --headful
 #   之后免扫：去掉 --headful 即可
 
-# 2) 入池（动态**跳过 prefilter**：prefilter 是项目导向的粗筛，要图要外链，纯文字动态会被误砍）
+# 2) 入项目池（collector 已做成果/外链/proof 三道闸）
 cd /f/kankan/backend
-python -m app.pipeline collect items_jike.json --platform jike --kind post
+python -m app.pipeline collect items_jike.json --platform jike --kind project
 
-# 3) 改写 → 待审核（走动态改写 prompt：第一人称/口语/原创重述，不搬运）
+# 3) 项目整理 → 待审核（走内容宪法项目 prompt）
 AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-xxx python -m app.pipeline process
 
-# 4) 审核 approve → 马甲发的动态出现在 App（后台审核悬浮球 / approve 接口）
+# 4) 审核 approve → 建正式 Project
 ```
 
-动态与项目的区别：`content_kind=post` 走 `check_post_gate`（正文≥20 + 标签≥1，无封面/分类要求），
-approve 建 **Post**（马甲作者、图片转存），不建 Project。
+即刻动态改写不属于这条管道，也不在本阶段处理。
 
 ## 四、待办（下一步）
 
