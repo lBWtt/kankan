@@ -27,8 +27,36 @@ import 'package:kankan_flutter/features/me/me_screen.dart';
 
 void main() {
   // SharedPreferences 在所有 widget 测试前切到 mock(避免平台 channel 调用)。
-  setUpAll(() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.kvPrivacyChoice: privacyChoiceAccepted,
+      PrefsKeys.kvKankanOnboardingSeen: true,
+    });
+  });
+
+  testWidgets('首次选择隐私范围后显示产品引导', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [prefsProvider.overrideWithValue(prefs)],
+        child: const KankanApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('欢迎使用看看'), findsOneWidget);
+
+    await tester.tap(find.text('拒绝匿名改进数据并继续'));
+    await tester.pumpAndSettle();
+    expect(find.text('欢迎来看看'), findsOneWidget);
+    expect(
+      prefs.getString(PrefsKeys.kvPrivacyChoice),
+      privacyChoiceEssentialOnly,
+    );
+
+    await tester.tap(find.text('开始看'));
+    await tester.pumpAndSettle();
+    expect(prefs.getBool(PrefsKeys.kvKankanOnboardingSeen), isTrue);
   });
 
   // ──────────────────────────────────────────────────────────────────
@@ -86,8 +114,7 @@ void main() {
   // 3. 【新增】Tab 切换:发现 → 看看 → 收藏 → 我的。
   //    StatefulShellRoute.indexedStack 懒加载:点过的 branch 才构建对应屏。
   // ──────────────────────────────────────────────────────────────────
-  testWidgets('Tab 切换冒烟:发现 → 看看 → 收藏 → 我的',
-      (WidgetTester tester) async {
+  testWidgets('Tab 切换冒烟:发现 → 看看 → 收藏 → 我的', (WidgetTester tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
       ProviderScope(

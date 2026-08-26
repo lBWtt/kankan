@@ -61,8 +61,13 @@ const _authRequiredRoutes = <String>{
   KkRoutes.profileEdit,
 };
 
+/// 需要跨路由显示的首次引导使用根 Navigator 的 overlay context。
+/// MaterialApp.builder 的 context 位于 Navigator 上方，不能直接用于 bottom sheet。
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final goRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: KkRoutes.discover,
     // 生产构建关掉路由诊断日志（原来恒 true，会往 release 输出路由细节）。
     debugLogDiagnostics: kDebugMode,

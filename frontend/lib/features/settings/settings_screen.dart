@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/network/app_exception.dart';
+import '../../core/prefs.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/analytics_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../router/routes.dart';
 import '../feedback/feedback_sheet.dart';
@@ -36,6 +40,22 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // 字号/暖纸底纹/免打扰 已迁到 app_state(真生效),不再用本地 mock state。
+  String _appVersion = '—';
+  bool _analyticsAllowed = false;
+  bool _accountActionBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _analyticsAllowed = analyticsConsentGranted(ref.read(prefsProvider));
+    _loadPackageVersion();
+  }
+
+  Future<void> _loadPackageVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted)
+      setState(() => _appVersion = '${info.version}+${info.buildNumber}');
+  }
 
   /// 缓存大小(KB)—— 用真实的图片内存缓存字节数(不再用 'me'.hashCode 编造)。
   int get _cacheKb =>
@@ -129,6 +149,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _sectionAppearance(),
             const SizedBox(height: KkSpacing.lg),
             _sectionCache(searchCount),
+            const SizedBox(height: KkSpacing.lg),
+            _sectionPrivacy(),
             const SizedBox(height: KkSpacing.lg),
             _sectionAbout(),
             const SizedBox(height: KkSpacing.xxl),
@@ -330,7 +352,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _menuRow(
           icon: Icons.logout_outlined,
           label: '退出登录',
+          disabled: _accountActionBusy,
           onTap: _confirmLogout,
+        ),
+        _divider(),
+        _menuRow(
+          icon: Icons.person_remove_outlined,
+          label: '注销账号',
+          disabled: _accountActionBusy,
+          onTap: _confirmDeleteAccount,
         ),
       ],
     );
@@ -355,8 +385,68 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
     if (ok == true && mounted) {
-      ref.read(authProvider.notifier).logout();
+      await ref.read(authProvider.notifier).logout();
+      if (!mounted) return;
       _toast('已退出登录');
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('永久注销账号'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '注销后将退出所有设备，手机号或邮箱会被释放。收藏、点赞、关注和通知会删除；已公开内容保留，但作者会显示为“已注销用户”。此操作不可恢复。',
+              ),
+              const SizedBox(height: KkSpacing.md),
+              const Text('请输入“注销”确认：', style: KkType.bodySm),
+              const SizedBox(height: KkSpacing.xs),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                onChanged: (_) => setDialogState(() {}),
+                decoration: const InputDecoration(hintText: '注销'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消', style: TextStyle(color: KkColors.t3)),
+            ),
+            TextButton(
+              onPressed: controller.text.trim() == '注销'
+                  ? () => Navigator.pop(ctx, true)
+                  : null,
+              child: const Text('永久注销', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _accountActionBusy = true);
+    try {
+      await ref.read(authProvider.notifier).deleteAccount();
+      if (!mounted) return;
+      _toast('账号已注销');
+      context.go(KkRoutes.kankan);
+    } on AppException catch (e) {
+      if (mounted) _toast(e.message);
+    } catch (_) {
+      if (mounted) _toast('注销失败，请稍后重试');
+    } finally {
+      if (mounted) setState(() => _accountActionBusy = false);
     }
   }
 
@@ -462,14 +552,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  // ── Section 4: 关于 ──
+  // ── Section 4: 隐私选择（同意后仍可随时撤回，不影响公开浏览）──
+  Widget _sectionPrivacy() {
+    return _card(
+      children: [
+        _switchRow(
+          icon: Icons.analytics_outlined,
+          label: '允许匿名改进数据',
+          value: _analyticsAllowed,
+          onChanged: _setAnalyticsAllowed,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(56, 0, KkSpacing.md, KkSpacing.md),
+          child: Text(
+            '关闭后不发送产品使用埋点，不影响浏览、登录和互动功能。',
+            style: KkType.bodySm.copyWith(color: KkColors.t3),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _setAnalyticsAllowed(bool allowed) async {
+    if (!allowed) await ref.read(analyticsProvider).flush();
+    await ref.read(prefsProvider).setString(
+          PrefsKeys.kvPrivacyChoice,
+          allowed ? privacyChoiceAccepted : privacyChoiceEssentialOnly,
+        );
+    ref.invalidate(analyticsProvider);
+    if (mounted) setState(() => _analyticsAllowed = allowed);
+  }
+
+  // ── Section 5: 关于 ──
   Widget _sectionAbout() {
     return _card(
       children: [
         _staticRow(
           icon: Icons.info_outline,
           label: '版本',
-          trailing: '0.2.0+1',
+          trailing: _appVersion,
         ),
         _divider(),
         _menuRow(
@@ -490,7 +611,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onTap: () => showLicensePage(
             context: context,
             applicationName: '看看',
-            applicationVersion: '0.2.0+1',
+            applicationVersion: _appVersion,
           ),
         ),
       ],

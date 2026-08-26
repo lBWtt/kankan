@@ -8,6 +8,12 @@
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 # 注意：backend 固定单实例（定时任务随服务进程跑，多实例会重复执行榜单刷新/媒体回收）。
 # ============================================================
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   backend:
     build:
@@ -17,6 +23,7 @@ services:
         PIP_INDEX_URL: "https://pypi.tuna.tsinghua.edu.cn/simple"
     container_name: ccpj_backend
     restart: unless-stopped
+    logging: *default-logging
     # 只绑本机：对外统一走 nginx:80/443，8000 不暴露到公网（服务器本机仍可 curl 调试）
     ports:
       - "127.0.0.1:8000:8000"
@@ -77,6 +84,7 @@ services:
     image: nginx:1.27-alpine
     container_name: ccpj_nginx
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"   # HTTPS（lovluu.com 已备案，certbot 证书）
@@ -92,6 +100,7 @@ services:
     image: postgres:16
     container_name: ccpj_postgres_prod
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: ccpj
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?生产必须设置数据库密码}
@@ -109,6 +118,7 @@ services:
     image: redis:7
     container_name: ccpj_redis_prod
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - redisdata:/data
     healthcheck:

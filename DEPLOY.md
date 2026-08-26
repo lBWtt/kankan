@@ -1,4 +1,6 @@
-# 看看 · 上线部署手册（阿里云 ECS）
+# 看看 · 旧部署草稿（不要直接用于当前生产）
+
+> 当前生产部署 SSOT 是 `docs/deploy-steps.md`：唯一生产机为腾讯云上海 `ubuntu@118.89.112.187`。旧阿里云 IP 已回收，任何代理不得按本草稿连接旧机器。Android APK 发布必须另读 `docs/ANDROID_RELEASE_SIGNING.md`。
 
 从买服务器到 iPhone 能公网访问，一步步照做。全程在 **`backend/` 目录**里操作。
 

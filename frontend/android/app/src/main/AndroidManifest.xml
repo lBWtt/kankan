@@ -3,8 +3,9 @@
          放到主 manifest，release/debug 都带上。 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="kankan_flutter"
+        android:label="${appLabel}"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher">
         <activity

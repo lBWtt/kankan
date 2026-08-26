@@ -108,4 +108,20 @@ class PrefsKeys {
 
   /// Light first-run onboarding for the Kankan value proposition.
   static const kvKankanOnboardingSeen = 'kv_kankan_onboarding_seen_v1';
+
+  /// 首次启动隐私选择：accepted=同意必要数据+匿名改进数据；
+  /// essential_only=仅允许提供服务所必需的数据处理，不发送匿名产品埋点。
+  static const kvPrivacyChoice = 'kv_privacy_choice_v1';
 }
+
+const String privacyChoiceAccepted = 'accepted';
+const String privacyChoiceEssentialOnly = 'essential_only';
+
+bool hasPrivacyDecision(SharedPreferences prefs) {
+  final choice = prefs.getString(PrefsKeys.kvPrivacyChoice);
+  return choice == privacyChoiceAccepted ||
+      choice == privacyChoiceEssentialOnly;
+}
+
+bool analyticsConsentGranted(SharedPreferences prefs) =>
+    prefs.getString(PrefsKeys.kvPrivacyChoice) == privacyChoiceAccepted;

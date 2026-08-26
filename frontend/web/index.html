@@ -18,6 +18,8 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
   <meta name="description" content="看看 · 展示你的 AI 作品，给别人直接去用">
   <meta name="theme-color" content="#1D9E75">
 
@@ -26,15 +28,52 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="看看">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>看看</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #fbf9f4;
+    }
+    #app-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+      box-sizing: border-box;
+      color: #174d3a;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      transition: opacity 180ms ease;
+    }
+    #app-loading img {
+      width: 76px;
+      height: 76px;
+      border-radius: 20px;
+      box-shadow: 0 12px 34px rgba(20, 93, 67, .18);
+    }
+    #app-loading strong { font-size: 20px; letter-spacing: .08em; }
+    #app-loading span { color: #628073; font-size: 14px; }
+    #app-loading.slow span::after { content: "，首次打开需要一点时间"; }
+    #app-loading.done { opacity: 0; pointer-events: none; }
+  </style>
 </head>
 <body>
+  <div id="app-loading" role="status" aria-live="polite">
+    <img src="icons/apple-touch-icon.png" alt="">
+    <strong>看看</strong>
+    <span>正在打开</span>
+  </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -43,6 +82,15 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script>
+    const loading = document.getElementById('app-loading');
+    const slowTimer = setTimeout(() => loading?.classList.add('slow'), 6000);
+    window.addEventListener('flutter-first-frame', () => {
+      clearTimeout(slowTimer);
+      loading?.classList.add('done');
+      setTimeout(() => loading?.remove(), 220);
+    }, { once: true });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import delete, func, select, tuple_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,17 +18,29 @@ from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.handle import is_valid_handle, normalize_handle
 from app.core.pagination import decode_cursor, encode_cursor
+from app.core.security import revoke_user_refresh_tokens
 from app.core.utils import parse_datetime_cursor
 from app.models import (
+    AnalyticsEvent,
+    CandidateContent,
+    CommentLike,
     Favorite,
+    Feedback,
+    HowToInterest,
     Notification,
     Post,
     PostLike,
     Project,
+    ProjectActionEvent,
+    ProjectMedia,
     ProjectReaction,
     PushPreference,
+    Report,
+    Share,
+    TopicFollow,
     TryItem,
     User,
+    UserFollow,
 )
 from app.schemas.common import OkResponse, Page
 from app.schemas.project import ProjectCard
@@ -115,6 +127,85 @@ def update_me(body: MeUpdate, user: User = Depends(auth_required), db: Session =
             setattr(user, field, value)
     db.commit()
     return _me_with_counts(db, user)
+
+
+@router.delete("", response_model=OkResponse, summary="注销当前账号")
+def delete_me(user: User = Depends(auth_required), db: Session = Depends(get_db)):
+    """立即注销账号、撤销全部设备会话，并匿名化保留公开内容。
+
+    已发布的作品/动态/评论可能已经参与公共讨论，保留内容但作者统一显示为
+    “已注销用户”；收藏、点赞、关注、通知、埋点等账号行为数据会解除关联或删除。
+    管理员账号承载不可抵赖的审核日志，必须先在运维侧移交权限，不能在 App 内注销。
+    """
+    if user.is_admin:
+        raise AppError(403, "ADMIN_ACCOUNT_PROTECTED", "管理员账号请先移交权限后再注销")
+
+    uid = user.id
+    tombstone = uid.hex
+
+    # 私人/行为数据：物理删除，避免注销后仍可还原用户画像。
+    for model in (
+        Favorite,
+        TryItem,
+        HowToInterest,
+        ProjectReaction,
+        CommentLike,
+        PostLike,
+        Share,
+        ProjectActionEvent,
+        TopicFollow,
+        PushPreference,
+        Report,
+    ):
+        db.execute(delete(model).where(model.user_id == uid)) if hasattr(model, "user_id") else db.execute(
+            delete(model).where(model.reporter_user_id == uid)
+        )
+    db.execute(
+        delete(UserFollow).where(
+            (UserFollow.follower_user_id == uid) | (UserFollow.followee_user_id == uid)
+        )
+    )
+    db.execute(delete(Notification).where(Notification.user_id == uid))
+
+    # 保留其他人的记录和公开内容，但移除对注销账号的身份指向。
+    db.execute(
+        update(Notification).where(Notification.actor_user_id == uid).values(actor_user_id=None)
+    )
+    db.execute(update(ProjectMedia).where(ProjectMedia.uploader_user_id == uid).values(uploader_user_id=None))
+    db.execute(update(Feedback).where(Feedback.user_id == uid).values(user_id=None))
+    db.execute(
+        update(CandidateContent)
+        .where(CandidateContent.reviewed_by_user_id == uid)
+        .values(reviewed_by_user_id=None)
+    )
+    db.execute(update(AnalyticsEvent).where(AnalyticsEvent.user_id == uid).values(user_id=None))
+
+    # 用唯一墓碑邮箱满足 contact_present 约束，同时释放原手机号/邮箱供重新注册。
+    user.email = f"deleted+{tombstone}@invalid.local"
+    user.phone = None
+    user.handle = f"deleted_{tombstone[:16]}"
+    user.nickname = "已注销用户"
+    user.avatar_url = None
+    user.bio = None
+    user.school = None
+    user.age = None
+    user.country_region = None
+    user.interests = []
+    user.interest_content_types = []
+    user.role = None
+    user.membership_tier = None
+    user.membership_expires_at = None
+    user.deleted_at = datetime.now(timezone.utc)
+
+    # 先 flush 验证数据库约束，再撤销所有设备的 refresh；任一步失败都回滚数据库。
+    try:
+        db.flush()
+        revoke_user_refresh_tokens(uid)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return OkResponse()
 
 
 @router.post("/interests", response_model=OkResponse, summary="onboarding 写入兴趣领域")

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="看看：每天帮你筛出真正做出来、值得体验的个人作品。Android 内测与 iPhone 网页版开放中。">
+  <meta name="theme-color" content="#ff5a3d">
+  <link rel="icon" type="image/png" href="/assets/kankan-logo.png?v=2">
+  <link rel="apple-touch-icon" href="/assets/kankan-logo.png?v=2">
+  <title>看看 · 真正做出来、值得体验的个人作品</title>
+  <style>
+    :root { --coral:#ff5a3d; --coral-dark:#db4028; --ink:#211d1a; --muted:#706964; --paper:#fffaf5; --card:#fff; --line:#eadfd5; --green:#167956; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; overflow-x:hidden; color:var(--ink); background:var(--paper); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+    button,a { -webkit-tap-highlight-color:transparent; }
+    .shell { width:min(1080px, calc(100% - 36px)); margin:0 auto; }
+    header { display:flex; align-items:center; justify-content:space-between; min-height:72px; }
+    .brand { display:flex; align-items:center; gap:11px; color:var(--ink); text-decoration:none; font-weight:800; letter-spacing:.08em; }
+    .mark { display:block; width:38px; height:38px; border-radius:11px; object-fit:cover; box-shadow:0 8px 22px #09604032; }
+    .mini-link { color:var(--muted); text-decoration:none; font-size:14px; }
+    .hero { display:grid; grid-template-columns:1.05fr .95fr; align-items:center; gap:64px; padding:64px 0 80px; }
+    .eyebrow { display:inline-flex; gap:7px; align-items:center; padding:7px 11px; border:1px solid #ffd1c7; border-radius:999px; color:var(--coral-dark); background:#fff3ef; font-size:13px; font-weight:700; }
+    h1 { margin:20px 0 20px; font-size:clamp(40px, 6.5vw, 72px); line-height:1.05; letter-spacing:-.055em; }
+    .hero p { margin:0 0 28px; max-width:590px; color:var(--muted); font-size:18px; line-height:1.8; }
+    .actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+    .button { display:inline-flex; justify-content:center; align-items:center; min-height:52px; padding:0 23px; border:0; border-radius:14px; color:#fff; background:var(--coral); text-decoration:none; font:inherit; font-weight:750; cursor:pointer; box-shadow:0 12px 28px #ff5a3d3d; }
+    .button:hover { background:var(--coral-dark); transform:translateY(-1px); }
+    .button.secondary { color:var(--ink); background:#fff; border:1px solid var(--line); box-shadow:none; }
+    .build-note { margin-top:14px; color:var(--muted); font-size:12px; line-height:1.7; }
+    .phone { position:relative; width:min(350px, 88vw); margin:auto; padding:13px; border-radius:38px; background:#25201d; box-shadow:0 28px 70px #513c2a29; transform:rotate(2deg); }
+    .phone-screen { min-height:610px; padding:46px 13px 20px; border-radius:27px; background:#f7f4f1; }
+    .phone-title { display:flex; justify-content:space-between; align-items:end; margin:0 3px 14px; }
+    .phone-title strong { font-size:22px; }
+    .phone-title span { color:var(--muted); font-size:11px; }
+    .phone-feed { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .phone-card { overflow:hidden; border-radius:12px; background:#fff; box-shadow:0 3px 12px #3c291317; }
+    .phone-card img { display:block; width:100%; aspect-ratio:4/3; object-fit:cover; background:#e9e1db; }
+    .phone-card div { padding:8px; font-size:11px; font-weight:650; line-height:1.35; }
+    .phone-card small { display:block; margin-top:5px; color:var(--green); font-size:9px; }
+    .phone::after { content:""; position:absolute; left:50%; top:21px; width:74px; height:20px; transform:translateX(-50%); border-radius:20px; background:#25201d; }
+    section { padding:76px 0; }
+    .section-head { max-width:650px; margin-bottom:28px; }
+    .section-head h2 { margin:0 0 10px; font-size:clamp(28px,4vw,42px); letter-spacing:-.035em; }
+    .section-head p { margin:0; color:var(--muted); line-height:1.7; }
+    .projects { display:grid; grid-template-columns:repeat(3,1fr); gap:17px; }
+    .project { overflow:hidden; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:19px; text-decoration:none; box-shadow:0 10px 28px #5437210b; transition:.18s ease; }
+    .project:hover { transform:translateY(-3px); box-shadow:0 18px 38px #54372117; }
+    .project img { display:block; width:100%; aspect-ratio:4/3; object-fit:cover; background:#eee5dc; }
+    .project-copy { padding:16px 17px 18px; }
+    .project h3 { margin:0 0 8px; font-size:17px; line-height:1.45; }
+    .project p { margin:0; color:var(--muted); font-size:13px; line-height:1.55; }
+    .score { color:var(--green); font-weight:750; }
+    .loading { grid-column:1/-1; padding:28px; color:var(--muted); text-align:center; border:1px dashed var(--line); border-radius:18px; }
+    .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+    .step { padding:26px; background:#fff; border:1px solid var(--line); border-radius:20px; }
+    .step b { display:grid; place-items:center; width:34px; height:34px; margin-bottom:18px; border-radius:11px; color:var(--coral-dark); background:#fff0eb; }
+    .step h3 { margin:0 0 8px; }
+    .step p { margin:0; color:var(--muted); line-height:1.65; font-size:14px; }
+    .cta { padding:42px; border-radius:26px; color:#fff; background:var(--ink); display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .cta h2 { margin:0 0 8px; font-size:30px; }
+    .cta p { margin:0; color:#cfc7c1; }
+    .cta .button { flex:0 0 auto; }
+    footer { margin-top:50px; padding:30px 0 42px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; line-height:1.9; }
+    footer a { color:inherit; }
+    .toast { position:fixed; z-index:10; left:50%; bottom:24px; transform:translate(-50%,20px); padding:12px 16px; border-radius:12px; color:#fff; background:#211d1aed; opacity:0; pointer-events:none; transition:.2s; }
+    .toast.show { opacity:1; transform:translate(-50%,0); }
+    @media (max-width:760px) {
+      .shell { width:min(100% - 28px, 560px); }
+      header { min-height:62px; }
+      .hero { grid-template-columns:1fr; gap:42px; padding:44px 0 58px; }
+      h1 { font-size:40px; }
+      .hero p { font-size:16px; }
+      .actions .button { width:100%; }
+      .phone { width:min(310px,84vw); transform:none; }
+      section { padding:54px 0; }
+      .projects { grid-template-columns:repeat(2,1fr); gap:11px; }
+      .project-copy { padding:13px; }
+      .project h3 { font-size:15px; }
+      .steps { grid-template-columns:1fr; }
+      .cta { padding:28px 22px; flex-direction:column; align-items:flex-start; }
+      .cta .button { width:100%; }
+    }
+    @media (max-width:390px) { .projects { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a class="brand" href="/"><img class="mark" src="/assets/kankan-logo.png?v=2" alt=""><span>看看</span></a>
+      <a class="mini-link" href="#works">先看看作品</a>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div>
+          <span class="eyebrow">● Android 内测 · iPhone 网页版</span>
+          <h1>先看成果，<br>再决定要不要体验。</h1>
+          <p>每天帮你筛出真正做出来、值得体验的个人作品。不是 AI 新闻，也不是大公司 App 广告。</p>
+          <div class="actions">
+            <a id="download" class="button" href="/downloads/kankan-android.apk">下载 Android 内测版</a>
+            <a id="ios-use" class="button secondary" href="/app/">在 iPhone 上使用</a>
+          </div>
+          <div class="build-note">无需先登录即可浏览 · 当前安装包 0.2.3 · 约 63 MB<br>已安装 0.2.2 可直接覆盖升级；0.2.1 内测版需先卸载一次<br>安装包由成都市环球远景贸易有限公司提供</div>
+        </div>
+        <div class="phone" aria-label="看看中的真实作品预览">
+          <div class="phone-screen"><div class="phone-title"><strong>今天看什么</strong><span>真实作品预览</span></div><div id="phone-feed" class="phone-feed"><div class="phone-card"><div>正在读取今天值得看的作品…</div></div></div></div>
+        </div>
+      </div>
+
+      <section id="works">
+        <div class="section-head">
+          <h2>不是概念，是已经做出来的东西</h2>
+          <p>下面来自看看当前公开内容。每个项目先检查成果证据，再整理真实体验入口。</p>
+        </div>
+        <div id="projects" class="projects"><div class="loading">正在读取今天值得看的作品…</div></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>我们只做三件事</h2></div>
+        <div class="steps">
+          <article class="step"><b>1</b><h3>从更多地方发现</h3><p>寻找个体真正做出来的成果，不用“AI”泛词堆满信息流。</p></article>
+          <article class="step"><b>2</b><h3>把水货挡在外面</h3><p>检查成果图、演示和可体验性，不把教程原料与公司广告伪装成作品。</p></article>
+          <article class="step"><b>3</b><h3>把入口整理清楚</h3><p>让你先看结果，再直达网页版、下载版或真实使用方法。</p></article>
+        </div>
+      </section>
+
+      <section>
+        <div class="cta">
+          <div><h2>先用 5 分钟逛一遍</h2><p>如果没有一件让你想点开体验，直接告诉我们哪里不对。</p></div>
+          <a class="button" href="mailto:773746396lbw@gmail.com?subject=看看内测反馈" data-event="landing_feedback_click">发送内测反馈</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div>© 2026 成都市环球远景贸易有限公司</div>
+      <div><a href="mailto:773746396lbw@gmail.com">联系我们</a> · <a href="/legal/privacy.html">隐私政策</a> · <a href="/legal/terms.html">用户协议</a></div>
+      <div>当前提供 Android 小范围内测与 iPhone 网页版，正式发布前将以营业执照和备案信息为准。</div>
+    </footer>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script>
+    const API = '/api/v1';
+    const pageVersion = 'beta-landing-1.0';
+    const qs = new URLSearchParams(location.search);
+    const source = Object.fromEntries(['utm_source','utm_campaign','utm_content'].map(k => [k, qs.get(k) || 'direct']));
+    const anonKey = 'kankan_landing_anon';
+    let anon = localStorage.getItem(anonKey);
+    if (!anon) { anon = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; localStorage.setItem(anonKey, anon); }
+    function track(eventName, payload={}) {
+      fetch(`${API}/events`, {method:'POST', headers:{'Content-Type':'application/json'}, keepalive:true,
+        body:JSON.stringify({events:[{event_name:eventName, occurred_at:new Date().toISOString(), payload:{...source,...payload,page_version:pageVersion}}],
+          client_info:{anon_client_id:anon,platform:'landing_web'}})}).catch(()=>{});
+    }
+    function absoluteMedia(url) { if (!url) return ''; try { return new URL(url, location.origin).href; } catch (_) { return ''; } }
+    async function loadProjects() {
+      const root = document.getElementById('projects');
+      try {
+        const res = await fetch(`${API}/projects/home-slate`);
+        if (!res.ok) throw new Error('bad response');
+        let data = await res.json();
+        let items = (data.items || []).filter(x => x.cover_media_url).slice(0,6);
+        // slate 还没有人工排满时，退回公开发布流；网页不能因此变成空页。
+        if (!items.length) {
+          const fallback = await fetch(`${API}/projects?page_size=50`);
+          if (!fallback.ok) throw new Error('fallback response');
+          data = await fallback.json();
+          items = (data.items || [])
+            .filter(x => x.cover_media_url && x.is_direct_tryable)
+            .sort((a,b) => ((b.attraction_score || 0) + (b.value_score || 0) * .35) - ((a.attraction_score || 0) + (a.value_score || 0) * .35))
+            .slice(0,6);
+        }
+        if (!items.length) throw new Error('empty');
+        root.innerHTML = items.map((p,i) => `<a class="project" href="#download" data-project-id="${p.id}" data-index="${i}">
+          <img loading="lazy" src="${absoluteMedia(p.cover_media_url)}" alt="${String(p.title).replace(/[<>&\"]/g,'')}" onerror="this.closest('.project').remove()">
+          <div class="project-copy"><h3>${String(p.title).replace(/[<>&]/g,'')}</h3><p>${p.value_score ? `<span class="score">价值 ${p.value_score}</span> · ` : ''}${p.is_direct_tryable ? '可直接体验' : '成果已核验'}</p></div></a>`).join('');
+        document.getElementById('phone-feed').innerHTML = items.slice(0,4).map(p => `<article class="phone-card"><img src="${absoluteMedia(p.cover_media_url)}" alt=""><div>${String(p.title).replace(/[<>&]/g,'').slice(0,25)}<small>${p.is_direct_tryable ? '可直接体验' : '成果已核验'}</small></div></article>`).join('');
+        root.querySelectorAll('.project').forEach(el => el.addEventListener('click', () => track('landing_project_click',{project_id:el.dataset.projectId,position:Number(el.dataset.index)+1})));
+      } catch (_) { root.innerHTML='<div class="loading">作品正在更新。你仍可先下载 App 浏览当前内容。</div>'; }
+    }
+    document.getElementById('download').addEventListener('click',()=>track('android_download_click'));
+    document.getElementById('ios-use').addEventListener('click',()=>track('ios_web_app_click'));
+    document.querySelectorAll('[data-event]').forEach(el=>el.addEventListener('click',()=>track(el.dataset.event)));
+    track('landing_view',{path:location.pathname});
+    loadProjects();
+  </script>
+</body>
+</html>

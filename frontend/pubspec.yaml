@@ -3,7 +3,7 @@
 name: kankan_flutter
 description: 看看 — 看 AI 做出的有意思的东西 + 心得。Flutter 原生版。
 publish_to: 'none'
-version: 0.2.1+2
+version: 0.2.3+4
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -34,6 +34,14 @@ dependencies:
 
   # ── 会话持久化:登录令牌(web 刷新不掉登录)。web=localStorage,移动=SharedPreferences ──
   shared_preferences: ^2.3.0
+
+  # 移动端登录凭证：Android 使用系统 Keystore、iOS 使用 Keychain。
+  # Web 仍用 SharedPreferences/localStorage，以保留浏览器 30 天免登录体验。
+  flutter_secure_storage: ^10.3.1
+
+  # 关于页读取真实安装包版本，避免界面版本号与 APK 不一致。
+  # 8.3.x 与现有 share_plus 10.x 的 win32 依赖兼容；不为版本展示冒险升级分享主版本。
+  package_info_plus: ^8.3.1
 
   # ── 声明式动画 ──
   flutter_animate: ^4.0.0
@@ -82,6 +90,12 @@ dependencies:
   # 看看「推荐」Tab 的双栏瀑布流（小红书式 masonry）。SliverMasonryGrid 支持 CustomScrollView + 懒加载。
   flutter_staggered_grid_view: ^0.7.0
 
+  # ── 封面/配图磁盘缓存 ──
+  # 修「刷过的封面滑走又重新加载」：Image.network/NetworkImage 只在内存缓存，滑走一屏被回收，
+  # 滑回来重下载（3Mbps 下几秒空白）。CachedNetworkImageProvider 落磁盘缓存，滑回秒出、省流量。
+  # 后端 /uploads 是内容寻址文件名（immutable），URL 为键的磁盘缓存天然安全。
+  cached_network_image: ^3.4.1
+
   # ── Phase 5:真持久化 ──
   # F-34:Drift/drift_dev/sqlite3_flutter_libs 已移除。
   # 原因:drift_dev 要求 analyzer >=8.0.0,与 freezed 2.x 的 analyzer ^6.5||^7.0 互斥,
@@ -95,6 +109,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
 
+  # ── App 图标生成:flutter_launcher_icons ──
+  # 图标源图为 Stitch 三笔 K 方案；tool/make_icon.py 从保留的源图生成 legacy/adaptive 资源。
+  # 生成命令:dart run flutter_launcher_icons（改图标后重跑）。配置见文件尾 flutter_launcher_icons: 段。
+  flutter_launcher_icons: ^0.14.1
+
   # ── freezed codegen 3.x ──
   # 用法:flutter pub get && dart run build_runner build -d
   # 详见 README「本地运行步骤」
@@ -102,6 +121,16 @@ dev_dependencies:
   # 删除 Drift 后 freezed 升 3.x 与 build_runner / flutter_test 共存。
   freezed: ^3.0.0
   build_runner: ^2.4.13
+
+# ── App 图标配置（dart run flutter_launcher_icons 读取）──
+# 客户端与管理员版共用同一套图标；管理员版靠包名/名字区分（build.gradle.kts）。
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#096040"
+  adaptive_icon_foreground: "assets/icon/app_icon_fg.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true

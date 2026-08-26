@@ -104,3 +104,31 @@ def rotate_refresh_token(token: str) -> uuid.UUID:
     if deleted != 1:
         raise AppError(401, "AUTH_REQUIRED", "登录已失效，请重新登录")
     return user_id
+
+
+def revoke_user_refresh_tokens(user_id: uuid.UUID) -> int:
+    """撤销某个账号仍在白名单中的全部 refresh token。
+
+    注销账号时不能只清当前手机的本地令牌：同一账号可能还登录在其他设备。
+    白名单值就是 user_id，因此逐批扫描前缀并删除匹配项。Redis 不可用时拒绝
+    完成注销，避免数据库已注销、其他设备却仍持有可续期凭证的半完成状态。
+    """
+    target = str(user_id)
+    matched: list = []
+    revoked = 0
+    try:
+        for key in redis_client.scan_iter(match=f"{REFRESH_ALLOWLIST_PREFIX}*", count=200):
+            value = redis_client.get(key)
+            if value is not None:
+                decoded = value.decode("utf-8") if isinstance(value, bytes) else str(value)
+                if decoded == target:
+                    matched.append(key)
+            if len(matched) >= 200:
+                revoked += redis_client.delete(*matched)
+                matched.clear()
+        if matched:
+            revoked += redis_client.delete(*matched)
+    except RedisError as exc:
+        logger.error("撤销用户 refresh 白名单失败：%s", exc)
+        raise AppError(503, "DEPENDENCY_DOWN", "认证服务暂不可用，请稍后重试")
+    return revoked

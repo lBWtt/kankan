@@ -3,6 +3,7 @@
 // 如果它出错了：登录后 UI 不刷新，或登出后仍显示旧身份。
 //
 // 令牌本身存在 tokenStore（无依赖、拦截器直接读）；这里只管 UI 关心的用户对象与状态。
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -63,7 +64,7 @@ class AuthNotifier extends Notifier<AuthState> {
     if (!store.isLoggedIn) return const AuthState();
     final raw = ref.read(prefsProvider).getString(PrefsKeys.authUser);
     if (raw == null || raw.isEmpty) {
-      store.clear();
+      unawaited(store.clear());
       return const AuthState();
     }
     try {
@@ -81,7 +82,7 @@ class AuthNotifier extends Notifier<AuthState> {
         isAdmin: j['is_admin'] == true,
       );
     } catch (_) {
-      store.clear();
+      unawaited(store.clear());
       return const AuthState();
     }
   }
@@ -99,7 +100,7 @@ class AuthNotifier extends Notifier<AuthState> {
           code,
           anonClientId: ref.read(anonClientIdProvider),
         );
-    ref.read(tokenStoreProvider).set(
+    await ref.read(tokenStoreProvider).set(
           access: result.accessToken,
           refresh: result.refreshToken,
         );
@@ -137,9 +138,17 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   /// 登出：清令牌 + 清持久化用户 + 清 state。回到游客态。
-  void logout() {
-    ref.read(tokenStoreProvider).clear();
-    ref.read(prefsProvider).remove(PrefsKeys.authUser);
+  Future<void> logout() async {
+    await ref.read(tokenStoreProvider).clear();
+    await ref.read(prefsProvider).remove(PrefsKeys.authUser);
+    state = const AuthState();
+  }
+
+  /// 注销账号：后端成功匿名化并撤销全部设备会话后，再清本机凭证。
+  Future<void> deleteAccount() async {
+    await ref.read(authApiProvider).deleteAccount();
+    await ref.read(tokenStoreProvider).clear();
+    await ref.read(prefsProvider).remove(PrefsKeys.authUser);
     state = const AuthState();
   }
 

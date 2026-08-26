@@ -13,27 +13,36 @@ import '../core/utils/backend_id.dart';
 import '../data/api/events_api.dart';
 
 class Analytics {
-  final Ref _ref;
+  final EventsApi? _eventsApi;
+  final String? _anonClientId;
+  final bool _enabled;
   final List<Map<String, dynamic>> _buffer = [];
   final Set<String> _impressed = {}; // 会话内曝光去重（同项目只记一次 card_impression）
   Timer? _timer;
 
-  Analytics(this._ref) {
+  Analytics({
+    required EventsApi? eventsApi,
+    required String? anonClientId,
+    required bool enabled,
+    required void Function(void Function()) onDispose,
+  })  : _eventsApi = eventsApi,
+        _anonClientId = anonClientId,
+        _enabled = enabled {
     // mock 模式没有后端可发，所有事件都会被跳过 → 不建定时器，省一个空转 timer。
-    if (AppConfig.useRemote) {
+    if (AppConfig.useRemote && _enabled) {
       // 定时冲刷：攒着的事件每 8 秒发一批（也在满 20 条时立即发）。
       _timer = Timer.periodic(const Duration(seconds: 8), (_) => flush());
       // provider 销毁时停定时器 + 最后冲刷一次（别丢尾巴上的事件）。
-      _ref.onDispose(() {
+      onDispose(() {
         _timer?.cancel();
-        flush();
       });
     }
   }
 
   /// 记一条事件。projectId 为 mock 短 id 时整条跳过（后端 project_id 需 UUID）。
-  void track(String eventName, {String? projectId, Map<String, dynamic>? payload}) {
-    if (!AppConfig.useRemote) return; // mock 模式不埋点
+  void track(String eventName,
+      {String? projectId, Map<String, dynamic>? payload}) {
+    if (!AppConfig.useRemote || !_enabled) return; // mock/未同意时不埋点
     if (projectId != null && !looksLikeBackendId(projectId)) return;
     final e = <String, dynamic>{
       'event_name': eventName,
@@ -54,15 +63,28 @@ class Analytics {
 
   /// 冲刷缓冲：一次最多 50 条（后端上限），best-effort。
   Future<void> flush() async {
-    if (_buffer.isEmpty) return;
+    if (!_enabled ||
+        _buffer.isEmpty ||
+        _eventsApi == null ||
+        _anonClientId == null) {
+      return;
+    }
     final n = _buffer.length > 50 ? 50 : _buffer.length;
     final batch = List<Map<String, dynamic>>.from(_buffer.take(n));
     _buffer.removeRange(0, n);
-    await _ref.read(eventsApiProvider).sendBatch(
-          batch,
-          anonClientId: _ref.read(anonClientIdProvider),
-        );
+    await _eventsApi.sendBatch(
+      batch,
+      anonClientId: _anonClientId,
+    );
   }
 }
 
-final analyticsProvider = Provider<Analytics>((ref) => Analytics(ref));
+final analyticsProvider = Provider<Analytics>((ref) {
+  final enabled = analyticsConsentGranted(ref.watch(prefsProvider));
+  return Analytics(
+    eventsApi: enabled ? ref.watch(eventsApiProvider) : null,
+    anonClientId: enabled ? ref.watch(anonClientIdProvider) : null,
+    enabled: enabled,
+    onDispose: ref.onDispose,
+  );
+});

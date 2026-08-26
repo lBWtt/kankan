@@ -57,6 +57,15 @@ class AuthApi {
       throw AppException.fromDio(e);
     }
   }
+
+  /// DELETE /me — 永久注销当前账号；后端负责撤销全部设备会话并匿名化数据。
+  Future<void> deleteAccount() async {
+    try {
+      await _dio.delete<dynamic>('/me');
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
 }
 
 final authApiProvider = Provider<AuthApi>(

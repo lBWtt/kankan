@@ -5,14 +5,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/network/app_exception.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/tappable.dart';
 import '../../data/api/feedback_api.dart';
-
-const String kAppVersion = '0.2.0+1'; // 与设置页「关于」显示保持一致
 
 /// 打开反馈弹窗。返回是否提交成功（调用方可据此弹 toast）。
 Future<bool> showFeedbackSheet(
@@ -76,11 +75,12 @@ class _FeedbackSheetState extends ConsumerState<_FeedbackSheet> {
       _error = null;
     });
     try {
+      final packageInfo = await PackageInfo.fromPlatform();
       await ref.read(feedbackApiProvider).submit(
             category: _category,
             content: content,
             contact: _contactCtrl.text.trim(),
-            appVersion: kAppVersion,
+            appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
             platform: defaultTargetPlatform.name, // android / iOS
             deviceInfo: defaultTargetPlatform.name,
             sourcePage: widget.sourcePage,
