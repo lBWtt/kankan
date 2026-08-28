@@ -82,14 +82,8 @@
       .cta .button { width:100%; }
     }
     @media (max-width:390px) { .projects { grid-template-columns:1fr; } }
-    .ios-guide { margin-top:16px; padding:15px 17px; border:1px solid var(--line); border-radius:16px; background:#fff; box-shadow:0 10px 28px #5437210b; }
-    .ios-guide-head { display:flex; align-items:center; gap:7px; font-weight:750; font-size:15px; margin-bottom:12px; }
-    .ios-steps { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
-    .ios-steps li { display:flex; gap:10px; align-items:flex-start; color:var(--muted); font-size:14px; line-height:1.5; }
-    .ios-steps li b { flex:0 0 auto; display:grid; place-items:center; width:23px; height:23px; border-radius:8px; color:var(--coral-dark); background:#fff0eb; font-size:12px; font-weight:750; }
-    .ios-steps li strong { color:var(--ink); font-weight:700; }
-    .ios-steps li.warn { color:#8a6d3b; }
-    .ios-steps li.warn b { color:#a86400; background:#fff4e0; }
+    .ios-hint { margin-top:13px; color:var(--muted); font-size:13px; line-height:1.65; }
+    .ios-hint strong { color:var(--ink); }
   </style>
 </head>
 <body>
@@ -109,16 +103,8 @@
             <a id="download" class="button" href="/downloads/kankan-android.apk">下载 Android 内测版</a>
             <a id="ios-use" class="button secondary" href="/app/">在 iPhone 上使用</a>
           </div>
-          <div id="ios-guide" class="ios-guide" hidden>
-            <div class="ios-guide-head">📲 在 iPhone 上像 App 一样用</div>
-            <ol class="ios-steps">
-              <li id="ios-safari-step" class="warn" hidden><b>!</b><span>你现在不在 Safari 里，无法安装。先点右上角 <strong>···</strong> →「<strong>在默认浏览器打开</strong>」，用 Safari 打开本页</span></li>
-              <li><b>1</b><span>点上面 <strong>「在 iPhone 上使用」</strong> 打开看看</span></li>
-              <li><b>2</b><span>点屏幕底部的 <strong>分享</strong> ⬆️ 按钮</span></li>
-              <li><b>3</b><span>选 <strong>「添加到主屏幕」</strong>，桌面就多了看看图标</span></li>
-            </ol>
-          </div>
-          <div class="build-note">无需先登录即可浏览 · 当前安装包 0.2.3 · 约 63 MB<br>已安装 0.2.2 可直接覆盖升级；0.2.1 内测版需先卸载一次<br>安装包由成都市环球远景贸易有限公司提供</div>
+          <p id="ios-hint" class="ios-hint" hidden></p>
+          <div class="build-note">无需登录即可浏览 · 约 63 MB<br>安装包由成都市环球远景贸易有限公司提供</div>
         </div>
         <div class="phone" aria-label="看看中的真实作品预览">
           <div class="phone-screen"><div class="phone-title"><strong>今天看什么</strong><span>真实作品预览</span></div><div id="phone-feed" class="phone-feed"><div class="phone-card"><div>正在读取今天值得看的作品…</div></div></div></div>
@@ -128,7 +114,7 @@
       <section id="works">
         <div class="section-head">
           <h2>不是概念，是已经做出来的东西</h2>
-          <p>下面来自看看当前公开内容。每个项目先检查成果证据，再整理真实体验入口。</p>
+          <p>都是个人真正做出来、能看到成果的作品。喜欢的，点进去就能体验。</p>
         </div>
         <div id="projects" class="projects"><div class="loading">正在读取今天值得看的作品…</div></div>
       </section>
@@ -136,9 +122,9 @@
       <section>
         <div class="section-head"><h2>我们只做三件事</h2></div>
         <div class="steps">
-          <article class="step"><b>1</b><h3>从更多地方发现</h3><p>寻找个体真正做出来的成果，不用“AI”泛词堆满信息流。</p></article>
-          <article class="step"><b>2</b><h3>把水货挡在外面</h3><p>检查成果图、演示和可体验性，不把教程原料与公司广告伪装成作品。</p></article>
-          <article class="step"><b>3</b><h3>把入口整理清楚</h3><p>让你先看结果，再直达网页版、下载版或真实使用方法。</p></article>
+          <article class="step"><b>1</b><h3>从更多地方发现</h3><p>到处帮你挖个人真做出来的作品，不是刷不完的 AI 资讯。</p></article>
+          <article class="step"><b>2</b><h3>把水货挡在外面</h3><p>只留真做出来、看得到成果的东西，广告和半成品都挡在外面。</p></article>
+          <article class="step"><b>3</b><h3>把入口整理清楚</h3><p>先看结果，想体验就一步直达，不用你到处找入口。</p></article>
         </div>
       </section>
 
@@ -192,8 +178,8 @@
         if (!items.length) throw new Error('empty');
         root.innerHTML = items.map((p,i) => `<a class="project" href="#download" data-project-id="${p.id}" data-index="${i}">
           <img loading="lazy" src="${absoluteMedia(p.cover_media_url)}" alt="${String(p.title).replace(/[<>&\"]/g,'')}" onerror="this.closest('.project').remove()">
-          <div class="project-copy"><h3>${String(p.title).replace(/[<>&]/g,'')}</h3><p>${p.value_score ? `<span class="score">价值 ${p.value_score}</span> · ` : ''}${p.is_direct_tryable ? '可直接体验' : '成果已核验'}</p></div></a>`).join('');
-        document.getElementById('phone-feed').innerHTML = items.slice(0,4).map(p => `<article class="phone-card"><img src="${absoluteMedia(p.cover_media_url)}" alt=""><div>${String(p.title).replace(/[<>&]/g,'').slice(0,25)}<small>${p.is_direct_tryable ? '可直接体验' : '成果已核验'}</small></div></article>`).join('');
+          <div class="project-copy"><h3>${String(p.title).replace(/[<>&]/g,'')}</h3>${p.is_direct_tryable ? '<p><span class="score">可直接体验 →</span></p>' : ''}</div></a>`).join('');
+        document.getElementById('phone-feed').innerHTML = items.slice(0,4).map(p => `<article class="phone-card"><img src="${absoluteMedia(p.cover_media_url)}" alt=""><div>${String(p.title).replace(/[<>&]/g,'').slice(0,25)}${p.is_direct_tryable ? '<small>可直接体验</small>' : ''}</div></article>`).join('');
         root.querySelectorAll('.project').forEach(el => el.addEventListener('click', () => track('landing_project_click',{project_id:el.dataset.projectId,position:Number(el.dataset.index)+1})));
       } catch (_) { root.innerHTML='<div class="loading">作品正在更新。你仍可先下载 App 浏览当前内容。</div>'; }
     }
@@ -205,13 +191,15 @@
       var ua = navigator.userAgent || '';
       var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       if (!isIOS || window.navigator.standalone) return; // 非 iOS，或已从主屏图标打开，无需提示
-      var guide = document.getElementById('ios-guide');
-      if (!guide) return;
-      guide.hidden = false;
-      // 只有 iOS 真 Safari 的 UA 才带 "Version/xx … Safari"；小红书/微信等内置浏览器没有，也就无法加桌面
+      var hint = document.getElementById('ios-hint');
+      if (!hint) return;
+      // 只有 iOS 真 Safari 的 UA 才带 "Version/xx … Safari"；小红书/微信等内置浏览器没有，无法加桌面
       var isRealSafari = /Version\/[\d.]+.*Safari/.test(ua);
-      if (!isRealSafari) document.getElementById('ios-safari-step').hidden = false;
-      track('ios_guide_shown', { in_app: !isRealSafari });
+      hint.innerHTML = isRealSafari
+        ? '用 Safari 打开，点 <strong>⬆️ 分享</strong> 选「添加到主屏幕」，就能像 App 一样用。'
+        : '想像 App 一样用？点右上角 <strong>···</strong> 用 Safari 打开，再选「添加到主屏幕」。';
+      hint.hidden = false;
+      track('ios_hint_shown', { in_app: !isRealSafari });
     })();
     loadProjects();
   </script>
