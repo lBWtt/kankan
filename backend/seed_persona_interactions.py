@@ -28,11 +28,15 @@ from sqlalchemy import func, select
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.models import (
-    Comment, CommentLike, Favorite, Post, PostLike, Project, User,
+    Comment, CommentLike, Favorite, Post, PostLike, Project,
+    ProjectReaction, TryItem, User,
 )
 from app.services.personas import PERSONA_EMAIL_DOMAIN, persona_users
 
 rng = random.Random(20260726)
+
+# 创意反馈三种（与 enums.REACTION_TYPE 一致）
+REACTIONS = ("creative", "big_brain", "cool")
 
 # DeepSeek 已下线 deepseek-chat；现用 deepseek-v4-flash（快/省，短评论足够）。可用 env 覆盖。
 MODEL = os.environ.get("DEEPSEEK_MODEL") or "deepseek-v4-flash"
@@ -122,8 +126,10 @@ def reset_persona_interactions(db):
     db.query(CommentLike).filter(CommentLike.user_id.in_(pids)).delete(synchronize_session=False)
     db.query(PostLike).filter(PostLike.user_id.in_(pids)).delete(synchronize_session=False)
     db.query(Favorite).filter(Favorite.user_id.in_(pids)).delete(synchronize_session=False)
+    db.query(TryItem).filter(TryItem.user_id.in_(pids)).delete(synchronize_session=False)
+    db.query(ProjectReaction).filter(ProjectReaction.user_id.in_(pids)).delete(synchronize_session=False)
     db.commit()
-    print(f"--reset：已清马甲评论 {len(pc)} 条及相关赞/收藏")
+    print(f"--reset：已清马甲评论 {len(pc)} 条及相关赞/收藏/体验/反馈")
 
 
 def main():
@@ -159,7 +165,7 @@ def main():
 
         client = None if args.dry else _client()
         now = datetime.now(timezone.utc)
-        n_comments = n_replies = n_clikes = n_plikes = n_favs = 0
+        n_comments = n_replies = n_clikes = n_plikes = n_favs = n_tries = n_reactions = 0
 
         for i, (htype, host) in enumerate(hosts):
             k = rng.randint(2, 6)
@@ -233,6 +239,25 @@ def main():
                     if f.id == host.author_user_id:
                         continue
                     db.add(Favorite(project_id=host.id, user_id=f.id)); n_favs += 1
+                # 体验（想试）：比收藏少——真人里"点进去玩"的比"顺手收藏"的少
+                triers = rng.sample(personas, min(rng.randint(2, 15), len(personas)))
+                seen_try = set()
+                for t in triers:
+                    if t.id == host.author_user_id or t.id in seen_try:
+                        continue
+                    seen_try.add(t.id)
+                    db.add(TryItem(project_id=host.id, user_id=t.id)); n_tries += 1
+                # 创意反馈（有创意/太聪明了/酷）：随机几个马甲各挑一种
+                reactors = rng.sample(personas, min(rng.randint(2, 18), len(personas)))
+                seen_react = set()
+                for r in reactors:
+                    if r.id == host.author_user_id or r.id in seen_react:
+                        continue
+                    seen_react.add(r.id)
+                    db.add(ProjectReaction(
+                        project_id=host.id, user_id=r.id,
+                        reaction_type=rng.choice(REACTIONS),
+                    )); n_reactions += 1
 
             if i % 10 == 0:
                 db.commit()
@@ -240,7 +265,8 @@ def main():
 
         db.commit()
         print(f"完成：评论 {n_comments}、回复 {n_replies}、评论赞 {n_clikes}、"
-              f"动态赞 {n_plikes}、收藏 {n_favs}（宿主 {len(hosts)}）")
+              f"动态赞 {n_plikes}、收藏 {n_favs}、体验 {n_tries}、反馈 {n_reactions}"
+              f"（宿主 {len(hosts)}）")
     finally:
         db.close()
 
