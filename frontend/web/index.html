@@ -64,7 +64,8 @@
     }
     #app-loading strong { font-size: 20px; letter-spacing: .08em; }
     #app-loading span { color: #628073; font-size: 14px; }
-    #app-loading.slow span::after { content: "，首次打开需要一点时间"; }
+    #app-progress { width: 168px; height: 4px; margin-top: 2px; border-radius: 4px; background: #e3ece7; overflow: hidden; }
+    #app-progress > i { display: block; width: 0; height: 100%; border-radius: 4px; background: #1D9E75; transition: width .3s ease; }
     #app-loading.done { opacity: 0; pointer-events: none; }
   </style>
 </head>
@@ -72,7 +73,8 @@
   <div id="app-loading" role="status" aria-live="polite">
     <img src="icons/apple-touch-icon.png" alt="">
     <strong>看看</strong>
-    <span>正在打开</span>
+    <span id="app-loading-msg">正在打开</span>
+    <div id="app-progress"><i></i></div>
   </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
@@ -84,11 +86,23 @@
   -->
   <script>
     const loading = document.getElementById('app-loading');
-    const slowTimer = setTimeout(() => loading?.classList.add('slow'), 6000);
+    const msg = document.getElementById('app-loading-msg');
+    const bar = document.querySelector('#app-progress > i');
+    // 模拟进度：先快后慢逼近 90%，首帧到达时补满——让首次的几秒有可见反馈，不像卡死。
+    let p = 0;
+    const tick = setInterval(() => {
+      p += Math.max(0.5, (90 - p) * 0.06);
+      if (p > 90) p = 90;
+      if (bar) bar.style.width = p.toFixed(1) + '%';
+    }, 200);
+    // 首次加载重（canvaskit ~2.8MB），2.5s 还没好就如实说明，之后就快了。
+    const slowTimer = setTimeout(() => { if (msg) msg.textContent = '首次加载较慢，之后就快了'; }, 2500);
     window.addEventListener('flutter-first-frame', () => {
+      clearInterval(tick);
       clearTimeout(slowTimer);
+      if (bar) bar.style.width = '100%';
       loading?.classList.add('done');
-      setTimeout(() => loading?.remove(), 220);
+      setTimeout(() => loading?.remove(), 260);
     }, { once: true });
   </script>
   <script src="flutter_bootstrap.js" async></script>

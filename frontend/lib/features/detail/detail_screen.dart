@@ -550,35 +550,15 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           ),
           child: Row(
             children: [
-              // 评论入口:F-5 点击滚动到内联 CommentThread(与其他屏评论入口一致:有反应)
-              Expanded(
-                child: Tappable(
-                  onTap: _scrollToComments,
-                  borderRadius: BorderRadius.circular(KkRadius.pill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: KkSpacing.md,
-                      horizontal: KkSpacing.lg,
-                    ),
-                    decoration: BoxDecoration(
-                      color: KkColors.bgSubtle,
-                      borderRadius: BorderRadius.circular(KkRadius.pill),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.chat_bubble_outline,
-                            size: 16, color: KkColors.t3),
-                        const SizedBox(width: KkSpacing.sm),
-                        Text(
-                          '评论 ${comments.length}',
-                          style: KkType.bodySm,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              // 评论:紧凑图标统计（与点赞/拿走一致），点了滚到内联评论区。
+              // 不再做成撑满整行的大药丸——否则和内联「写心得」输入框叠着，像两个评论栏。
+              _IconStat(
+                icon: Icons.chat_bubble_outline,
+                value: _fmtCount(comments.length),
+                color: KkColors.t2,
+                onTap: _scrollToComments,
               ),
-              const SizedBox(width: KkSpacing.sm),
+              const Spacer(),
               // 点赞:F-6 接 toggleLike(参照 post_detail_screen._IconStat 写法)。
               // 任务 C:用 KkReactionButton——点亮时 scale 弹 + haptic(取消不弹)。
               KkReactionButton(
