@@ -38,6 +38,9 @@ class RecommendMasonry extends ConsumerStatefulWidget {
 
 class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
   late final ScrollController _scrollCtrl;
+  // 下拉刷新累加：>0 时按 (id, tick) 稳定重排，让「推荐」下拉能换个新排面。
+  // 首屏(tick=0)保持后端 slate 编排顺序——内容宪法首屏不动。
+  int _refreshTick = 0;
   @override
   void initState() {
     super.initState();
@@ -85,6 +88,12 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
       list = list.where((p) => p.domain == widget.domain).toList();
     }
     // 首页首批十条已由后端内容宪法 slate 编排；客户端必须保持返回顺序。
+    // 但下拉刷新是「给我换个新排面」的明确动作：tick>0 时按 (id, tick) 稳定重排。
+    // 用稳定 key 排序（而非 shuffle 整表），loadMore 追加时已看过的卡片不会乱跳。
+    if (_refreshTick > 0) {
+      list = [...list]..sort((a, b) => Object.hash(a.id, _refreshTick)
+          .compareTo(Object.hash(b.id, _refreshTick)));
+    }
 
     if (list.isEmpty) {
       return ListView(
@@ -97,6 +106,7 @@ class _RecommendMasonryState extends ConsumerState<RecommendMasonry> {
       color: KkColors.teal,
       onRefresh: () async {
         await ref.read(paginatedProjectsProvider.notifier).refresh();
+        if (mounted) setState(() => _refreshTick++);
       },
       child: CustomScrollView(
         controller: _scrollCtrl,
