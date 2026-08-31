@@ -551,7 +551,8 @@ function renderDetail(c){
     <div class="actions">
       ${(c.status==='approved' && c.project_id)
         ? `<button class="btn-danger" onclick="takeDownProject('${c.project_id}','${c.id}')">⬇ 下架</button>
-           <button class="btn-ghost" onclick="restoreProject('${c.project_id}')">↺ 恢复上架</button>`
+           <button class="btn-ghost" onclick="restoreProject('${c.project_id}')">↺ 恢复上架</button>
+           <button class="btn-ghost" onclick="discardProject('${c.project_id}','${c.id}')">🗑 废除</button>`
         : c.status==='discarded'
           ? `<button class="btn-primary" onclick="restoreCandidate('${c.id}')">↶ 撤销不推荐</button>`
         : c.status==='ai_collected'
@@ -788,6 +789,16 @@ async function restoreProject(projId){
     await api("/admin/projects/"+projId+"/restore",{method:"POST",body:JSON.stringify({reason:"审核台恢复"})});
     toast("已恢复上架"); refreshPending();
   }catch(e){ toast("恢复失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 废除：软删项目（→deleted）。下架只对在架项目有效；遇到 rejected/taken_down 等
+// 终态（下架/恢复都点不动）的旧数据，用这个彻底清掉，App 端永不可见。
+async function discardProject(projId, candId){
+  if(!confirm("确认废除这个项目？软删除、App 端彻底不可见。（下架只对在架的有效，废除对任何状态都能清）")) return;
+  try{
+    await api("/admin/projects/"+projId+"/soft-delete",{method:"POST",body:JSON.stringify({reason:"审核台废除"})});
+    toast("已废除（软删）"); await dropCurrentRowAndOpenNext(candId); refreshPending();
+  }catch(e){ toast("废除失败："+(e.body&&e.body.message||e.message)); }
 }
 
 async function approve(id){
