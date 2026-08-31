@@ -22,7 +22,9 @@ String _getOrCreateAnonId(SharedPreferences prefs) {
   var id = prefs.getString(PrefsKeys.anonClientId);
   if (id == null || id.isEmpty) {
     final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final rnd = Random().nextInt(1 << 32).toRadixString(36);
+    // 不用 1<<32：web(dart2js/DDC) 上 1<<32 越界 → Random().nextInt 抛 RangeError，
+    // 会让首次访问（本地还没 anon id）的游客整个 feed 崩到 ErrorWidget。0xFFFFFFFF 安全。
+    final rnd = Random().nextInt(0xFFFFFFFF).toRadixString(36);
     id = 'anon-$ts-$rnd'; // ≤64 字符，满足后端约束
     prefs.setString(PrefsKeys.anonClientId, id);
   }

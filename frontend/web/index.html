@@ -96,7 +96,7 @@
       if (bar) bar.style.width = p.toFixed(1) + '%';
     }, 200);
     // 首次加载重（canvaskit ~2.8MB），2.5s 还没好就如实说明，之后就快了。
-    const slowTimer = setTimeout(() => { if (msg) msg.textContent = '首次加载较慢，之后就快了'; }, 2500);
+    const slowTimer = setTimeout(() => { if (msg) msg.textContent = '首次加载较慢'; }, 2500);
     window.addEventListener('flutter-first-frame', () => {
       clearInterval(tick);
       clearTimeout(slowTimer);
