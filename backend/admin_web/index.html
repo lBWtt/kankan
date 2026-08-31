@@ -409,6 +409,23 @@ async function refreshPending(){
   }catch(e){}
 }
 
+// 线上项目 id 集合：拿公开 /api/v1/projects（=用户真能看到的 published）建集合，
+// 给列表每行标「🟢线上 / ⚪未上线」——审核台按候选状态分不清项目是否上线，这里补上。
+const LIVE_IDS = new Set();
+let LIVE_READY = null;
+async function loadLiveIds(){
+  try{
+    let cur=null;
+    for(let i=0;i<8;i++){
+      const r=await fetch('/api/v1/projects?page_size=50'+(cur?('&cursor='+encodeURIComponent(cur)):''));
+      if(!r.ok) break;
+      const d=await r.json();
+      (d.items||[]).forEach(p=>LIVE_IDS.add(p.id));
+      cur=d.next_cursor||d.nextCursor; if(!cur) break;
+    }
+  }catch(e){}
+}
+
 async function reload(){
   cursor=null; document.getElementById("list").innerHTML="";
   await loadMore(true);
@@ -435,6 +452,8 @@ async function loadMore(fresh){
     if(fresh && page.items.length===0){
       list.innerHTML='<div class="loadmore muted">这个状态下没有内容</div>'; loading=false; return;
     }
+    if(!LIVE_READY) LIVE_READY = loadLiveIds();
+    await LIVE_READY; // 保证「线上」标记就绪再渲染
     for(const it of page.items){
       const div=document.createElement("div");
       div.className="row"; div.dataset.id=it.id;
@@ -444,9 +463,15 @@ async function loadMore(fresh){
       const risk = (it.risk_flags&&it.risk_flags.length)?`<span class="pill risk">⚠ ${it.risk_flags.length}</span>`:"";
       const score = (it.ai_curation_score!=null)?`<span class="pill score">${it.ai_curation_score}分</span>`:"";
       const kindPill = it.content_kind==="post" ? `<span class="pill" style="background:#eef0fb;color:#5a5ac0">动态</span>` : `<span class="pill">项目</span>`;
+      // 线上标记：只对"已通过且有项目"的项目卡有意义（动态/未通过不标）。
+      const live = (it.status==='approved' && it.project_id && it.content_kind!=='post')
+        ? (LIVE_IDS.has(it.project_id)
+            ? `<span class="pill" style="background:#e6f6ee;color:#167956">🟢线上</span>`
+            : `<span class="pill" style="background:#fdecec;color:#c0392b">⚪未上线</span>`)
+        : "";
       div.innerHTML = `${thumb}<div style="min-width:0">
         <div class="rtitle">${esc(it.title||"(无标题)")}</div>
-        <div class="rmeta">${kindPill}${score}${risk}${esc(it.source_platform||"")} · ${esc((it.language||"").replace("zh-CN","中").replace("en-US","EN"))}</div>
+        <div class="rmeta">${kindPill}${live}${score}${risk}${esc(it.source_platform||"")} · ${esc((it.language||"").replace("zh-CN","中").replace("en-US","EN"))}</div>
       </div>`;
       list.appendChild(div);
     }
