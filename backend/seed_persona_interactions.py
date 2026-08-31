@@ -58,6 +58,13 @@ def _looks_real(text: str) -> bool:
     return len(_CJK.findall(text or "")) >= 4
 
 
+def _ok_gen(text: str) -> bool:
+    """生成评论的宽松过滤：非空即可（放行"牛""蹲""哈哈哈""6"这类超短真实评论）。
+    模型输出不会是 jhkfkjsdhfkj 那种垃圾，故不套 _looks_real 的 ≥4 汉字门槛——
+    那个门槛会把最像人的短评论全删掉，只剩工整长句（=很人机）。"""
+    return bool((text or "").strip())
+
+
 def style_examples(db, n=14):
     posts = db.scalars(
         select(Post).where(Post.deleted_at.is_(None)).order_by(func.random()).limit(80)
@@ -87,11 +94,14 @@ def _parse_array(text: str):
 
 def gen_comments(client, examples, host_desc, k):
     prompt = (
-        "你在一个中文 AI 创意作品社区里当普通用户。社区里大家发言的风格示例：\n"
+        "你在模拟一个中文 AI 创意作品社区评论区的真实氛围。真实评论区是杂乱的，"
+        "不是每条都认真、都切题、都在夸。参考社区口吻：\n"
         + "\n".join(f"- {e}" for e in examples)
-        + f"\n\n现在针对下面这条内容，写 {k} 条**评论**。要求：像真人随手评论——"
-        "口语、简短（多数 5~25 字）；有的夸、有的问细节、有的表示共鸣或想试试；"
-        "别每条都商业互吹，别用话题标签(#)、别 @人、别加引号、别带序号。\n"
+        + f"\n\n针对下面这条内容，写 {k} 条评论，像不同的人随手刷到时的反应。务必混着来、别整齐划一：\n"
+        "- 长短悬殊：有的就两三个字（哈哈哈 / 蹲 / 码住了 / 牛 / 学到了 / 第一 / 6 / 有点东西），有的才一句话；\n"
+        "- 内容杂：有的夸，有的随口问一句，有的吐槽或质疑，有的跑题接梗，有的只发个感叹；\n"
+        "- 别每条都说'想试试'、别每条彩虹屁、别都那么用心那么切题；克制、随意点；\n"
+        "- 大白话，可有错别字和网络梗；别用话题标签(#)、别 @人、别加引号、别带序号。\n"
         f"内容：{host_desc}\n\n"
         "只输出一个 JSON 字符串数组，每个元素一条评论。"
     )
@@ -189,7 +199,7 @@ def main():
 
             top_comments = []
             for persona, text in zip(commenters, texts):
-                if not _looks_real(text):
+                if not _ok_gen(text):
                     continue
                 c = Comment(
                     host_type=htype, host_id=host.id, author_user_id=persona.id,
@@ -216,7 +226,7 @@ def main():
                     rtexts = gen_comments(client, examples, f"回复评论「{parent.content}」（就内容简短接话）", 1)
                 except Exception:
                     rtexts = []
-                if rtexts and _looks_real(rtexts[0]):
+                if rtexts and _ok_gen(rtexts[0]):
                     db.add(Comment(
                         host_type=htype, host_id=host.id, author_user_id=replier.id,
                         content=rtexts[0][:280], parent_comment_id=parent.id,
