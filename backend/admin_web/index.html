@@ -429,6 +429,7 @@ async function loadLiveIds(){
 
 async function reload(){
   cursor=null; document.getElementById("list").innerHTML="";
+  LIVE_READY = loadLiveIds(); // 每次刷新都重拉「线上清单」：避免刚通过/刚上架的项目因缓存过期在「🟢线上」里找不到
   await loadMore(true);
 }
 
