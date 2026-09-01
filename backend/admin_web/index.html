@@ -209,6 +209,7 @@
           <option value="post">只看动态</option>
           <option value="project">只看项目</option>
         </select>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap" title="只显示用户真能看到的已发布项目（= 你的线上项目库）"><input type="checkbox" id="fLiveOnly" onchange="reload()"> 🟢只看线上</label>
         <input id="fQuery" placeholder="搜标题(如 旅居/城市)" onkeydown="if(event.key==='Enter') reload()" onchange="reload()">
         <input id="fPlatform" placeholder="来源平台(可空，如 jike)" onchange="reload()">
         <select id="fSort" onchange="reload()">
@@ -454,7 +455,9 @@ async function loadMore(fresh){
     }
     if(!LIVE_READY) LIVE_READY = loadLiveIds();
     await LIVE_READY; // 保证「线上」标记就绪再渲染
+    const liveOnly = document.getElementById("fLiveOnly") && document.getElementById("fLiveOnly").checked;
     for(const it of page.items){
+      if(liveOnly && !(it.project_id && LIVE_IDS.has(it.project_id))) continue; // 只看线上：跳过未上线/非项目
       const div=document.createElement("div");
       div.className="row"; div.dataset.id=it.id;
       div.onclick=()=>openDetail(it.id, div);
