@@ -575,7 +575,7 @@ function renderDetail(c){
 
     <div class="actions">
       ${(c.status==='approved' && c.project_id)
-        ? `<button class="btn-danger" onclick="takeDownProject('${c.project_id}','${c.id}')">⬇ 下架</button>
+        ? `${!LIVE_IDS.has(c.project_id) ? `<button class="btn-primary" onclick="publishProject('${c.project_id}','${c.id}')">⬆ 上架</button> ` : ``}<button class="btn-danger" onclick="takeDownProject('${c.project_id}','${c.id}')">⬇ 下架</button>
            <button class="btn-ghost" onclick="restoreProject('${c.project_id}')">↺ 恢复上架</button>
            <button class="btn-ghost" onclick="discardProject('${c.project_id}','${c.id}')">🗑 废除</button>`
         : c.status==='discarded'
@@ -824,6 +824,15 @@ async function discardProject(projId, candId){
     await api("/admin/projects/"+projId+"/soft-delete",{method:"POST",body:JSON.stringify({reason:"审核台废除"})});
     toast("已废除（软删）"); await dropCurrentRowAndOpenNext(candId); refreshPending();
   }catch(e){ toast("废除失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 上架/发布：把 draft/rejected/taken_down 等未上线项目发布成 published（后端补 published_at）。
+async function publishProject(projId, candId){
+  if(!confirm("确认上架这个项目？将对所有用户可见。（草稿/被拒/下架的都能一键发布）")) return;
+  try{
+    await api("/admin/projects/"+projId+"/publish",{method:"POST",body:JSON.stringify({reason:"审核台上架"})});
+    toast("已上架（已发布）"); LIVE_IDS.add(projId); refreshPending();
+  }catch(e){ toast("上架失败："+(e.body&&e.body.message||e.message)); }
 }
 
 async function approve(id){

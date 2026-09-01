@@ -623,6 +623,8 @@ router.post("/projects/{project_id}/soft-delete", response_model=AdminProjectAct
             summary="删除（→deleted，软删；红线：与下架是两个状态）")(_project_action_route("soft_delete"))
 router.post("/projects/{project_id}/require-edit", response_model=AdminProjectActionResponse,
             summary="要求修改（→under_review + 通知作者）")(_project_action_route("require_edit"))
+router.post("/projects/{project_id}/publish", response_model=AdminProjectActionResponse,
+            summary="上架/发布（draft/rejected/taken_down/hidden/under_review→published，补 published_at）")(_project_action_route("publish"))
 
 
 @router.patch("/projects/{project_id}", response_model=OkResponse,

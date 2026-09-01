@@ -23,6 +23,8 @@ _TRANSITIONS: Dict[str, Tuple[Set[str], str]] = {
     "require_edit": ({"published", "hidden", "under_review"}, "under_review"),
     # 标记风险：同样转 under_review 但不通知作者（后台 v1.2：先排查，查实才要求修改/下架）
     "mark_risk": ({"published", "hidden", "under_review"}, "under_review"),
+    # 上架/发布：草稿/被拒/下架/隐藏/审核中 → published（补 published_at，见 apply_project_action）。
+    "publish": ({"draft", "rejected", "taken_down", "hidden", "under_review"}, "published"),
 }
 
 # 动作发给作者的 content_status 通知文案（外部抓取内容无站内作者，自动跳过）
@@ -56,6 +58,9 @@ def apply_project_action(
         )
 
     project.status = target
+    # 发布/恢复到 published 且从未发布过 → 补发布时间，否则 feed 按 published_at 排序会异常。
+    if target == "published" and project.published_at is None:
+        project.published_at = datetime.now(timezone.utc)
     if action == "soft_delete":
         project.deleted_at = datetime.now(timezone.utc)
     if action == "take_down":
