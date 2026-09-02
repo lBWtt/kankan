@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 仅 debug 构建生效：放行所有明文 HTTP，方便真机连任意 dev 后端
+     （USB adb reverse 的 127.0.0.1，或同 WiFi 下 PC 的 LAN IP 如 192.168.0.49）。
+     release 构建仍用 main/res 里的严格配置（只放行本地域名），线上安全不打折。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, CheckConstraint, Index, String, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,9 +22,14 @@ class User(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     email: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), unique=True)
+    # 稳定用户名（@handle）：注册即发、唯一、可在编辑资料改；搜索/@ 用它。
+    # 存小写规范形态（a-z0-9_，字母开头）；nullable 仅为兼容存量行落库顺序，实际全量回填。
+    handle: Mapped[Optional[str]] = mapped_column(String(30), unique=True)
     nickname: Mapped[Optional[str]] = mapped_column(String(50))
     avatar_url: Mapped[Optional[str]] = mapped_column(Text)
     bio: Mapped[Optional[str]] = mapped_column(String(500))
+    school: Mapped[Optional[str]] = mapped_column(String(100))
+    age: Mapped[Optional[int]] = mapped_column(Integer)
     language_preference: Mapped[str] = mapped_column(language_enum, nullable=False, server_default="zh-CN")
     country_region: Mapped[Optional[str]] = mapped_column(String(50))
     # v1.3 新增：兴趣领域（domain 枚举值数组），onboarding 写入，驱动发现页个性化
@@ -50,6 +55,7 @@ class User(TimestampMixin, Base):
         ),
         # C-MDL-2：email/phone 至少有一个，杜绝幽灵账号（两者都可空但不可同时为空）
         CheckConstraint("email IS NOT NULL OR phone IS NOT NULL", name="contact_present"),
+        CheckConstraint("age IS NULL OR age BETWEEN 1 AND 120", name="age_valid"),
         # H-MDL-8：软删列的部分索引——只索引未软删的活跃用户，提升登录/查询性能
         Index("ix_users_live", "id", postgresql_where=text("deleted_at IS NULL")),
     )

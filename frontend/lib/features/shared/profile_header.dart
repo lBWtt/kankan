@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/utils/local_image.dart';
 
 import '../../core/theme/kk_colors.dart';
@@ -8,6 +9,7 @@ import '../../core/utils/parse_count.dart';
 import '../../core/widgets/tappable.dart';
 import '../../domain/models/models.dart';
 import 'avatar.dart';
+import 'image_lightbox.dart';
 
 /// 任务⑩A:共享个人页头部 — me_screen 与 profile_screen 共用同一视觉语言
 /// (暖色渐变 banner + 大头像压 banner + 名字 + inline 统计 + 右侧操作槽)。
@@ -47,8 +49,11 @@ class ProfileHeader extends StatelessWidget {
   /// 点击粉丝数 → follows 页(可空)
   final VoidCallback? onTapFollowers;
 
-  /// banner 右上角自定义槽(me: 通知+设置;profile: 返回+更多;null 不显)
+  /// banner 右上角自定义槽(me: 通知+设置;profile: 更多;null 不显)
   final List<Widget>? bannerActions;
+
+  /// banner 左上角槽(profile: 返回按钮，放左上更符合直觉；me 不传)。
+  final Widget? bannerLeading;
 
   /// 右下操作区(me: 编辑资料链接;profile: 关注/编辑按钮)
   final Widget? actionSlot;
@@ -81,6 +86,7 @@ class ProfileHeader extends StatelessWidget {
     this.onTapFollowing,
     this.onTapFollowers,
     this.bannerActions,
+    this.bannerLeading,
     this.actionSlot,
     this.nameTrailing,
     this.fourthStatLabel,
@@ -94,6 +100,7 @@ class ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     const bannerHeight = 160.0;
     const avatarSize = 72.0;
+    final topInset = MediaQuery.paddingOf(context).top;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -142,11 +149,18 @@ class ProfileHeader extends StatelessWidget {
                       )
                     : const _GradientBanner(),
               ),
+              // 左上角槽(可选，放返回键——比挤在右上角更符合直觉)
+              if (bannerLeading != null)
+                Positioned(
+                  top: topInset + KkSpacing.md,
+                  left: KkSpacing.md,
+                  child: bannerLeading!,
+                ),
               // 右上角槽(可选)
               if (bannerActions != null && bannerActions!.isNotEmpty)
                 Positioned(
-                  top: KkSpacing.sm,
-                  right: KkSpacing.xs,
+                  top: topInset + KkSpacing.md,
+                  right: KkSpacing.md,
                   child: Row(children: bannerActions!),
                 ),
               // 换背景相机按钮(仅 me 传 onChangeBanner 时显,右下角浮在 banner 上)
@@ -177,15 +191,27 @@ class ProfileHeader extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // 头像外圈白边(在渐变上更清晰)
-                    Container(
-                      decoration: const BoxDecoration(
-                        color: KkColors.bg,
-                        shape: BoxShape.circle,
+                    // 头像：完整白色描边圈（border 画在圆周上，任何背景都是整圈，不再出现
+                    // 「上方一段白弧、下方与底色同化看不见」的半吊子效果）+ 轻投影，读作悬浮头像。
+                    // 点头像 → 看大图（有真实头像才开灯箱）。
+                    GestureDetector(
+                      onTap: () {
+                        final raw = user?.avatar;
+                        if (raw == null || raw.isEmpty) return;
+                        openImageLightbox(context,
+                            urls: [AppConfig.resolveMedia(raw)], initialIndex: 0);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: KkElevation.card,
+                        ),
+                        child: ClipOval(
+                          child: KkAvatar(
+                              userId: userId, user: user, size: avatarSize),
+                        ),
                       ),
-                      padding: const EdgeInsets.all(3),
-                      child: KkAvatar(
-                          userId: userId, user: user, size: avatarSize),
                     ),
                     const SizedBox(width: KkSpacing.md),
                     Expanded(
@@ -211,8 +237,21 @@ class ProfileHeader extends StatelessWidget {
                                 ],
                               ],
                             ),
-                            if (user?.bio != null &&
-                                user!.bio!.isNotEmpty) ...[
+                            // @handle：稳定用户名，放名字正下方（改名也不变，可被搜索/@）。
+                            if (user?.handle != null &&
+                                user!.handle!.isNotEmpty) ...[
+                              const SizedBox(height: 1),
+                              Text(
+                                '@${user!.handle!}',
+                                style: KkType.mono.copyWith(
+                                  fontSize: 12,
+                                  color: KkColors.t3,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            if (user?.bio != null && user!.bio!.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
                                 user!.bio!,
@@ -220,6 +259,25 @@ class ProfileHeader extends StatelessWidget {
                                     KkType.bodySm.copyWith(color: KkColors.t3),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            if ((user?.school?.isNotEmpty ?? false) ||
+                                user?.age != null) ...[
+                              const SizedBox(height: 5),
+                              Wrap(
+                                spacing: KkSpacing.md,
+                                children: [
+                                  if (user?.school?.isNotEmpty ?? false)
+                                    _ProfileMeta(
+                                      icon: Icons.school_outlined,
+                                      text: user!.school!,
+                                    ),
+                                  if (user?.age != null)
+                                    _ProfileMeta(
+                                      icon: Icons.cake_outlined,
+                                      text: '${user!.age} 岁',
+                                    ),
+                                ],
                               ),
                             ],
                           ],
@@ -274,6 +332,26 @@ class ProfileHeader extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _ProfileMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _ProfileMeta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: KkColors.t3),
+        const SizedBox(width: 4),
+        Text(text,
+            style: KkType.bodySm.copyWith(color: KkColors.t3, fontSize: 11)),
       ],
     );
   }

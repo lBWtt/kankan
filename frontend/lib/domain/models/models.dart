@@ -5,6 +5,7 @@
 
 export 'action_item.dart';
 export 'comment.dart';
+export 'heatmap_cell.dart';
 export 'io_block.dart';
 export 'media_item.dart';
 export 'notification_item.dart';

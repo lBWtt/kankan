@@ -33,6 +33,7 @@ class CandidateListItem(BaseModel):
 
     id: uuid.UUID
     status: CandidateStatus
+    content_kind: str = Field("project", description="project=项目 / post=动态（马甲发的动态需单独审）")
     source_type: ContentSourceType = Field(description="ai_crawled / manual_import（迁移 0002 补充）")
     title: Optional[str] = None
     tagline: Optional[str] = None
@@ -43,6 +44,13 @@ class CandidateListItem(BaseModel):
     source_platform: Optional[str] = None
     cover_media_url: Optional[str] = None
     ai_curation_score: Optional[int] = None
+    attraction_score: Optional[int] = None
+    value_score: Optional[int] = None
+    hook_clarity: Optional[int] = None
+    visual_impact: Optional[int] = None
+    work_form: Optional[str] = None
+    creator_type: Optional[str] = None
+    access_friction: Optional[str] = None
     risk_flags: List[str] = []
     project_id: Optional[uuid.UUID] = Field(None, description="approve 后回写的正式项目 ID")
     created_at: datetime
@@ -55,11 +63,31 @@ class CandidateDetail(CandidateListItem):
     ai_implementation_hint: Optional[str] = None
     target_users: List[str] = []
     use_cases: List[str] = []
+    # try_url = 体验链接（作品可去用地址，approve 带进 Project.try_url，前端「去体验」打开）；
+    # 与 source_url（采集来源，内部去重/备查，不展示给用户）分开。审核台需据此核验体验链接是否正确。
+    try_url: Optional[str] = None
     source_url: Optional[str] = None
     original_author_name: Optional[str] = None
     original_author_url: Optional[str] = None
     media_json: Optional[Any] = Field(None, description="列表或 {items:[...]}，每项 {url, media_type, thumbnail_url?}")
     scores_json: Optional[Any] = None
+    is_work: Optional[bool] = None
+    work_rejection_reason: Optional[str] = None
+    surprise: Optional[int] = None
+    tryability: Optional[int] = None
+    shareability: Optional[int] = None
+    is_strong_visual: bool = False
+    is_direct_tryable: bool = False
+    experience_type: Optional[str] = None
+    experience_url: Optional[str] = None
+    experience_content: Optional[str] = None
+    selected_proof_media: Optional[Any] = None
+    title_candidates: Optional[List[str]] = None
+    policy_version: str = "1.1"
+    score_version: Optional[str] = None
+    ai_analysis_json: Optional[Any] = None
+    human_override_json: Optional[Any] = None
+    override_reason: Optional[str] = None
     risk_note: Optional[str] = None
     reviewed_by_user_id: Optional[uuid.UUID] = None
     reviewed_at: Optional[datetime] = None
@@ -76,7 +104,7 @@ class CandidateDetail(CandidateListItem):
 class CandidatePatch(BaseModel):
     """PATCH /admin/candidates/{id}：人工编辑候选字段，保存后状态自动 → edited。"""
 
-    title: Optional[str] = Field(None, min_length=2, max_length=80)
+    title: Optional[str] = Field(None, min_length=12, max_length=28)
     tagline: Optional[str] = Field(None, min_length=5, max_length=140)
     summary: Optional[str] = Field(None, min_length=20, max_length=500)
     description: Optional[str] = Field(None, max_length=1000)
@@ -90,6 +118,8 @@ class CandidatePatch(BaseModel):
     )
     target_users: Optional[List[str]] = None
     use_cases: Optional[List[str]] = None
+    # 体验链接：审核员可改（把跳错的采集源页改成产品真实官网 / App Store / GitHub）。
+    try_url: Optional[str] = Field(None, max_length=2000, description="体验链接(http/https)，与采集源 source_url 分开")
     source_url: Optional[str] = None
     source_platform: Optional[str] = None
     original_author_name: Optional[str] = None
@@ -97,6 +127,29 @@ class CandidatePatch(BaseModel):
     cover_media_url: Optional[str] = None
     media_json: Optional[Any] = None
     risk_note: Optional[str] = None
+    is_work: Optional[bool] = None
+    work_form: Optional[Literal["app", "website", "workflow", "model", "prompt", "ai_art", "game", "tool"]] = None
+    creator_type: Optional[Literal["indie", "company"]] = None
+    access_friction: Optional[Literal["instant", "install", "technical"]] = None
+    experience_type: Optional[Literal["web", "video", "gallery", "download", "model_page", "workflow_file", "prompt_content", "game"]] = None
+    experience_url: Optional[str] = Field(None, max_length=2000)
+    experience_content: Optional[str] = Field(None, max_length=12000)
+    selected_proof_media: Optional[Any] = None
+    title_candidates: Optional[List[str]] = Field(None, min_length=2, max_length=2)
+    hook_clarity: Optional[int] = Field(None, ge=0, le=100)
+    visual_impact: Optional[int] = Field(None, ge=0, le=100)
+    surprise: Optional[int] = Field(None, ge=0, le=100)
+    tryability: Optional[int] = Field(None, ge=0, le=100)
+    shareability: Optional[int] = Field(None, ge=0, le=100)
+    value_score: Optional[int] = Field(None, ge=0, le=100)
+    override_reason: Optional[str] = Field(None, min_length=2, max_length=1000)
+
+    @field_validator("try_url", "experience_url", mode="after")
+    @classmethod
+    def _check_try_url(cls, v):
+        if v is not None and v.strip() and not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("体验链接必须是 http/https 网址")
+        return v
 
 
 class CandidateApproveResponse(BaseModel):
@@ -104,11 +157,66 @@ class CandidateApproveResponse(BaseModel):
     准入不满足返回 409 PUBLISH_GATE_FAILED；状态不允许返回 409 CANDIDATE_INVALID_STATE。"""
 
     ok: bool = True
-    project_id: uuid.UUID
+    # 项目候选返回 project_id；动态（content_kind=post）候选返回 post_id。二者其一。
+    project_id: Optional[uuid.UUID] = None
+    post_id: Optional[uuid.UUID] = None
+    # 实际随机派到的马甲昵称（审核员据此知道发布后作者显示成谁；预览页的名字是样例、以此为准）。
+    persona_name: Optional[str] = None
+
+
+class CandidateOverrideApproveRequest(BaseModel):
+    """人工破格发布：只允许豁免模型分数线，其他发布准入项仍必须通过。"""
+
+    reason: str = Field(min_length=2, max_length=1000)
+
+
+class AdminProjectEditRequest(BaseModel):
+    """PATCH /admin/projects/{id}：管理员「再剪辑」已发布项目的文案（不改所有权/媒体）。"""
+
+    title: Optional[str] = Field(None, min_length=2, max_length=80)
+    tagline: Optional[str] = Field(None, min_length=1, max_length=140)
+    summary: Optional[str] = Field(None, min_length=1, max_length=500)
+    description: Optional[str] = Field(None, max_length=1000)
+    try_url: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("try_url", mode="after")
+    @classmethod
+    def _chk_try(cls, v):
+        if v is not None and v.strip() and not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("体验链接必须是 http/https 网址")
+        return v
+
+
+class BulkScoreCleanupRequest(BaseModel):
+    """批量按 AI 分清理（人为设阈值）：待审候选批量不推荐 / 已发布项目批量下架。"""
+
+    below_score: int = Field(ge=1, le=100, description="删除 AI 分【严格低于】此值的（填 60 → 处理 <60 分）")
+    dry_run: bool = Field(True, description="true=只返回将影响的数量（预览用，不改动）；false=真执行")
+
+
+class BulkCleanupResponse(BaseModel):
+    matched: int = Field(description="dry_run 时=将影响的数量；执行时=实际处理成功的数量")
+    executed: bool = False
 
 
 class CandidateDiscardRequest(BaseModel):
     reason: Optional[str] = Field(None, max_length=500)
+
+
+class CandidateManualCreate(BaseModel):
+    """POST /admin/candidates/manual：把自己找到的链接手动加进候选池（跑 AI 整理后进待审队列）。"""
+
+    url: str = Field(min_length=4, max_length=1000, description="要收录的链接（http/https）")
+    title: Optional[str] = Field(None, max_length=80, description="不填则尝试抓页面标题，抓不到用域名")
+    source_platform: Optional[str] = Field(None, max_length=40, description="来源平台名，缺省 manual")
+    content_kind: Literal["project", "post"] = Field("project", description="落地为项目或动态，默认项目")
+
+
+class CandidateManualCreateResponse(BaseModel):
+    ok: bool = True
+    candidate_id: Optional[uuid.UUID] = None
+    duplicate: bool = Field(False, description="true=该链接已在候选池/已发布，未重复创建")
+    fetched_title: Optional[str] = Field(None, description="抓到的页面标题（供前端回显确认）")
 
 
 # ---------- 已发布项目管理 ----------
@@ -220,7 +328,6 @@ class DashboardFunnel(BaseModel):
     clue_source_clicks: int = 0
     clue_tool_clicks: int = 0
     clue_related_clicks: int = 0
-    clue_subscribes: int = 0
 
 
 class DashboardResponse(BaseModel):
@@ -257,7 +364,82 @@ class AdminActionItem(BaseModel):
     # action 是审计日志代码 f-string 生成的动态值（如 take_down_project / edit_candidate /
     # push_daily_pick），非固定枚举——保持裸 str，否则列表接口读到真实值会 500。
     action: str
-    target_type: Literal["project", "candidate", "report", "user"]
+    target_type: Literal["project", "candidate", "report", "user", "post", "feedback"]
     target_id: Optional[uuid.UUID] = None
     detail: Optional[dict] = None
     created_at: datetime
+
+
+# ---------- 使用情况（真实用户/行为分析，回答"到底有没有人用"）----------
+class ActiveUserItem(BaseModel):
+    """窗口内活跃的登录用户 + 最近行为，用于判断是不是就自己人在用。"""
+    user_id: uuid.UUID
+    nickname: Optional[str] = None
+    is_admin: bool = False
+    event_count: int
+    last_active: datetime
+
+
+# ---------- 马甲号统一管理 ----------
+
+
+class PersonaListItem(BaseModel):
+    """GET /admin/personas 列表项：一个马甲号 + 它产出的内容量（初期内容质量把控用）。"""
+    id: uuid.UUID
+    nickname: Optional[str] = None
+    handle: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    project_count: int = 0        # 该马甲名下未删的项目数
+    post_count: int = 0           # 该马甲名下未删的动态数
+    total_post_likes: int = 0     # 动态获赞总数（粗看内容反响）
+    last_active: Optional[datetime] = None  # 最近一条内容时间（项目/动态取较晚者）
+
+
+class PersonaPostItem(BaseModel):
+    """马甲名下一条动态（可就地删）。"""
+    id: uuid.UUID
+    content: str
+    tags: List[str] = []
+    quote_project_id: Optional[uuid.UUID] = None
+    like_count: int = 0
+    created_at: datetime
+
+
+class PersonaProjectItem(BaseModel):
+    """马甲名下一个项目（可就地下架/删）。"""
+    id: uuid.UUID
+    title: str
+    status: ProjectStatus
+    cover_media_url: Optional[str] = None
+    hot_score: float = 0
+    featured_rank: Optional[int] = None
+    created_at: datetime
+
+
+class PersonaContentResponse(BaseModel):
+    """GET /admin/personas/{id}/content：某马甲最近的动态 + 项目，供逐条核查/删除。"""
+    persona: PersonaListItem
+    posts: List[PersonaPostItem]
+    projects: List[PersonaProjectItem]
+
+
+class PersonaUpdateRequest(BaseModel):
+    """PATCH /admin/personas/{id}：后台改马甲的 昵称/签名/头像（都可选，只改传了的字段）。
+    头像先经 POST /media 上传拿到 url，再把 url 传进来（或直接粘外链）。"""
+    nickname: Optional[str] = Field(None, min_length=1, max_length=30)
+    bio: Optional[str] = Field(None, max_length=200)
+    avatar_url: Optional[str] = Field(None, max_length=500)
+
+
+class UsageSummary(BaseModel):
+    period_start: datetime
+    period_end: datetime
+    total_users: int          # 全部真实用户（非马甲、未注销）
+    new_users: int            # 窗口内新注册
+    active_users: int         # 窗口内有行为的登录用户数
+    admin_active: int         # 其中管理员数（用于识别"是不是就我自己")
+    dau_today: int            # 今天有行为的登录用户数
+    guest_opens: int          # 游客 app_open 次数（无 user_id）
+    event_breakdown: dict     # event_name -> 次数
+    active_list: List[ActiveUserItem]

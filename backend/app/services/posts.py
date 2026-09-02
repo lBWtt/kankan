@@ -25,6 +25,7 @@ from app.models import (
 )
 from app.schemas.post import PostMediaOut, PostOut
 from app.schemas.user import UserBrief
+from app.services.notify import push_interaction
 
 
 def _attach_media(db: Session, post_id: uuid.UUID, media_ids: List[uuid.UUID], uploader_id: uuid.UUID) -> None:
@@ -151,6 +152,11 @@ def set_post_like(db: Session, user: User, post_id: uuid.UUID, on: bool) -> None
             update(Post).where(Post.id == post_id)
             .values(like_count=Post.like_count + 1)
         )
+        # 互动通知：只有真正新增点赞（未撞唯一约束）才走到这里 → 通知动态作者。
+        push_interaction(db, recipient_id=p.author_user_id, actor=user,
+                         title=f"{user.nickname} 赞了你的动态",
+                         body=(p.content[:40] if p.content else None),
+                         post_id=post_id)
         db.commit()
     else:
         result = db.execute(

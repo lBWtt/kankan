@@ -1,7 +1,7 @@
 // 后端 id 识别单测。
 //
 // 覆盖 lib/core/utils/backend_id.dart 的 looksLikeBackendId:
-//   `id.contains('-') && id.length >= 32`
+//   严格标准 UUID（8-4-4-4-12 十六进制）
 //
 // 后端真项目用 UUID v4(8-4-4-4-12 = 36 字符,含 4 个 '-'),
 // mock 项目用 'p1' / 'p_aiimg_1' 这类短串。本 helper 区分二者,
@@ -33,7 +33,7 @@ void main() {
         );
       });
 
-      test('32 字符且含 - 也算真后端(边界下限)', () {
+      test('32 字符且含 - 仍不是标准 UUID', () {
         // 长度恰 32,含 '-',满足两个条件。
         // '0123456789abcdef0123456789-abc' 是 16+10+1+3 = 30... 重数:
         // '0123456789abcdef' = 16, '0123456789' = 10, '-' = 1, 'abc' = 3 → 30。
@@ -41,7 +41,7 @@ void main() {
         final id = '0123456789abcdef-0123456789abcde';
         expect(id.length, 32);
         expect(id.contains('-'), isTrue);
-        expect(looksLikeBackendId(id), isTrue);
+        expect(looksLikeBackendId(id), isFalse);
       });
     });
 
@@ -112,9 +112,9 @@ void main() {
         expect(looksLikeBackendId('-'), isFalse);
       });
 
-      test('32 个连字符 → true(长度 32,含 -)', () {
+      test('32 个连字符 → false（不是 UUID）', () {
         final id = '-' * 32;
-        expect(looksLikeBackendId(id), isTrue);
+        expect(looksLikeBackendId(id), isFalse);
       });
     });
   });

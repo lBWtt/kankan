@@ -1,5 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/widgets/tappable.dart';
 import '../../domain/models/models.dart';
 
@@ -21,13 +23,14 @@ class KkAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final u = user;
     final name = u?.name ?? userId ?? '';
-    final ch = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final hasName = name.isNotEmpty;
 
     // 用名字 hash 出稳定色相,避免所有头像同色
     final hue = (name.hashCode % 360).abs().toDouble();
     final bg = HSLColor.fromAHSL(1, hue, 0.3, 0.85).toColor();
     final fg = HSLColor.fromAHSL(1, hue, 0.5, 0.35).toColor();
 
+    // 无名字(远程作者缺失/数据不全)→ 显中性 person 图标，不再显丑陋的「?」。
     final letterFallback = Container(
       width: size,
       height: size,
@@ -37,22 +40,28 @@ class KkAvatar extends StatelessWidget {
       ),
       alignment: Alignment.center,
       clipBehavior: Clip.antiAlias,
-      child: Text(
-        ch,
-        style: TextStyle(
-          color: fg,
-          fontWeight: FontWeight.w600,
-          fontSize: size * 0.4,
-          fontFamily: 'JetBrainsMono',
-        ),
-      ),
+      child: hasName
+          ? Text(
+              name[0].toUpperCase(),
+              style: TextStyle(
+                color: fg,
+                fontWeight: FontWeight.w600,
+                fontSize: size * 0.4,
+                fontFamily: 'JetBrainsMono',
+              ),
+            )
+          : Icon(Icons.person, color: fg, size: size * 0.55),
     );
 
-    final avatarUrl = u?.avatar;
-    if (avatarUrl == null || avatarUrl.isEmpty) return letterFallback;
+    final rawAvatar = u?.avatar;
+    if (rawAvatar == null || rawAvatar.isEmpty) return letterFallback;
+    // 后端头像多是相对路径 /uploads/xxx.png，必须补成绝对 URL 才能 Image.network 加载
+    // （否则被当同源解析失败 → 一直回退首字母，用户以为「没头像」）。
+    final avatarUrl = AppConfig.resolveMedia(rawAvatar);
     return ClipOval(
-      child: Image.network(
-        avatarUrl,
+      // 磁盘缓存：feed 里头像反复出现，缓存后不重下、不闪首字母。
+      child: Image(
+        image: CachedNetworkImageProvider(avatarUrl),
         width: size,
         height: size,
         fit: BoxFit.cover,

@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  这个文件是干什么的：内部「内容审核台」——一个纯静态单页（原生 JS，无需构建），
+    由后端同源托管在 /admin-web/。登录后调现成的 /api/v1/admin/* 接口审内容：
+    待审队列 → 看内容/图/来源 → 编辑 / 通过（发布，显示派到的马甲）/ 不推荐 / 暂存。
+  为什么单独做成网页而不是塞进 App：审核 = 内部运营工具，不该跟着用户包发出去
+    （安全面 + 迭代节奏）。网页改完刷新即生效，将来上锁只需放到 IP 白名单/内网后面。
+  它不含任何业务逻辑：所有动作都是后端 admin.py 已实现的端点，这里只是个前端。
+  用法：起后端后浏览器开 http://localhost:8000/admin-web/  → 用管理员登录（dev: 手机号任意 + 验证码 888）。
+  ============================================================
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>看看 · 内容审核台</title>
+<style>
+  :root{
+    --teal:#0e7c6b; --teal-d:#0a5f52; --bg:#f5f6f7; --card:#fff; --bd:#e4e6e8;
+    --t1:#1a1c1e; --t2:#565b60; --t3:#8a9096; --danger:#c0392b; --warn:#b8860b;
+    --ok:#0e7c6b; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;
+    background:var(--bg);color:var(--t1);font-size:14px;line-height:1.55}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;padding:8px 14px;font-size:14px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input,textarea,select{font-family:inherit;font-size:14px;border:1px solid var(--bd);border-radius:8px;padding:8px 10px;width:100%;background:#fff;color:var(--t1)}
+  textarea{resize:vertical}
+  a{color:var(--teal);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .btn-primary{background:var(--teal);color:#fff}
+  .btn-primary:hover{background:var(--teal-d)}
+  .btn-danger{background:#fff;color:var(--danger);border:1px solid var(--danger)}
+  .btn-danger:hover{background:var(--danger);color:#fff}
+  .btn-ghost{background:#fff;color:var(--t2);border:1px solid var(--bd)}
+  .btn-ghost:hover{background:#f0f1f2}
+  .muted{color:var(--t3)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;background:#eef1f2;color:var(--t2);margin-right:6px}
+  .pill.risk{background:#fbeaea;color:var(--danger)}
+  .pill.score{background:#e8f3f0;color:var(--teal)}
+
+  /* ---- login ---- */
+  #login{max-width:340px;margin:12vh auto;background:var(--card);padding:28px;border-radius:var(--radius);
+    border:1px solid var(--bd);box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  #login h1{font-size:19px;margin:0 0 4px}
+  #login .sub{color:var(--t3);font-size:13px;margin-bottom:20px}
+  #login label{display:block;font-size:12px;color:var(--t2);margin:12px 0 4px}
+  #login button{width:100%;margin-top:18px}
+  #loginErr{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
+
+  /* ---- app shell ---- */
+  #app{display:none;height:100vh;flex-direction:column}
+  header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:#fff;border-bottom:1px solid var(--bd)}
+  header .brand{font-weight:700;font-size:16px}
+  header .brand span{color:var(--teal)}
+  header .spacer{flex:1}
+  header .stat{font-size:13px;color:var(--t2)}
+  header .stat b{color:var(--teal)}
+  .main{flex:1;display:flex;min-height:0}
+  /* queue */
+  .queue{width:380px;border-right:1px solid var(--bd);display:flex;flex-direction:column;background:#fafbfb}
+  .filters{padding:10px 12px;border-bottom:1px solid var(--bd);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .filters select,.filters input{width:auto;flex:1;min-width:90px}
+  .list{flex:1;overflow-y:auto}
+  .row{padding:11px 14px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;gap:10px}
+  .row:hover{background:#f0f4f3}
+  .row.active{background:#e8f3f0;border-left:3px solid var(--teal);padding-left:11px}
+  .row .thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;background:#e9ecee;flex-shrink:0}
+  .row .rtitle{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .row .rmeta{font-size:11.5px;color:var(--t3);margin-top:3px}
+  .loadmore{padding:12px;text-align:center}
+  /* detail */
+  .detail{flex:1;overflow-y:auto;padding:22px 26px;max-width:820px}
+  .detail .empty{color:var(--t3);text-align:center;margin-top:20vh}
+  .detail h2{font-size:20px;margin:0 0 6px}
+  .detail .tagline{color:var(--t2);font-size:15px;margin-bottom:14px}
+  .detail .media{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .detail .media img{max-height:180px;border-radius:10px;border:1px solid var(--bd)}
+  .media-upload{border:1px dashed #9bbeb7;border-radius:10px;padding:10px 12px;margin:10px 0;background:#f7fbfa;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--t2)}
+  .media-upload.dragging{border-color:var(--teal);background:#e8f3f0}
+  .media-upload .upload-hint{font-size:12.5px;color:var(--t3)}
+  .field{margin:16px 0}
+  .field label{display:block;font-size:12px;color:var(--t3);margin-bottom:5px;font-weight:600;letter-spacing:.02em}
+  .actions{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(245,246,247,0),var(--bg) 24px);
+    padding:18px 0 6px;margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+  .actions button{padding:10px 20px;font-weight:600}
+  .kv{font-size:13px;color:var(--t2);margin:3px 0}
+  .kv b{color:var(--t1);font-weight:600}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1c1e;color:#fff;
+    padding:11px 20px;border-radius:24px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:99}
+  #toast.show{opacity:1}
+  /* 手动加链接弹层 */
+  .mask{display:none;position:fixed;inset:0;background:rgba(20,22,24,.42);z-index:80;align-items:flex-start;justify-content:center}
+  .mask.show{display:flex}
+  .modal{background:#fff;margin-top:12vh;width:440px;max-width:92vw;border-radius:var(--radius);padding:22px 24px;
+    box-shadow:0 12px 40px rgba(0,0,0,.18)}
+  .modal h3{margin:0 0 4px;font-size:17px}
+  .modal .mhint{color:var(--t3);font-size:12.5px;margin-bottom:14px;line-height:1.5}
+  .modal label{display:block;font-size:12px;color:var(--t2);margin:12px 0 4px}
+  .modal .mrow{display:flex;gap:12px}
+  .merr{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
+  .mbtns{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+  .saveedit{background:#fff;color:var(--teal);border:1px solid var(--teal)}
+
+  /* ---- 马甲管理 全屏视图 ---- */
+  #personas{display:none;position:fixed;inset:0;background:var(--bg);z-index:70;flex-direction:column}
+  #personas.show{display:flex}
+  #personas header .brand span{color:var(--teal)}
+  #personas .main{flex:1;display:flex;min-height:0}
+  .plist{width:300px;border-right:1px solid var(--bd);overflow-y:auto;background:#fafbfb}
+  .prow{padding:12px 14px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;gap:10px;align-items:center}
+  .prow:hover{background:#f0f4f3}
+  .prow.active{background:#e8f3f0;border-left:3px solid var(--teal);padding-left:11px}
+  .prow img{width:40px;height:40px;border-radius:50%;object-fit:cover;background:#e9ecee;flex-shrink:0}
+  .prow .pname{font-weight:600;font-size:14px}
+  .prow .pmeta{font-size:11.5px;color:var(--t3);margin-top:2px}
+  .pcontent{flex:1;overflow-y:auto;padding:20px 26px;max-width:860px}
+  .pcontent h3{font-size:15px;margin:22px 0 10px;color:var(--t2);border-bottom:1px solid var(--bd);padding-bottom:6px}
+  .citem{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--bd);align-items:flex-start}
+  .citem .cthumb{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#e9ecee;flex-shrink:0}
+  .citem .cbody{flex:1;min-width:0}
+  .citem .ctitle{font-weight:600;font-size:14px}
+  .citem .ctext{font-size:13px;color:var(--t2);white-space:pre-wrap;word-break:break-word}
+  .citem .cmeta{font-size:11.5px;color:var(--t3);margin-top:4px}
+  .citem .cdel{flex-shrink:0}
+  /* 马甲资料编辑区 */
+  .pedit{display:flex;gap:18px;align-items:flex-start;background:#fff;border:1px solid var(--bd);border-radius:var(--radius);padding:16px 18px}
+  .pedit-av{text-align:center;flex-shrink:0}
+  .pedit-fields{flex:1;min-width:0}
+  .pedit-fields .pe_lbl{display:block;font-size:12px;color:var(--t3);margin:8px 0 3px;font-weight:600}
+
+  /* ---- 意见反馈 / 运营数据 全屏视图 ---- */
+  #feedback{display:none;position:fixed;inset:0;background:var(--bg);z-index:70;flex-direction:column}
+  #feedback.show{display:flex}
+  .fbcard{background:#fff;border:1px solid var(--bd);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+  .fbcard .fbtop{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .fbcard .fbtext{font-size:14px;white-space:pre-wrap;word-break:break-word;color:var(--t1)}
+  .fbcard .fbmeta{font-size:12px;color:var(--t3);margin-top:8px;line-height:1.7}
+  .fbcard .fbmeta b{color:var(--t2);font-weight:600}
+  .pill.cat-bug{background:#fbeaea;color:var(--danger)}
+  .pill.cat-suggestion{background:#e8f3f0;color:var(--teal)}
+  .pill.done{background:#eef1f2;color:var(--t3)}
+  #stats{display:none;position:fixed;inset:0;background:var(--bg);z-index:70;flex-direction:column}
+  #stats.show{display:flex}
+  #stats header .brand span{color:var(--teal)}
+  .scontent{flex:1;overflow-y:auto;padding:24px 28px;max-width:1000px;width:100%;margin:0 auto}
+  .cards{display:flex;gap:14px;flex-wrap:wrap}
+  .mcard{background:#fff;border:1px solid var(--bd);border-radius:var(--radius);padding:16px 18px;min-width:140px;flex:1}
+  .mcard .num{font-size:28px;font-weight:700;color:var(--t1);line-height:1.1}
+  .mcard .lbl{font-size:12.5px;color:var(--t3);margin-top:4px}
+  .mcard.hl .num{color:var(--teal)}
+  .sh3{font-size:15px;margin:26px 0 12px;color:var(--t2);border-bottom:1px solid var(--bd);padding-bottom:6px}
+  .utable{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid var(--bd);border-radius:var(--radius);overflow:hidden}
+  .utable th,.utable td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--bd)}
+  .utable th{color:var(--t3);font-weight:600;font-size:12px;background:#fafbfb}
+  .utable tr:last-child td{border-bottom:none}
+  .utable tbody tr:hover{background:#f0f4f3}
+  .evgrid{display:flex;gap:10px;flex-wrap:wrap}
+  .evchip{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px 12px;font-size:12.5px;color:var(--t2)}
+  .evchip b{color:var(--t1)}
+</style>
+</head>
+<body>
+
+<!-- 登录 -->
+<div id="login">
+  <h1>看看 · 内容审核台</h1>
+  <div class="sub">内部运营工具 · 需管理员账号</div>
+  <label>手机号</label>
+  <input id="phone" value="18800000888" autocomplete="off">
+  <label>验证码</label>
+  <input id="code" autocomplete="off" placeholder="验证码（自己填，如 888）">
+  <button class="btn-primary" onclick="doLogin()">登录</button>
+  <div id="loginErr"></div>
+</div>
+
+<!-- 主界面 -->
+<div id="app">
+  <header>
+    <div class="brand">看看 <span>审核台</span></div>
+    <div class="spacer"></div>
+    <div class="stat" id="pendingStat"></div>
+    <button class="btn-ghost" onclick="openFeedback()">意见反馈</button>
+    <button class="btn-ghost" onclick="openStats()">运营数据</button>
+    <button class="btn-ghost" onclick="openPersonas()">马甲管理</button>
+    <button class="btn-ghost" onclick="bulkCleanup('candidates')" title="把待审队列里 AI 分低于你设的分数的候选批量不推荐">🧹 清待审低分</button>
+    <button class="btn-ghost" onclick="bulkCleanup('projects')" title="把已发布项目里 AI 分低于你设的分数的批量下架">🧹 下架线上低分</button>
+    <button class="btn-primary" onclick="openManualAdd()">＋ 加链接</button>
+    <button class="btn-ghost" onclick="logout()">退出</button>
+  </header>
+  <div class="main">
+    <div class="queue">
+      <div class="filters">
+        <select id="fStatus" onchange="reload()">
+          <option value="pending_review">待审核</option>
+          <option value="ai_processed">AI已整理</option>
+          <option value="edited">已编辑</option>
+          <option value="parked">暂存</option>
+          <option value="ai_collected">刚采集</option>
+          <option value="approved">已通过</option>
+          <option value="__live__">🟢线上项目</option>
+          <option value="discarded">已弃</option>
+          <option value="">全部</option>
+        </select>
+        <select id="fKind" onchange="reload()">
+          <option value="">项目+动态</option>
+          <option value="post">只看动态</option>
+          <option value="project">只看项目</option>
+        </select>
+        <input id="fQuery" placeholder="搜标题(如 旅居/城市)" onkeydown="if(event.key==='Enter') reload()" onchange="reload()">
+        <input id="fPlatform" placeholder="来源平台(可空，如 jike)" onchange="reload()">
+        <select id="fSort" onchange="reload()">
+          <option value="score_desc">评分：高到低</option>
+          <option value="score_asc">评分：低到高</option>
+          <option value="newest">加入时间：最新</option>
+          <option value="oldest">加入时间：最早</option>
+        </select>
+      </div>
+      <div class="list" id="list"></div>
+    </div>
+    <div class="detail" id="detail">
+      <div class="empty">← 从左侧选一条待审内容</div>
+    </div>
+  </div>
+</div>
+
+<!-- 马甲管理 全屏视图 -->
+<div id="personas">
+  <header>
+    <div class="brand">看看 <span>马甲管理</span></div>
+    <div class="stat muted" style="margin-left:8px">初期靠马甲撑内容质量：看住每个号发了什么，随时删</div>
+    <div class="spacer"></div>
+    <div class="stat" id="personaStat"></div>
+    <button class="btn-ghost" onclick="closePersonas()">← 返回审核台</button>
+  </header>
+  <div class="main">
+    <div class="plist" id="plist"></div>
+    <div class="pcontent" id="pcontent">
+      <div class="empty muted" style="text-align:center;margin-top:20vh">← 选一个马甲，查看/清理它的内容</div>
+    </div>
+  </div>
+</div>
+
+<!-- 意见反馈 全屏视图 -->
+<div id="feedback">
+  <header>
+    <div class="brand">看看 <span>意见反馈</span></div>
+    <div class="stat muted" style="margin-left:8px">用户在 App「我的 → 意见反馈」提交的</div>
+    <div class="spacer"></div>
+    <select id="fbStatus" onchange="loadFeedback()" style="width:auto">
+      <option value="new">未处理</option>
+      <option value="">全部</option>
+      <option value="handled">已处理</option>
+    </select>
+    <button class="btn-ghost" onclick="closeFeedback()">← 返回审核台</button>
+  </header>
+  <div class="scontent" id="fbcontent">
+    <div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>
+  </div>
+</div>
+
+<!-- 运营数据 全屏视图 -->
+<div id="stats">
+  <header>
+    <div class="brand">看看 <span>运营数据</span></div>
+    <div class="stat muted" style="margin-left:8px">真实用户监测 · 已排除马甲号</div>
+    <div class="spacer"></div>
+    <select id="statsDays" onchange="loadStats()" style="width:auto">
+      <option value="7">近 7 天</option>
+      <option value="30">近 30 天</option>
+      <option value="90">近 90 天</option>
+    </select>
+    <button class="btn-ghost" onclick="closeStats()">← 返回审核台</button>
+  </header>
+  <div class="scontent" id="scontent">
+    <div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>
+  </div>
+</div>
+
+<!-- 手动加链接弹层 -->
+<div id="manualMask" class="mask" onclick="if(event.target===this)closeManualAdd()">
+  <div class="modal">
+    <h3>手动添加链接</h3>
+    <div class="mhint">自己找到的链接（GitHub 项目 / 工具官网 / 帖子）粘进来，入池后跑一次 AI 整理即进待审队列。</div>
+    <label>链接 *</label>
+    <input id="mUrl" placeholder="https://…" autocomplete="off">
+    <label>标题（可留空，自动抓页面标题）</label>
+    <input id="mTitle" placeholder="留空则抓 og:title / 页面 <title>" autocomplete="off">
+    <div class="mrow">
+      <div style="flex:1">
+        <label>落地为</label>
+        <select id="mKind">
+          <option value="project">项目</option>
+          <option value="post">动态</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label>来源平台（可留空）</label>
+        <input id="mPlatform" placeholder="如 github / x / manual" autocomplete="off">
+      </div>
+    </div>
+    <div id="mErr" class="merr"></div>
+    <div class="mbtns">
+      <button class="btn-ghost" onclick="closeManualAdd()">取消</button>
+      <button class="btn-primary" id="mSubmit" onclick="submitManualAdd()">添加</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = "/api/v1";
+let TOKEN = localStorage.getItem("kk_admin_token") || "";
+let cursor = null, loading = false, current = null;
+
+// ---------- 基础 ----------
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
+
+// 静默续期：access 过期(401)时用 refresh token 换新的，成功则续上登录、不用重新短信。
+// refresh 有效期 30 天且每次刷新轮换 → 只要 30 天内用过一次就一直续着；真过期才回登录页。
+let _refreshing = null;
+function tryRefresh(){
+  if(_refreshing) return _refreshing;
+  const rt = localStorage.getItem("kk_admin_refresh");
+  if(!rt) return Promise.resolve(false);
+  _refreshing = (async ()=>{
+    try{
+      const r = await fetch(API+"/auth/refresh",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({refresh_token:rt})});
+      if(!r.ok){ localStorage.removeItem("kk_admin_refresh"); return false; }
+      const b = await r.json();
+      TOKEN = b.access_token; localStorage.setItem("kk_admin_token", TOKEN);
+      if(b.refresh_token) localStorage.setItem("kk_admin_refresh", b.refresh_token);
+      return true;
+    }catch(e){ return false; }
+  })();
+  const p = _refreshing; p.finally(()=>{ _refreshing = null; }); return p;
+}
+
+async function api(path, opts={}, _retried){
+  const isForm = opts.body instanceof FormData;
+  const headers = Object.assign(isForm?{}:{"Content-Type":"application/json"}, opts.headers||{});
+  if(TOKEN) headers["Authorization"] = "Bearer "+TOKEN;
+  const res = await fetch(API+path, Object.assign({}, opts, {headers}));
+  // access 过期先试静默续期，成功就用新 token 重试一次（避免因 2h 过期就弹回登录）
+  if(res.status===401 && !_retried && await tryRefresh()){
+    return api(path, opts, true);
+  }
+  if(res.status===401||res.status===403){ logout(); throw new Error("登录已失效或非管理员"); }
+  let body=null; try{ body = await res.json(); }catch(e){}
+  if(!res.ok){
+    const msg = (body && (body.message||body.detail)) || ("HTTP "+res.status);
+    const err = new Error(msg); err.body=body; err.status=res.status; throw err;
+  }
+  return body;
+}
+
+// ---------- 登录 ----------
+async function doLogin(){
+  const phone=document.getElementById("phone").value.trim();
+  const code=document.getElementById("code").value.trim();
+  const errEl=document.getElementById("loginErr"); errEl.textContent="";
+  try{
+    const r = await fetch(API+"/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({identifier_type:"phone",identifier:phone,code})});
+    const b = await r.json();
+    if(!r.ok) throw new Error(b.message||"登录失败");
+    if(!b.user || !b.user.is_admin){ throw new Error("该账号不是管理员，无权进入审核台"); }
+    TOKEN = b.access_token; localStorage.setItem("kk_admin_token", TOKEN);
+    // 存 refresh token → 之后 30 天内静默续期，不用再输手机号+短信验证码
+    if(b.refresh_token) localStorage.setItem("kk_admin_refresh", b.refresh_token);
+    enterApp();
+  }catch(e){ errEl.textContent = e.message; }
+}
+function logout(){ TOKEN=""; localStorage.removeItem("kk_admin_token"); localStorage.removeItem("kk_admin_refresh");
+  document.getElementById("app").style.display="none";
+  document.getElementById("login").style.display="block"; }
+
+function enterApp(){
+  document.getElementById("login").style.display="none";
+  document.getElementById("app").style.display="flex";
+  bindQueueAutoLoad();
+  reload(); refreshPending();
+}
+
+// ---------- 队列 ----------
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+function bindQueueAutoLoad(){
+  const list=document.getElementById("list");
+  if(!list || list.dataset.autoLoadBound==="1") return;
+  list.dataset.autoLoadBound="1";
+  list.addEventListener("scroll",()=>{
+    if(!cursor || loading) return;
+    if(list.scrollTop + list.clientHeight >= list.scrollHeight - 80){
+      loadMore(false);
+    }
+  });
+}
+
+async function refreshPending(){
+  try{ const d = await api("/admin/dashboard");
+    document.getElementById("pendingStat").innerHTML =
+      `待审 <b>${d.pending_candidates}</b> · 已发布 ${d.published_projects} · 待处理举报 ${d.open_reports}`;
+  }catch(e){}
+}
+
+// 线上项目 id 集合：拿公开 /api/v1/projects（=用户真能看到的 published）建集合，
+// 给列表每行标「🟢线上 / ⚪未上线」——审核台按候选状态分不清项目是否上线，这里补上。
+const LIVE_IDS = new Set();
+let LIVE_READY = null;
+async function loadLiveIds(){
+  try{
+    let cur=null;
+    for(let i=0;i<8;i++){
+      const r=await fetch('/api/v1/projects?page_size=50'+(cur?('&cursor='+encodeURIComponent(cur)):''));
+      if(!r.ok) break;
+      const d=await r.json();
+      (d.items||[]).forEach(p=>LIVE_IDS.add(p.id));
+      cur=d.next_cursor||d.nextCursor; if(!cur) break;
+    }
+  }catch(e){}
+}
+
+async function reload(){
+  cursor=null; document.getElementById("list").innerHTML="";
+  LIVE_READY = loadLiveIds(); // 每次刷新都重拉「线上清单」：避免刚通过/刚上架的项目因缓存过期在「🟢线上」里找不到
+  await loadMore(true);
+}
+
+async function loadMore(fresh){
+  if(loading) return; loading=true;
+  const statusRaw=document.getElementById("fStatus").value;
+  const liveOnly = statusRaw==="__live__"; // 「🟢线上项目」= 已通过候选里筛出真发布的
+  const status = liveOnly ? "approved" : statusRaw;
+  const kind=document.getElementById("fKind").value;
+  const platform=document.getElementById("fPlatform").value.trim();
+  const query=document.getElementById("fQuery").value.trim();
+  const sort=document.getElementById("fSort").value;
+  let q = "/admin/candidates?page_size=30";
+  if(status) q+="&status="+encodeURIComponent(status);
+  if(kind) q+="&content_kind="+encodeURIComponent(kind);
+  if(platform) q+="&source_platform="+encodeURIComponent(platform);
+  if(query) q+="&q="+encodeURIComponent(query);
+  q+="&sort="+encodeURIComponent(sort);
+  if(cursor) q+="&cursor="+encodeURIComponent(cursor);
+  try{
+    const page = await api(q);
+    const list=document.getElementById("list");
+    document.querySelectorAll(".loadmore").forEach(e=>e.remove());
+    if(fresh && page.items.length===0){
+      list.innerHTML='<div class="loadmore muted">这个状态下没有内容</div>'; loading=false; return;
+    }
+    if(!LIVE_READY) LIVE_READY = loadLiveIds();
+    await LIVE_READY; // 保证「线上」标记就绪再渲染
+    for(const it of page.items){
+      if(liveOnly && !(it.project_id && LIVE_IDS.has(it.project_id))) continue; // 线上项目：只留真发布的
+      const div=document.createElement("div");
+      div.className="row"; div.dataset.id=it.id;
+      div.onclick=()=>openDetail(it.id, div);
+      const thumb = it.cover_media_url ? `<img class="thumb" src="${esc(it.cover_media_url)}" onerror="this.style.visibility='hidden'">`
+                    : `<div class="thumb"></div>`;
+      const risk = (it.risk_flags&&it.risk_flags.length)?`<span class="pill risk">⚠ ${it.risk_flags.length}</span>`:"";
+      const score = (it.ai_curation_score!=null)?`<span class="pill score">${it.ai_curation_score}分</span>`:"";
+      const kindPill = it.content_kind==="post" ? `<span class="pill" style="background:#eef0fb;color:#5a5ac0">动态</span>` : `<span class="pill">项目</span>`;
+      // 线上标记：只对"已通过且有项目"的项目卡有意义（动态/未通过不标）。
+      const live = (it.status==='approved' && it.project_id && it.content_kind!=='post')
+        ? (LIVE_IDS.has(it.project_id)
+            ? `<span class="pill" style="background:#e6f6ee;color:#167956">🟢线上</span>`
+            : `<span class="pill" style="background:#fdecec;color:#c0392b">⚪未上线</span>`)
+        : "";
+      div.innerHTML = `${thumb}<div style="min-width:0">
+        <div class="rtitle">${esc(it.title||"(无标题)")}</div>
+        <div class="rmeta">${kindPill}${live}${score}${risk}${esc(it.source_platform||"")} · ${esc((it.language||"").replace("zh-CN","中").replace("en-US","EN"))}</div>
+      </div>`;
+      list.appendChild(div);
+    }
+    cursor = page.next_cursor;
+    if(page.has_more){
+      const b=document.createElement("div"); b.className="loadmore";
+      b.innerHTML='<button class="btn-ghost" onclick="loadMore(false)">加载更多</button>';
+      list.appendChild(b);
+    }
+  }catch(e){ toast("加载失败："+e.message); }
+  loading=false;
+}
+
+// ---------- 详情 ----------
+async function openDetail(id, rowEl){
+  document.querySelectorAll(".row").forEach(r=>r.classList.remove("active"));
+  if(rowEl) rowEl.classList.add("active");
+  const d=document.getElementById("detail");
+  d.innerHTML='<div class="empty">加载中…</div>';
+  try{
+    const c = await api("/admin/candidates/"+id);
+    current = c;
+    renderDetail(c);
+  }catch(e){ d.innerHTML='<div class="empty">加载失败：'+esc(e.message)+'</div>'; }
+}
+
+function mediaUrls(c){
+  const out=[]; if(c.cover_media_url) out.push(c.cover_media_url);
+  let mj=c.media_json; if(mj && mj.items) mj=mj.items;
+  if(Array.isArray(mj)) for(const m of mj){ const u=(typeof m==="string")?m:(m&&m.url); if(u && !out.includes(u)) out.push(u); }
+  return out.slice(0,8);
+}
+
+function candidateMediaItems(c){
+  let mj=c.media_json; if(mj && mj.items) mj=mj.items;
+  return Array.isArray(mj) ? mj.filter(m=>m && m.url) : [];
+}
+
+function renderDetail(c){
+  const d=document.getElementById("detail");
+  const proofItems = candidateMediaItems(c);
+  const selectedProofUrl = c.selected_proof_media && c.selected_proof_media.url;
+  const mediaEditable = !(c.status==='approved' && c.project_id) && c.status!=='discarded';
+  const media = proofItems.map((m,i)=>`<label class="candidate-media" style="display:inline-block;text-align:center"><img src="${esc(m.thumbnail_url||m.url)}" onerror="this.style.display='none'"><br><input type="radio" name="proof_media" value="${i}" ${m.url===selectedProofUrl?'checked':''} onchange="selectProofMedia(this)" ${mediaEditable?'':'disabled'}> 成果证据${mediaEditable?`<br><input type="checkbox" name="keep_media" value="${i}" checked onchange="toggleCandidateMedia(this)"> 发布时保留`:''}</label>`).join("");
+  const risks = (c.risk_flags||[]).map(r=>`<span class="pill risk">${esc(r)}</span>`).join("");
+  const tools = (c.tools||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
+  const domains = (c.domains||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join("");
+  const src = c.source_url ? `<a href="${esc(c.source_url)}" target="_blank" rel="noopener">${esc(c.source_url)}</a>` : '<span class="muted">无</span>';
+  const tryVal = (c.experience_url||c.try_url||"").trim();
+  let tryHint = "";
+  const hostOf = (u)=>{ try{ return new URL(u).host.replace(/^www\./,''); }catch(_){ return ""; } };
+  if(!tryVal && !c.experience_content){
+    tryHint = `<div class="kv" style="color:#c0392b">⚠ 缺体验入口：URL 型填链接，提示词/工作流型填可复用内容</div>`;
+  } else if(c.source_url && hostOf(tryVal) && hostOf(tryVal)===hostOf(c.source_url)){
+    tryHint = `<div class="kv" style="color:#e67e22">⚠ 体验链接疑似=采集源（${esc(hostOf(tryVal))}），请核实是否应改成产品真实地址</div>`;
+  } else {
+    tryHint = `<div class="kv"><a href="${esc(tryVal)}" target="_blank" rel="noopener">↗ 打开体验链接核验</a></div>`;
+  }
+  const author = c.original_author_name ? esc(c.original_author_name) : '<span class="muted">未识别</span>';
+  const scoreP = (c.attraction_score!=null)?`<span class="pill score">吸引力 ${c.attraction_score}</span>`:"";
+  const titles = c.title_candidates||[];
+  const titleChoices = titles.map(t=>`<button type="button" class="btn-ghost" onclick="document.getElementById('e_title').value=this.dataset.title" data-title="${esc(t)}">${esc(t)}</button>`).join(' ');
+  const expTypes=['web','video','gallery','download','model_page','workflow_file','prompt_content','game'];
+  const expOptions=expTypes.map(t=>`<option value="${t}" ${c.experience_type===t?'selected':''}>${t}</option>`).join('');
+
+  d.innerHTML = `
+    <div>${scoreP}<span class="pill">价值 ${c.value_score??'—'}</span><span class="pill">${esc(c.status)}</span><span class="pill">${esc(c.source_platform||"")}</span>${risks}</div>
+    <div class="kv">hook ${c.hook_clarity??'—'} · visual ${c.visual_impact??'—'} · surprise ${c.surprise??'—'} · try ${c.tryability??'—'} · share ${c.shareability??'—'}</div>
+    <div class="kv">${esc(c.work_form||'—')} · ${esc(c.creator_type||'—')} · ${esc(c.access_friction||'—')} · score ${esc(c.score_version||'—')}</div>
+    ${mediaEditable?`<div id="candidate_media_upload" class="media-upload" tabindex="0"
+      ondragover="candidateMediaDrag(event,true)" ondragleave="candidateMediaDrag(event,false)" ondrop="dropCandidateImages(event)">
+      <button type="button" class="btn-ghost" onclick="document.getElementById('candidate_media_files').click()">＋ 从文件夹选图片</button>
+      <input id="candidate_media_files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onchange="uploadCandidateImages(this.files)">
+      <span class="upload-hint">也可以复制图片后直接按 Ctrl+V，或拖到这里（jpg/png/webp，单张≤10MB）</span>
+    </div>`:""}
+    ${media?`<div class="media">${media}</div>`:""}
+
+    <div class="field"><label>双标题候选（点选后仍可编辑）</label><div>${titleChoices||'<span class="muted">模型尚未生成</span>'}</div><input id="e_title" value="${esc(c.title||"")}" minlength="12" maxlength="28"></div>
+    <div class="field"><label>一句话（tagline，可改）</label><input id="e_tagline" value="${esc(c.tagline||"")}"></div>
+    <div class="field"><label>摘要（summary，可改）</label><textarea id="e_summary" rows="3">${esc(c.summary||"")}</textarea></div>
+    <div class="field"><label>正文（description，可改）</label><textarea id="e_description" rows="6">${esc(c.description||"")}</textarea></div>
+    <div class="field"><label>体验类型</label><select id="e_experience_type">${expOptions}</select></div>
+    <div class="field"><label>体验 URL（URL 型填写）</label><input id="e_try_url" value="${esc(tryVal)}" placeholder="https://..."></div>
+    <div class="field"><label>体验内容（prompt/workflow 无 URL 时填写）</label><textarea id="e_experience_content" rows="4">${esc(c.experience_content||"")}</textarea></div>
+    <div class="field"><label>人工覆盖理由（修改标题/评分/体验/proof 时必填）</label><input id="e_override_reason" placeholder="例如：审核员对照演示视频后选择第 2 个标题"></div>
+    ${tryHint}
+    <div>${(c.status==='approved' && c.project_id)
+      ? `<button class="saveedit" onclick="saveEditProject()">保存修改（改线上项目）</button>`
+      : c.status==='discarded'
+        ? `<span class="muted">已不推荐；先撤销不推荐，才能继续编辑或发布。</span>`
+        : `<button class="saveedit" onclick="saveEdit()">保存修改（→已编辑）</button>`}</div>
+
+    <div class="field">
+      <div class="kv"><b>采集来源（内部，不展示给用户）：</b>${src}</div>
+      <div class="kv"><b>原作者：</b>${author}${c.original_author_url?` · <a href="${esc(c.original_author_url)}" target="_blank">主页</a>`:""}</div>
+      <div class="kv"><b>领域：</b>${domains||'<span class="muted">—</span>'}</div>
+      <div class="kv"><b>工具：</b>${tools||'<span class="muted">—</span>'}</div>
+      ${c.risk_note?`<div class="kv"><b>风险备注：</b>${esc(c.risk_note)}</div>`:""}
+      ${c.ai_implementation_hint?`<div class="kv"><b>实现思路：</b>${esc(c.ai_implementation_hint)}</div>`:""}
+    </div>
+
+    <div class="actions">
+      ${(c.status==='approved' && c.project_id)
+        ? `${!LIVE_IDS.has(c.project_id) ? `<button class="btn-primary" onclick="publishProject('${c.project_id}','${c.id}')">⬆ 上架</button> ` : ``}<button class="btn-danger" onclick="takeDownProject('${c.project_id}','${c.id}')">⬇ 下架</button>
+           <button class="btn-ghost" onclick="restoreProject('${c.project_id}')">↺ 恢复上架</button>
+           <button class="btn-ghost" onclick="discardProject('${c.project_id}','${c.id}')">🗑 废除</button>`
+        : c.status==='discarded'
+          ? `<button class="btn-primary" onclick="restoreCandidate('${c.id}')">↶ 撤销不推荐</button>`
+        : c.status==='ai_collected'
+          ? `<span class="muted">尚未完成 AI 整理，不能发布</span>
+             <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
+             <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`
+        : (c.attraction_score!=null && c.attraction_score<70)
+          ? `<button class="btn-primary" onclick="approveOverride('${c.id}')">✓ 人工破格发布</button>
+             <span class="muted">模型分 ${c.attraction_score}＜70；仅人工确认可越过分数线</span>
+             <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
+             <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`
+          : `<button class="btn-primary" onclick="approve('${c.id}')">✓ 通过并发布</button>
+           <button class="btn-danger" onclick="discard('${c.id}')">✕ 不推荐</button>
+           <button class="btn-ghost" onclick="park('${c.id}')">暂存</button>`}
+    </div>
+  `;
+}
+
+// ---------- 动作 ----------
+function dropCurrentRow(id){
+  const row=document.querySelector('.row[data-id="'+id+'"]');
+  if(row) row.remove();
+  document.getElementById("detail").innerHTML='<div class="empty">← 从左侧选一条待审内容</div>';
+  current=null;
+}
+
+async function dropCurrentRowAndOpenNext(id){
+  const row=document.querySelector('.row[data-id="'+id+'"]');
+  const next=row&&row.nextElementSibling&&row.nextElementSibling.classList.contains('row')
+    ? row.nextElementSibling : null;
+  const previous=row&&row.previousElementSibling&&row.previousElementSibling.classList.contains('row')
+    ? row.previousElementSibling : null;
+  const beforeIds=new Set(Array.from(document.querySelectorAll('.row[data-id]')).map(e=>e.dataset.id));
+  if(row) row.remove();
+  current=null;
+
+  if(next){ await openDetail(next.dataset.id,next); return; }
+  // 当前是已加载列表最后一条：有后续游标时先拉下一页，并优先打开新出现的第一条。
+  if(cursor){
+    await loadMore(false);
+    const newlyLoaded=Array.from(document.querySelectorAll('.row[data-id]'))
+      .find(e=>!beforeIds.has(e.dataset.id));
+    if(newlyLoaded){ await openDetail(newlyLoaded.dataset.id,newlyLoaded); return; }
+  }
+  if(previous){ await openDetail(previous.dataset.id,previous); return; }
+  document.getElementById("detail").innerHTML='<div class="empty">这个状态下没有更多内容</div>';
+}
+
+// 体验链接容错：只输了域名(如 a.com)自动补 https://，省得因缺前缀报「参数校验失败」。
+function normTryUrl(u){ u=(u||"").trim(); if(u && !/^https?:\/\//i.test(u)) u="https://"+u; return u; }
+
+async function saveEdit(){
+  if(!current) return;
+  try{
+    const body=changedCandidateFields();
+    if(!Object.keys(body).length){ toast("没有需要保存的修改"); return current; }
+    if(candidateQualityFields(body).length && !body.override_reason){
+      body.override_reason=document.getElementById("e_override_reason").value.trim();
+    }
+    if(candidateQualityFields(body).length && !body.override_reason){
+      throw new Error("修改标题、体验入口或成果证据时，请填写人工覆盖理由");
+    }
+    const c = await api("/admin/candidates/"+current.id,{method:"PATCH",body:JSON.stringify(body)});
+    current=c; toast("已保存（状态→已编辑）"); refreshPending();
+    // 若当前筛的是待审，编辑后状态变 edited，可能不再属于该列表——刷新行标签即可，不强制移除。
+    const row=document.querySelector('.row[data-id="'+c.id+'"] .rtitle'); if(row) row.textContent=c.title||"(无标题)";
+    return c;
+  }catch(e){
+    toast("保存失败："+(e.body&&e.body.message||e.message));
+    return null;
+  }
+}
+
+function candidateQualityFields(body){
+  const quality=new Set(["title","experience_type","experience_url","experience_content","media_json","selected_proof_media"]);
+  return Object.keys(body).filter(k=>quality.has(k));
+}
+
+function changedCandidateFields(){
+  const proofRadio=document.querySelector('input[name="proof_media"]:checked');
+  const proofItems=candidateMediaItems(current);
+  const keepIndexes=new Set(Array.from(document.querySelectorAll('input[name="keep_media"]:checked')).map(e=>Number(e.value)));
+  const keptMedia=proofItems.filter((_,i)=>keepIndexes.has(i));
+  const form={
+    title:document.getElementById("e_title").value.trim(),
+    tagline:document.getElementById("e_tagline").value.trim(),
+    summary:document.getElementById("e_summary").value.trim(),
+    description:document.getElementById("e_description").value.trim(),
+    experience_type:document.getElementById("e_experience_type").value,
+    experience_url:normTryUrl(document.getElementById("e_try_url").value),
+    experience_content:document.getElementById("e_experience_content").value.trim(),
+    selected_proof_media:proofRadio?proofItems[Number(proofRadio.value)]:null,
+    override_reason:document.getElementById("e_override_reason").value.trim(),
+  };
+  const old={
+    title:(current.title||"").trim(), tagline:(current.tagline||"").trim(),
+    summary:(current.summary||"").trim(), description:(current.description||"").trim(),
+    experience_type:current.experience_type||"", experience_url:normTryUrl(current.experience_url||current.try_url||""),
+    experience_content:(current.experience_content||"").trim(), selected_proof_media:current.selected_proof_media||null,
+  };
+  const body={};
+  for(const key of ["title","tagline","summary","description","experience_type","experience_url","experience_content"]){
+    if(form[key]!==old[key]) body[key]=form[key]||null;
+  }
+  const oldProof=(old.selected_proof_media&&old.selected_proof_media.url)||"";
+  const newProof=(form.selected_proof_media&&form.selected_proof_media.url)||"";
+  if(oldProof!==newProof) body.selected_proof_media=form.selected_proof_media;
+  if(JSON.stringify(keptMedia.map(m=>m.url))!==JSON.stringify(proofItems.map(m=>m.url))){
+    body.media_json={items:keptMedia};
+  }
+  if(Object.keys(body).length && form.override_reason) body.override_reason=form.override_reason;
+  return body;
+}
+
+function toggleCandidateMedia(checkbox){
+  const label=checkbox.closest('.candidate-media');
+  if(label) label.style.opacity=checkbox.checked?'1':'0.35';
+  if(!checkbox.checked){
+    const proof=label&&label.querySelector('input[name="proof_media"]');
+    if(proof) proof.checked=false;
+  }
+}
+
+function selectProofMedia(radio){
+  const label=radio.closest('.candidate-media');
+  const keep=label&&label.querySelector('input[name="keep_media"]');
+  if(keep){ keep.checked=true; label.style.opacity='1'; }
+}
+
+let candidateMediaUploading=false;
+
+function captureCandidateEditorState(){
+  const ids=['e_title','e_tagline','e_summary','e_description','e_experience_type','e_try_url','e_experience_content','e_override_reason'];
+  const values={};
+  for(const id of ids){ const el=document.getElementById(id); if(el) values[id]=el.value; }
+  const items=candidateMediaItems(current);
+  const keep={};
+  document.querySelectorAll('input[name="keep_media"]').forEach(el=>{
+    const item=items[Number(el.value)]; if(item) keep[item.url]=el.checked;
+  });
+  const proof=document.querySelector('input[name="proof_media"]:checked');
+  return {values,keep,proofUrl:proof&&items[Number(proof.value)]&&items[Number(proof.value)].url};
+}
+
+function restoreCandidateEditorState(state){
+  if(!state) return;
+  for(const [id,value] of Object.entries(state.values||{})){
+    const el=document.getElementById(id); if(el) el.value=value;
+  }
+  const items=candidateMediaItems(current);
+  document.querySelectorAll('input[name="keep_media"]').forEach(el=>{
+    const item=items[Number(el.value)];
+    if(item && Object.prototype.hasOwnProperty.call(state.keep,item.url)){
+      el.checked=state.keep[item.url]; toggleCandidateMedia(el);
+    }
+  });
+  if(state.proofUrl){
+    document.querySelectorAll('input[name="proof_media"]').forEach(el=>{
+      const item=items[Number(el.value)]; el.checked=!!item&&item.url===state.proofUrl;
+    });
+  }
+}
+
+async function uploadCandidateImages(files){
+  if(!current || !files || !files.length || candidateMediaUploading) return;
+  const images=Array.from(files).filter(f=>['image/jpeg','image/png','image/webp'].includes(f.type));
+  if(!images.length){ toast('请选择 jpg、png 或 webp 图片'); return; }
+  const editorState=captureCandidateEditorState();
+  candidateMediaUploading=true;
+  try{
+    for(let i=0;i<images.length;i++){
+      toast(`上传图片 ${i+1}/${images.length}…`);
+      const form=new FormData(); form.append('file',images[i],images[i].name||`clipboard-${Date.now()}.png`);
+      current=await api(`/admin/candidates/${current.id}/media`,{method:'POST',body:form});
+    }
+    renderDetail(current); restoreCandidateEditorState(editorState);
+    toast(`已添加 ${images.length} 张图片，可继续选择成果证据`);
+  }catch(e){
+    toast('上传失败：'+(e.body&&e.body.message||e.message));
+  }finally{
+    candidateMediaUploading=false;
+    const input=document.getElementById('candidate_media_files'); if(input) input.value='';
+  }
+}
+
+function candidateMediaDrag(event,on){
+  event.preventDefault();
+  const box=document.getElementById('candidate_media_upload');
+  if(box) box.classList.toggle('dragging',on);
+}
+
+function dropCandidateImages(event){
+  event.preventDefault(); candidateMediaDrag(event,false);
+  uploadCandidateImages(event.dataTransfer&&event.dataTransfer.files);
+}
+
+document.addEventListener('paste',event=>{
+  if(!current || candidateMediaUploading) return;
+  const files=Array.from(event.clipboardData&&event.clipboardData.items||[])
+    .filter(item=>item.kind==='file' && item.type.startsWith('image/'))
+    .map(item=>item.getAsFile()).filter(Boolean);
+  if(files.length){ event.preventDefault(); uploadCandidateImages(files); }
+});
+
+// 已通过内容「再剪辑」：改动直接落到线上项目（PATCH /admin/projects/{project_id}）。
+async function saveEditProject(){
+  if(!current || !current.project_id) return;
+  const body={
+    title:document.getElementById("e_title").value.trim(),
+    tagline:document.getElementById("e_tagline").value.trim(),
+    summary:document.getElementById("e_summary").value.trim(),
+    description:document.getElementById("e_description").value.trim(),
+    try_url:normTryUrl(document.getElementById("e_try_url").value),
+  };
+  try{
+    await api("/admin/projects/"+current.project_id,{method:"PATCH",body:JSON.stringify(body)});
+    toast("已保存到线上项目");
+    const row=document.querySelector('.row[data-id="'+current.id+'"] .rtitle'); if(row) row.textContent=body.title||"(无标题)";
+  }catch(e){ toast("保存失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 下架已发布项目（可恢复）。
+async function takeDownProject(projId, candId){
+  if(!confirm("确认下架这个线上项目？用户将看不到，可再恢复。")) return;
+  try{
+    await api("/admin/projects/"+projId+"/take-down",{method:"POST",body:JSON.stringify({reason:"审核台下架"})});
+    toast("已下架（可恢复）"); await dropCurrentRowAndOpenNext(candId); refreshPending();
+  }catch(e){ toast("下架失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 恢复上架（下架/隐藏/审核中 → 已发布）。
+async function restoreProject(projId){
+  try{
+    await api("/admin/projects/"+projId+"/restore",{method:"POST",body:JSON.stringify({reason:"审核台恢复"})});
+    toast("已恢复上架"); refreshPending();
+  }catch(e){ toast("恢复失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 废除：软删项目（→deleted）。下架只对在架项目有效；遇到 rejected/taken_down 等
+// 终态（下架/恢复都点不动）的旧数据，用这个彻底清掉，App 端永不可见。
+async function discardProject(projId, candId){
+  if(!confirm("确认废除这个项目？软删除、App 端彻底不可见。（下架只对在架的有效，废除对任何状态都能清）")) return;
+  try{
+    await api("/admin/projects/"+projId+"/soft-delete",{method:"POST",body:JSON.stringify({reason:"审核台废除"})});
+    toast("已废除（软删）"); await dropCurrentRowAndOpenNext(candId); refreshPending();
+  }catch(e){ toast("废除失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 上架/发布：把 draft/rejected/taken_down 等未上线项目发布成 published（后端补 published_at）。
+async function publishProject(projId, candId){
+  if(!confirm("确认上架这个项目？将对所有用户可见。（草稿/被拒/下架的都能一键发布）")) return;
+  try{
+    await api("/admin/projects/"+projId+"/publish",{method:"POST",body:JSON.stringify({reason:"审核台上架"})});
+    toast("已上架（已发布）"); LIVE_IDS.add(projId); refreshPending();
+  }catch(e){ toast("上架失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function approve(id){
+  if(!confirm("确认保存当前修改并发布？将随机派一个马甲作者、把封面转存到本地/OSS。")) return;
+  try{
+    // 审核员常在补完真实体验链接后直接点发布。先持久化表单，避免审批仍读取数据库旧值。
+    const pending=changedCandidateFields();
+    if(Object.keys(pending).length){
+      if(candidateQualityFields(pending).length && !pending.override_reason){
+        pending.override_reason="审核员发布前补充或修正候选信息";
+      }
+      current=await api("/admin/candidates/"+id,{method:"PATCH",body:JSON.stringify(pending)});
+    }
+    const r = await api("/admin/candidates/"+id+"/approve",{method:"POST"});
+    toast("已发布 · 作者马甲："+(r.persona_name||"—"));
+    await dropCurrentRowAndOpenNext(id); refreshPending();
+  }catch(e){
+    // 准入闸失败会带 details.problems
+    const probs = e.body && e.body.details && e.body.details.problems;
+    toast("发布失败："+(e.body&&e.body.message||e.message)+(probs?("（"+probs.join("；")+"）"):""));
+  }
+}
+
+async function approveOverride(id){
+  if(!confirm("模型分低于 70。确认由人工承担判断，只豁免分数线并发布？其他作品、体验和成果证据准入仍会校验。")) return;
+  try{
+    const pending=changedCandidateFields();
+    if(Object.keys(pending).length){
+      if(candidateQualityFields(pending).length && !pending.override_reason){
+        pending.override_reason="人工确认内容质量并修正候选信息";
+      }
+      current=await api("/admin/candidates/"+id,{method:"PATCH",body:JSON.stringify(pending)});
+    }
+    const typed=document.getElementById("e_override_reason").value.trim();
+    const reason=typed||"人工审核认为内容质量可发布，豁免模型吸引力分数线";
+    const r=await api("/admin/candidates/"+id+"/approve-override",{method:"POST",body:JSON.stringify({reason})});
+    toast("已人工破格发布 · 作者马甲："+(r.persona_name||"—"));
+    await dropCurrentRowAndOpenNext(id); refreshPending();
+  }catch(e){
+    const probs=e.body&&e.body.details&&e.body.details.problems;
+    toast("破格发布失败："+(e.body&&e.body.message||e.message)+(probs?("（"+probs.join("；")+"）"):""));
+  }
+}
+
+async function discard(id){
+  // 直接不推荐，不再弹框问理由（决定本身已记进 admin_actions，供偏好学习用）。
+  try{
+    await api("/admin/candidates/"+id+"/discard",{method:"POST",body:JSON.stringify({reason:null})});
+    toast("已标记不推荐"); await dropCurrentRowAndOpenNext(id); refreshPending();
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function restoreCandidate(id){
+  try{
+    const restored=await api("/admin/candidates/"+id+"/restore",{method:"POST"});
+    const labels={ai_collected:"刚采集",ai_processed:"AI已整理",pending_review:"待审核",edited:"已编辑",parked:"暂存"};
+    toast("已撤销不推荐，恢复到“"+(labels[restored.status]||restored.status)+"”");
+    const filter=document.getElementById("fStatus").value;
+    if(filter==='discarded') await dropCurrentRowAndOpenNext(id);
+    else await reload();
+    refreshPending();
+  }catch(e){ toast("恢复失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function park(id){
+  try{
+    await api("/admin/candidates/"+id+"/park",{method:"POST"});
+    toast("已暂存"); await dropCurrentRowAndOpenNext(id); refreshPending();
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// 批量清理：人为设分数阈值，把低于它的一次性处理。先 dry_run 预览数量、确认后再执行（可恢复）。
+async function bulkCleanup(scope){
+  const isProj = scope==='projects';
+  const s = prompt(isProj
+    ? "【下架线上低分项目】把已发布项目里 AI 分【低于】多少的批量下架？（如 55，可恢复）"
+    : "【清待审低分】把待审候选里 AI 分【低于】多少的批量不推荐？（如 55，可恢复）", "");
+  if(s===null) return;
+  const below = parseInt(s,10);
+  if(!(below>0 && below<=100)){ toast("请输入 1–100 的分数"); return; }
+  const path = isProj ? "/admin/projects/bulk-take-down" : "/admin/candidates/bulk-discard";
+  try{
+    const pre = await api(path,{method:"POST",body:JSON.stringify({below_score:below,dry_run:true})});
+    if(!pre.matched){ toast("没有低于 "+below+" 分的"); return; }
+    if(!confirm("将"+(isProj?"下架":"不推荐")+" "+pre.matched+" 条（AI 分 < "+below+"）。可恢复。确认执行？")) return;
+    const res = await api(path,{method:"POST",body:JSON.stringify({below_score:below,dry_run:false})});
+    toast("已处理 "+res.matched+" 条");
+    reload(); refreshPending();
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// ---------- 手动加链接 ----------
+function openManualAdd(){
+  document.getElementById("mErr").textContent="";
+  document.getElementById("manualMask").classList.add("show");
+  document.getElementById("mUrl").focus();
+}
+function closeManualAdd(){ document.getElementById("manualMask").classList.remove("show"); }
+
+async function submitManualAdd(){
+  const url=document.getElementById("mUrl").value.trim();
+  const title=document.getElementById("mTitle").value.trim();
+  const kind=document.getElementById("mKind").value;
+  const platform=document.getElementById("mPlatform").value.trim();
+  const errEl=document.getElementById("mErr"); errEl.textContent="";
+  if(!/^https?:\/\//.test(url)){ errEl.textContent="请填写 http(s) 链接"; return; }
+  const btn=document.getElementById("mSubmit"); btn.disabled=true; btn.textContent="添加中…";
+  try{
+    const body={url, content_kind:kind};
+    if(title) body.title=title;
+    if(platform) body.source_platform=platform;
+    const r=await api("/admin/candidates/manual",{method:"POST",body:JSON.stringify(body)});
+    if(r.duplicate){
+      toast("这个链接已在候选池/已发布，未重复添加");
+    }else{
+      toast("已入池"+(r.fetched_title?("：「"+r.fetched_title.slice(0,20)+"…」"):"")+" · 跑 AI 整理后进待审");
+    }
+    closeManualAdd();
+    document.getElementById("mUrl").value=""; document.getElementById("mTitle").value="";
+    // 切到「刚采集」让用户看到刚加的这条（AI 整理前停在 ai_collected）。
+    document.getElementById("fStatus").value = r.duplicate ? document.getElementById("fStatus").value : "ai_collected";
+    reload(); refreshPending();
+  }catch(e){ errEl.textContent = (e.body&&e.body.message)||e.message; }
+  finally{ btn.disabled=false; btn.textContent="添加"; }
+}
+
+// ---------- 意见反馈 ----------
+function openFeedback(){ document.getElementById("feedback").classList.add("show"); loadFeedback(); }
+function closeFeedback(){ document.getElementById("feedback").classList.remove("show"); }
+
+async function loadFeedback(){
+  const box=document.getElementById("fbcontent");
+  box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>';
+  const status=document.getElementById("fbStatus").value;
+  try{
+    let q="/admin/feedback?page_size=50";
+    if(status) q+="&status="+encodeURIComponent(status);
+    const page=await api(q);
+    renderFeedback(page.items||[]);
+  }catch(e){
+    box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载失败：'+esc(e.message)+'</div>';
+  }
+}
+
+function renderFeedback(items){
+  const box=document.getElementById("fbcontent");
+  if(!items.length){ box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:18vh">这个筛选下没有反馈</div>'; return; }
+  const catLabel={bug:"Bug",suggestion:"建议",other:"其他"};
+  box.innerHTML=items.map(f=>{
+    const cat=`<span class="pill cat-${esc(f.category)}">${esc(catLabel[f.category]||f.category)}</span>`;
+    const done=f.status==="handled"?`<span class="pill done">已处理</span>`:"";
+    const who=f.user_nickname?esc(f.user_nickname):'<span class="muted">游客/未登录</span>';
+    const meta=[
+      f.contact?`<b>联系</b> ${esc(f.contact)}`:"",
+      f.source_page?`<b>页面</b> ${esc(f.source_page)}`:"",
+      f.error_code?`<b>错误码</b> ${esc(f.error_code)}`:"",
+      (f.platform||f.app_version)?`<b>环境</b> ${esc([f.platform,f.app_version].filter(Boolean).join(" · "))}`:"",
+      f.device_info?`<b>设备</b> ${esc(f.device_info)}`:"",
+      f.admin_note?`<b>处理备注</b> ${esc(f.admin_note)}`:"",
+    ].filter(Boolean).join("　");
+    const btn=f.status==="handled"?"":`<button class="btn-ghost" style="padding:5px 12px;font-size:12.5px" onclick="handleFeedback('${f.id}')">标记已处理</button>`;
+    return `<div class="fbcard" data-fb="${f.id}">
+      <div class="fbtop">${cat}${done}<span class="muted" style="font-size:12.5px">${who} · ${esc((f.created_at||"").slice(0,16).replace("T"," "))}</span><span class="spacer" style="flex:1"></span>${btn}</div>
+      <div class="fbtext">${esc(f.content)}</div>
+      ${meta?`<div class="fbmeta">${meta}</div>`:""}
+    </div>`;
+  }).join("");
+}
+
+async function handleFeedback(id){
+  const note=prompt("处理备注（可留空）：","");
+  if(note===null) return;
+  try{
+    await api("/admin/feedback/"+id+"/handle",{method:"POST",body:JSON.stringify({note:note||null})});
+    toast("已标记处理");
+    loadFeedback();
+  }catch(e){ toast("失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// ---------- 运营数据 ----------
+function openStats(){ document.getElementById("stats").classList.add("show"); loadStats(); }
+function closeStats(){ document.getElementById("stats").classList.remove("show"); }
+
+function fmtTime(s){
+  if(!s) return "—";
+  const t=new Date(s);
+  if(isNaN(t)) return esc(String(s).slice(0,16).replace("T"," "));
+  return t.toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+}
+
+async function loadStats(){
+  const box=document.getElementById("scontent");
+  box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>';
+  const days=document.getElementById("statsDays").value;
+  try{
+    // 两个接口并发：/usage=真实用户监测；/dashboard=内容/待办计数
+    const [u,d] = await Promise.all([
+      api("/admin/usage?days="+days),
+      api("/admin/dashboard"),
+    ]);
+    renderStats(u,d,days);
+  }catch(e){
+    box.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载失败：'+esc(e.message)+'</div>';
+  }
+}
+
+function renderStats(u,d,days){
+  const box=document.getElementById("scontent");
+  const card=(num,lbl,hl)=>`<div class="mcard${hl?' hl':''}"><div class="num">${num}</div><div class="lbl">${esc(lbl)}</div></div>`;
+  const ev = Object.entries(u.event_breakdown||{}).sort((a,b)=>b[1]-a[1])
+    .map(([k,v])=>`<div class="evchip">${esc(k)} <b>${v}</b></div>`).join("")
+    || '<span class="muted">窗口内无埋点事件</span>';
+  const rows = (u.active_list||[]).map(a=>`<tr>
+      <td>${esc(a.nickname||"(无昵称)")}${a.is_admin?' <span class="pill" style="background:#eef0fb;color:#5a5ac0">管理员</span>':""}</td>
+      <td>${a.event_count}</td>
+      <td>${fmtTime(a.last_active)}</td>
+    </tr>`).join("") || '<tr><td colspan="3" class="muted">窗口内无活跃登录用户</td></tr>';
+  box.innerHTML = `
+    <div class="cards">
+      ${card(u.total_users,"真实用户总数",true)}
+      ${card(u.new_users,"近 "+days+" 天新增")}
+      ${card(u.active_users,"近 "+days+" 天活跃")}
+      ${card(u.dau_today,"今日 DAU")}
+      ${card(u.guest_opens,"游客打开")}
+      ${card(u.admin_active,"活跃管理员")}
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:10px">
+      真实用户口径已排除马甲号（@persona.kankan）。「活跃 / DAU / 事件分布」依赖客户端埋点，App 未接埋点时为 0——
+      若这几项恒 0 但确有人用，是埋点没接，不是没人用。管理员活跃≈总活跃说明「还在自嗨」。
+    </div>
+
+    <div class="sh3">内容 & 待办</div>
+    <div class="cards">
+      ${card(d.published_projects,"已发布项目")}
+      ${card(d.pending_candidates,"待审候选")}
+      ${card(d.open_reports,"待处理举报")}
+    </div>
+
+    <div class="sh3">事件分布（近 ${days} 天）</div>
+    <div class="evgrid">${ev}</div>
+
+    <div class="sh3">活跃用户清单（最近 ${(u.active_list||[]).length} 人）</div>
+    <table class="utable">
+      <thead><tr><th>用户</th><th>事件数</th><th>最近活跃</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+// ---------- 马甲管理 ----------
+let curPersona = null;
+
+function openPersonas(){
+  document.getElementById("personas").classList.add("show");
+  loadPersonas();
+}
+function closePersonas(){
+  document.getElementById("personas").classList.remove("show");
+}
+
+async function loadPersonas(){
+  const box=document.getElementById("plist");
+  box.innerHTML='<div class="prow muted">加载中…</div>';
+  try{
+    const list = await api("/admin/personas");
+    document.getElementById("personaStat").innerHTML =
+      `共 <b>${list.length}</b> 个马甲`;
+    if(!list.length){ box.innerHTML='<div class="prow muted">还没有马甲号（跑 seed_personas.py 建）</div>'; return; }
+    box.innerHTML="";
+    for(const p of list){
+      const div=document.createElement("div");
+      div.className="prow"; div.dataset.id=p.id;
+      div.onclick=()=>openPersonaContent(p.id, div);
+      const av = p.avatar_url ? `<img src="${esc(p.avatar_url)}" onerror="this.style.visibility='hidden'">` : `<img>`;
+      div.innerHTML = `${av}<div style="min-width:0">
+        <div class="pname">${esc(p.nickname||"(无名)")} <span class="muted" style="font-weight:400">@${esc(p.handle||"")}</span></div>
+        <div class="pmeta">项目 ${p.project_count} · 动态 ${p.post_count} · 获赞 ${p.total_post_likes}</div>
+      </div>`;
+      box.appendChild(div);
+    }
+  }catch(e){ box.innerHTML='<div class="prow muted">加载失败：'+esc(e.message)+'</div>'; }
+}
+
+async function openPersonaContent(id, rowEl){
+  curPersona=id;
+  document.querySelectorAll(".prow").forEach(r=>r.classList.remove("active"));
+  if(rowEl) rowEl.classList.add("active");
+  const d=document.getElementById("pcontent");
+  d.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载中…</div>';
+  try{
+    const c = await api("/admin/personas/"+id+"/content?limit=50");
+    renderPersonaContent(c);
+  }catch(e){ d.innerHTML='<div class="empty muted" style="text-align:center;margin-top:20vh">加载失败：'+esc(e.message)+'</div>'; }
+}
+
+function renderPersonaContent(c){
+  const d=document.getElementById("pcontent");
+  const p=c.persona;
+  const posts = c.posts.map(x=>{
+    const tags=(x.tags||[]).map(t=>`<span class="pill">#${esc(t)}</span>`).join("");
+    return `<div class="citem" data-post="${x.id}">
+      <div class="cbody">
+        <div class="ctext">${esc(x.content)}</div>
+        <div class="cmeta">${tags} 赞 ${x.like_count} · ${esc((x.created_at||"").slice(0,10))}</div>
+      </div>
+      <button class="btn-danger cdel" onclick="delPersonaPost('${x.id}')">删除</button>
+    </div>`;
+  }).join("") || '<div class="muted">无动态</div>';
+  const projs = c.projects.map(x=>{
+    const thumb = x.cover_media_url ? `<img class="cthumb" src="${esc(x.cover_media_url)}" onerror="this.style.visibility='hidden'">` : `<div class="cthumb"></div>`;
+    const feat = (x.featured_rank!=null)?`<span class="pill score">精选#${x.featured_rank}</span>`:"";
+    return `<div class="citem" data-proj="${x.id}">
+      ${thumb}
+      <div class="cbody">
+        <div class="ctitle">${esc(x.title)}</div>
+        <div class="cmeta">${feat}<span class="pill">${esc(x.status)}</span>热度 ${Math.round(x.hot_score)} · ${esc((x.created_at||"").slice(0,10))}</div>
+      </div>
+      <button class="btn-danger cdel" onclick="delPersonaProject('${x.id}')">删除</button>
+    </div>`;
+  }).join("") || '<div class="muted">无项目</div>';
+  const avImg = p.avatar_url
+    ? `<img id="pe_avimg" src="${esc(p.avatar_url)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:#e9ecee" onerror="this.style.visibility='hidden'">`
+    : `<div id="pe_avimg" style="width:64px;height:64px;border-radius:50%;background:#e9ecee"></div>`;
+  d.innerHTML = `
+    <div class="pedit">
+      <div class="pedit-av">
+        ${avImg}
+        <input type="file" id="pe_avfile" accept="image/png,image/jpeg,image/webp" style="display:none"
+               onchange="uploadPersonaAvatar('${p.id}')">
+        <button class="btn-ghost" style="margin-top:8px;padding:5px 10px;font-size:12.5px"
+                onclick="document.getElementById('pe_avfile').click()">换头像</button>
+      </div>
+      <div class="pedit-fields">
+        <div class="muted" style="font-size:12.5px;margin-bottom:6px">@${esc(p.handle||"")}</div>
+        <label class="pe_lbl">昵称</label>
+        <input id="pe_nick" value="${esc(p.nickname||"")}" maxlength="30">
+        <label class="pe_lbl">签名</label>
+        <input id="pe_bio" value="${esc(p.bio||"")}" maxlength="200" placeholder="有生活感就好，别报菜名">
+        <button class="btn-primary" style="margin-top:10px" onclick="savePersona('${p.id}')">保存资料</button>
+      </div>
+    </div>
+    <h3>动态（${c.posts.length}）</h3>${posts}
+    <h3>项目（${c.projects.length}）</h3>${projs}
+  `;
+}
+
+async function savePersona(id){
+  const nickname=document.getElementById("pe_nick").value.trim();
+  const bio=document.getElementById("pe_bio").value.trim();
+  if(!nickname){ toast("昵称不能为空"); return; }
+  try{
+    await api("/admin/personas/"+id,{method:"PATCH",body:JSON.stringify({nickname, bio})});
+    toast("已保存");
+    loadPersonas();  // 刷新左侧列表的名字
+  }catch(e){ toast("保存失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function uploadPersonaAvatar(id){
+  const inp=document.getElementById("pe_avfile");
+  const file=inp.files&&inp.files[0];
+  if(!file) return;
+  toast("上传中…");
+  try{
+    // 先传媒体拿 url，再把 avatar_url 写到马甲
+    const fd=new FormData(); fd.append("file", file);
+    const headers={}; if(TOKEN) headers["Authorization"]="Bearer "+TOKEN;
+    const res=await fetch(API+"/media",{method:"POST",headers,body:fd});
+    const mb=await res.json();
+    if(!res.ok) throw new Error(mb.message||"上传失败");
+    await api("/admin/personas/"+id,{method:"PATCH",body:JSON.stringify({avatar_url:mb.url})});
+    const img=document.getElementById("pe_avimg");
+    if(img&&img.tagName==="IMG"){ img.src=mb.url; img.style.visibility="visible"; }
+    toast("头像已更新");
+    loadPersonas();
+  }catch(e){ toast("换头像失败："+(e.body&&e.body.message||e.message)); }
+  finally{ inp.value=""; }
+}
+
+async function delPersonaPost(postId){
+  if(!confirm("确认删除这条动态？（软删，App 端立即不可见）")) return;
+  try{
+    await api("/admin/posts/"+postId,{method:"DELETE"});
+    toast("动态已删除");
+    document.querySelector('.citem[data-post="'+postId+'"]').remove();
+    loadPersonas(); // 刷新左侧计数
+  }catch(e){ toast("删除失败："+(e.body&&e.body.message||e.message)); }
+}
+
+async function delPersonaProject(projId){
+  if(!confirm("确认删除这个项目？（软删，不可在 App 展示）")) return;
+  try{
+    await api("/admin/projects/"+projId+"/soft-delete",{method:"POST",body:JSON.stringify({reason:"马甲管理清理"})});
+    toast("项目已删除");
+    document.querySelector('.citem[data-proj="'+projId+'"]').remove();
+    loadPersonas();
+  }catch(e){ toast("删除失败："+(e.body&&e.body.message||e.message)); }
+}
+
+// ---------- 启动 ----------
+// 有 access 或 refresh 就直接进（access 过期会在首个请求自动续期，不弹登录）
+if(TOKEN || localStorage.getItem("kk_admin_refresh")){ enterApp(); }
+document.getElementById("code").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
+</script>
+</body>
+</html>

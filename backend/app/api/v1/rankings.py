@@ -5,17 +5,20 @@
 # ============================================================
 from datetime import datetime, timezone
 from enum import Enum
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import ERRORS_PUBLIC
+from app.api.deps import ERRORS_PUBLIC, auth_optional
 from app.core.db import get_db
-from app.models import Project
-from app.schemas.project import RankedItem, RankingResponse
+from app.models import Project, User
+from app.schemas.post import PostOut
+from app.schemas.project import AuthorRankOut, RankedItem, RankingResponse
+from app.services.posts import _posts_to_out
 from app.services.projects import cards_from_projects_with_stats
-from app.services.rankings import fetch_in_order, weekly_hot_ids
+from app.services.rankings import fetch_in_order, hot_posts, top_authors, weekly_hot_ids
 
 router = APIRouter(prefix="/rankings", tags=["榜单"], responses=ERRORS_PUBLIC)
 
@@ -53,3 +56,22 @@ def get_rankings(
         generated_at=datetime.now(timezone.utc),
         items=[RankedItem(rank=i + 1, project=c) for i, c in enumerate(cards)],
     )
+
+
+@router.get("/posts", response_model=List[PostOut], summary="动态榜（按赞降序，游客可用）")
+def get_post_rankings(
+    limit: int = Query(50, ge=1, le=100),
+    viewer: Optional[User] = Depends(auth_optional),
+    db: Session = Depends(get_db),
+):
+    """动态榜：按 like_count 降序。前端按返回顺序取名次。"""
+    return _posts_to_out(db, hot_posts(db, limit), viewer)
+
+
+@router.get("/authors", response_model=List[AuthorRankOut], summary="作者榜（按总获赞降序，游客可用）")
+def get_author_rankings(
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """作者榜：总获赞 = 已发布项目的反应数 + 动态赞数之和。前端按返回顺序取名次。"""
+    return [AuthorRankOut(**a) for a in top_authors(db, limit)]

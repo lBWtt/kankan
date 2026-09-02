@@ -59,6 +59,21 @@ def daily_job() -> None:
     logger.info("每日校准完成：hot_score 更新 %d 条，回收暂存媒体 %d 条", updated, purged)
 
 
+def ingest_job() -> None:
+    """定时整理：把一批 ai_collected 的候选送去 AI 整理（→ ai_processed / pending_review）。
+    受当日 AI 调用额度上限约束（超额自动停、下轮再跑），逐条失败跳过不卡整批。"""
+    # 惰性导入：避免 maintenance 在 import 期就拉起 AI/openai 依赖链。
+    from app.services.ai_processor import process_collected
+
+    with SessionLocal() as db:
+        stats = process_collected(db, limit=settings.ingest_batch_limit)
+    logger.info(
+        "定时整理完成：整理 %d 条（送审 %d，失败 %d，额度截停 %d）",
+        stats.get("processed", 0), stats.get("to_review", 0),
+        stats.get("failed", 0), stats.get("capped", 0),
+    )
+
+
 # ---------- 调度循环（随 FastAPI 进程启动；MVP 单进程部署，多 worker 时需改成独立任务进程） ----------
 
 
@@ -89,6 +104,21 @@ async def _daily_loop() -> None:
             logger.exception("每日校准任务失败（明天 00:10 重试）")
 
 
+async def _ingest_loop(interval_minutes: int) -> None:
+    interval = max(1, interval_minutes) * 60
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await asyncio.to_thread(ingest_job)
+        except Exception:
+            logger.exception("定时整理任务失败（下一轮重试）")
+
+
 def start_scheduler() -> List[asyncio.Task]:
-    """在 FastAPI lifespan 里调用；返回任务句柄供停服时取消。"""
-    return [asyncio.create_task(_hourly_loop()), asyncio.create_task(_daily_loop())]
+    """在 FastAPI lifespan 里调用；返回任务句柄供停服时取消。
+    定时整理默认关（ingest_scheduler_enabled=False），开启后按 ingest_interval_minutes 周期跑。"""
+    tasks = [asyncio.create_task(_hourly_loop()), asyncio.create_task(_daily_loop())]
+    if settings.ingest_scheduler_enabled:
+        logger.info("定时整理调度已开启：每 %d 分钟一批", settings.ingest_interval_minutes)
+        tasks.append(asyncio.create_task(_ingest_loop(settings.ingest_interval_minutes)))
+    return tasks

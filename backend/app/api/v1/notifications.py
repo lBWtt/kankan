@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, tuple_
+from pydantic import BaseModel
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import ERRORS_AUTHED, auth_required
@@ -18,6 +19,10 @@ from app.core.pagination import decode_cursor, encode_cursor
 from app.models import Notification, User
 from app.schemas.common import OkResponse, Page
 from app.schemas.notification import NotificationItem
+
+
+class UnreadCountResponse(BaseModel):
+    count: int
 
 router = APIRouter(prefix="/notifications", tags=["通知"], responses=ERRORS_AUTHED)
 
@@ -57,13 +62,37 @@ def list_notifications(
         items=[
             NotificationItem(
                 id=n.id, type=n.type, title=n.title, body=n.body,
-                project_id=n.project_id, is_read=n.is_read, created_at=n.created_at,
+                project_id=n.project_id, actor_user_id=n.actor_user_id, post_id=n.post_id,
+                is_read=n.is_read, created_at=n.created_at,
             )
             for n in rows
         ],
         next_cursor=next_cursor,
         has_more=has_more,
     )
+
+
+@router.get("/unread-count", response_model=UnreadCountResponse, summary="未读通知数（红点角标）")
+def unread_count(user: User = Depends(auth_required), db: Session = Depends(get_db)):
+    """给底部「消息」Tab 的红点用：只数自己的未读通知。"""
+    n = db.scalar(
+        select(func.count())
+        .select_from(Notification)
+        .where(Notification.user_id == user.id, Notification.is_read.is_(False))
+    )
+    return UnreadCountResponse(count=int(n or 0))
+
+
+@router.post("/read-all", response_model=OkResponse, summary="全部标记已读")
+def mark_all_read(user: User = Depends(auth_required), db: Session = Depends(get_db)):
+    """进通知中心时一键清红点：把自己所有未读标为已读。"""
+    db.execute(
+        update(Notification)
+        .where(Notification.user_id == user.id, Notification.is_read.is_(False))
+        .values(is_read=True, read_at=datetime.now(timezone.utc))
+    )
+    db.commit()
+    return OkResponse()
 
 
 @router.patch("/{notification_id}/read", response_model=OkResponse, summary="标记已读")

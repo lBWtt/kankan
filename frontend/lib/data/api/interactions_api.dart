@@ -9,12 +9,41 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/app_exception.dart';
 import '../../core/network/dio_provider.dart';
+import '../../core/utils/parse_ms.dart';
 import '../../domain/models/models.dart';
 import '../dto/project_card_dto.dart';
+
+class TryProjectItem {
+  final Project project;
+  final int triedAtMs;
+
+  const TryProjectItem({
+    required this.project,
+    required this.triedAtMs,
+  });
+}
 
 class InteractionsApi {
   final Dio _dio;
   InteractionsApi(this._dio);
+
+  Future<void> setProjectReaction(
+    String projectId, {
+    required String reactionType,
+    required bool on,
+  }) async {
+    try {
+      if (on) {
+        await _dio
+            .post<dynamic>('/projects/$projectId/reactions/$reactionType');
+      } else {
+        await _dio
+            .delete<dynamic>('/projects/$projectId/reactions/$reactionType');
+      }
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
 
   /// 收藏 / 取消收藏。[on]=true → POST（201）；false → DELETE（204）。
   /// 需登录（后端 auth_required）；未登录会 401（拦截器尝试刷新，仍失败则抛）。
@@ -33,7 +62,10 @@ class InteractionsApi {
   /// 想看怎么做（主信号，红线：游客可用不设登录墙）。POST → 返回该项目最新累计需求数。
   /// [anonClientId] 游客必带（后端未登录时缺它 422）；登录用户后端取 token 身份，带上也无妨（登录归并）。
   /// 后端幂等：重复点按返回当前累计，不重复 +1。
-  Future<int> recordHowToInterest(String projectId, {String? anonClientId}) async {
+  Future<int> recordHowToInterest(
+    String projectId, {
+    String? anonClientId,
+  }) async {
     try {
       final resp = await _dio.post<dynamic>(
         '/projects/$projectId/how-to-interest',
@@ -50,30 +82,16 @@ class InteractionsApi {
     }
   }
 
-  /// GET /projects/{id}/implementation-clue → 实现线索原始 JSON（游客可读）。
+  /// GET /projects/{id}/implementation-clue → 「想试的人」页原始 JSON（游客可读）。
   /// 返回后端契约字段（source_url/tools/ai_implementation_hint/related_projects/
-  /// how_to_interest_count/is_subscribed）；调用方（clueProvider）负责映射成 ClueData。
+  /// how_to_interest_count）；调用方（clueProvider）负责映射成 ClueData。
   Future<Map<String, dynamic>> getImplementationClue(String projectId) async {
     try {
       final resp =
           await _dio.get<dynamic>('/projects/$projectId/implementation-clue');
       final data = resp.data;
       if (data is Map) return Map<String, dynamic>.from(data);
-      throw const AppException(code: 'UNKNOWN', message: '线索返回格式异常');
-    } on DioException catch (e) {
-      throw AppException.fromDio(e);
-    }
-  }
-
-  /// 订阅 / 取消订阅实现线索。[on]=true → POST（201）；false → DELETE（204）。
-  /// 需登录（后端 auth_required）。
-  Future<void> setClueSubscription(String projectId, bool on) async {
-    try {
-      if (on) {
-        await _dio.post<dynamic>('/projects/$projectId/clue-subscription');
-      } else {
-        await _dio.delete<dynamic>('/projects/$projectId/clue-subscription');
-      }
+      throw const AppException(code: 'UNKNOWN', message: '返回格式异常');
     } on DioException catch (e) {
       throw AppException.fromDio(e);
     }
@@ -97,8 +115,9 @@ class InteractionsApi {
     try {
       final resp = await _dio.get<dynamic>('/users/$userId/following');
       final data = resp.data;
-      final raw =
-          data is Map ? (data['items'] ?? const <dynamic>[]) : (data ?? const <dynamic>[]);
+      final raw = data is Map
+          ? (data['items'] ?? const <dynamic>[])
+          : (data ?? const <dynamic>[]);
       final items = raw is List ? raw : const <dynamic>[];
       return items
           .whereType<Map<dynamic, dynamic>>()
@@ -116,8 +135,9 @@ class InteractionsApi {
     try {
       final resp = await _dio.get<dynamic>('/me/favorites');
       final data = resp.data;
-      final rawItems =
-          data is Map ? (data['items'] ?? const <dynamic>[]) : (data ?? const <dynamic>[]);
+      final rawItems = data is Map
+          ? (data['items'] ?? const <dynamic>[])
+          : (data ?? const <dynamic>[]);
       final items = rawItems is List ? rawItems : const <dynamic>[];
       return items
           .whereType<Map<dynamic, dynamic>>()
@@ -135,12 +155,36 @@ class InteractionsApi {
     try {
       final resp = await _dio.get<dynamic>('/me/favorites');
       final data = resp.data;
-      final rawItems =
-          data is Map ? (data['items'] ?? const <dynamic>[]) : (data ?? const <dynamic>[]);
+      final rawItems = data is Map
+          ? (data['items'] ?? const <dynamic>[])
+          : (data ?? const <dynamic>[]);
       final items = rawItems is List ? rawItems : const <dynamic>[];
       return items
           .whereType<Map<dynamic, dynamic>>()
           .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
+          .toList();
+    } on DioException catch (e) {
+      throw AppException.fromDio(e);
+    }
+  }
+
+  Future<List<TryProjectItem>> listTryItems() async {
+    try {
+      final resp = await _dio.get<dynamic>('/me/try');
+      final data = resp.data;
+      final rawItems = data is Map
+          ? (data['items'] ?? const <dynamic>[])
+          : (data ?? const <dynamic>[]);
+      final items = rawItems is List ? rawItems : const <dynamic>[];
+      return items
+          .whereType<Map<dynamic, dynamic>>()
+          .map((m) {
+            final json = Map<String, dynamic>.from(m);
+            return TryProjectItem(
+              project: projectFromCardJson(json),
+              triedAtMs: parseMs(json['linked_at'] ?? json['published_at']),
+            );
+          })
           .toList();
     } on DioException catch (e) {
       throw AppException.fromDio(e);

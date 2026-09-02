@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_config.dart';
+import '../../core/network/app_exception.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/utils/parse_count.dart';
@@ -11,9 +13,16 @@ import '../../core/widgets/kk_reaction_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/post_repository.dart';
+import '../../core/utils/login_gate.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../providers/remote_post_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/paginated_posts_provider.dart';
+import '../../data/api/posts_api.dart';
+import '../../data/api/comments_api.dart';
+import '../../data/api/activity_api.dart';
+import '../../providers/paginated_comments_provider.dart';
 import '../../router/routes.dart';
 import '../shared/avatar.dart';
 import '../shared/comment_thread.dart';
@@ -30,7 +39,7 @@ import '../shared/share_sheet.dart';
 /// actions / takeaway(那些是 Project 详情的)。
 ///
 /// 视觉复用 PostCard 的布局(作者行 / 正文 / 标签 / 引用项目 / 操作行),
-/// 末尾追加 CommentThread(心得 N + 输入框)。
+/// 末尾追加 CommentThread(评论 N + 输入框)。
 ///
 /// 计数铁律(HANDOFF §6.10):
 ///   - 点赞数 = post.likes + (isLiked ? 1 : 0)
@@ -68,23 +77,14 @@ class PostDetailScreen extends ConsumerWidget {
     );
   }
 
-  // ── 顶栏:返回 / 作者名(单行 ellipsis)/ 更多 ──
+  // ── 顶栏:返回 / 更多（作者名不放顶栏——正文里作者行已显示，重复且挤在返回键旁很丑）──
   PreferredSizeWidget _appBar(BuildContext context, WidgetRef ref, Post? post) {
-    // 顶栏标题显作者名（原来错显 authorId——远端是 UUID，很丑）。查不到名就显「动态」。
-    final author = post != null ? ref.watch(userByIdProvider(post.authorId)) : null;
-    final authorName = author?.name ?? (post != null ? '动态' : '');
     return AppBar(
       backgroundColor: KkColors.bg,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: const KkBackButton(),
       titleSpacing: 0,
-      title: Text(
-        authorName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: KkType.body.copyWith(fontWeight: FontWeight.w600),
-      ),
       actions: [
         Tappable(
           // post 为 null(动态不存在)时不弹 more sheet(无意义)。
@@ -150,9 +150,12 @@ class PostDetailScreen extends ConsumerWidget {
     final isLiked = appState.likedItemIds.contains(post.id);
     final likeCount = post.likes + (isLiked ? 1 : 0);
     final comments = ref.read(postRepositoryProvider).commentsFor(post.id);
-    final isMe = post.authorId == 'me';
+    final isMe = _isOwnPost(ref, post, author);
+    // 远端模式：评论输入框固定在屏幕最下方（像小红书/即刻），不塞在滚动内容末尾——
+    // 用户点进动态就能直接写评论，不用一路拉到底。mock 模式保持原来内联输入（不改）。
+    final bool remote = AppConfig.useRemote;
 
-    return ListView(
+    final scroll = ListView(
       padding: EdgeInsets.zero,
       children: [
         // 1. 作者行(头像 36px / 名字 / 时间 / 关注按钮—非自己才显示)
@@ -162,6 +165,7 @@ class PostDetailScreen extends ConsumerWidget {
             vertical: KkSpacing.md,
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TappableAvatar(
                 userId: post.authorId,
@@ -171,25 +175,32 @@ class PostDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(width: KkSpacing.md),
               Expanded(
-                child: Tappable(
-                  onTap: () => context.push(KkRoutes.profile(post.authorId)),
-                  borderRadius: BorderRadius.circular(KkRadius.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        author?.name ?? post.authorId,
-                        style: KkType.body.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () =>
+                          context.push(KkRoutes.profile(post.authorId)),
+                      behavior: HitTestBehavior.translucent,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            author?.name ?? post.authorId,
+                            style: KkType.body.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            timeAgo(post.createdAtMs),
+                            style: KkType.mono.copyWith(fontSize: 11),
+                          ),
+                        ],
                       ),
-                      Text(
-                        timeAgo(post.createdAtMs),
-                        style: KkType.mono.copyWith(fontSize: 11),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               if (!isMe) _FollowButton(userId: post.authorId),
@@ -201,7 +212,7 @@ class PostDetailScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
           child: Text(post.content, style: KkType.body.copyWith(height: 1.6)),
         ),
-        // 3. 标签(可点 → 搜索该 tag)。小胶囊横向排（左对齐），不再用会撑满整行的 Tappable。
+        // 3. 标签(可点 → 话题页)。小胶囊横向排（左对齐），不再用会撑满整行的 Tappable。
         if (post.tags.isNotEmpty) ...[
           const SizedBox(height: KkSpacing.md),
           Padding(
@@ -212,7 +223,7 @@ class PostDetailScreen extends ConsumerWidget {
               children: [
                 for (final t in post.tags)
                   GestureDetector(
-                    onTap: () => context.push(KkRoutes.searchResults(t)),
+                    onTap: () => context.push(KkRoutes.topic(t)),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: KkSpacing.sm,
@@ -269,13 +280,17 @@ class PostDetailScreen extends ConsumerWidget {
                   vertical: KkSpacing.sm,
                   horizontal: KkSpacing.xs,
                 ),
-                onTap: () =>
-                    ref.read(appStateProvider.notifier).togglePostLike(post.id),
+                onTap: () {
+                  if (!guardLogin(context, ref)) return;
+                  ref.read(appStateProvider.notifier).togglePostLike(post.id);
+                },
               ),
               const SizedBox(width: KkSpacing.lg),
               _IconStat(
                 icon: Icons.chat_bubble_outline,
-                value: formatCount(comments.length),
+                // 远端评论数取后端真值（mock repo 在远端恒为 0，会显示成「0」但下面明明有评论）。
+                value:
+                    formatCount(remote ? post.commentCount : comments.length),
                 color: KkColors.t3,
                 // 任务 B:原空 onTap(哑火)→ 滚到 CommentThread(ensureVisible)。
                 onTap: () {
@@ -295,8 +310,7 @@ class PostDetailScreen extends ConsumerWidget {
                 value: '',
                 color: KkColors.t3,
                 onTap: () {
-                  final author =
-                      ref.read(userByIdProvider(post.authorId));
+                  final author = ref.read(userByIdProvider(post.authorId));
                   // 动态有配图 → 用第一张做海报背景(image→url,video→poster)。
                   final firstMedia =
                       post.media.isNotEmpty ? post.media.first : null;
@@ -325,22 +339,36 @@ class PostDetailScreen extends ConsumerWidget {
         // 7. 分隔线
         const SizedBox(height: KkSpacing.md),
         const Divider(height: 1, color: KkColors.divider),
-        // 8. 心得讨论(CommentThread:header 显示「心得 N」+ 输入框 + 长按 hook)
+        // 8. 评论讨论(CommentThread:header 显示「评论 N」+ 输入框 + 长按 hook)
         CommentThread(
           key: _commentThreadKey,
           hostType: 'post',
           hostId: post.id,
           initialComments: comments,
-          showInput: true,
+          // 远端：输入框移到底部固定栏，这里只渲染评论列表；mock：保持内联输入。
+          showInput: !remote,
           showHeader: true,
+          onChanged: () {
+            ref.invalidate(postByIdProvider(post.id));
+            ref.invalidate(paginatedPostsProvider);
+          },
           // P0-1 收口:动态详情内联在 ListView 里,父级提供滚动 →
           // inlineInScroll: true(Column 渲染,首屏一页,发评论/删评论后 refresh 重拉)。
           inlineInScroll: true,
           // 任务⑨:长按 → 动作 sheet 收进 CommentThread 内部(_showActions),
           // 接通复制/编辑(own)/删除(own)/打开链接。不再外部传 onCommentLongPress。
         ),
-        // 底部留白(给输入框 SafeArea 腾位)
-        const SizedBox(height: KkSpacing.xxl),
+        // 底部留白(mock 给内联输入腾位；remote 底栏固定，留白小一点即可)
+        SizedBox(height: remote ? KkSpacing.md : KkSpacing.xxl),
+      ],
+    );
+
+    if (!remote) return scroll;
+    // 远端：内容/评论可滚动 + 底部固定评论栏。
+    return Column(
+      children: [
+        Expanded(child: scroll),
+        _PostCommentBar(postId: post.id),
       ],
     );
   }
@@ -350,7 +378,8 @@ class PostDetailScreen extends ConsumerWidget {
   // toast「已减少类似推荐」+ 回 feed(该动态从流过滤消失)。
   // 任务:own(authorId=='me')出「删除」(珊瑚橙,删自己内容=take 语义例外)。
   void _showMoreSheet(BuildContext context, WidgetRef ref, Post post) {
-    final isMe = post.authorId == 'me';
+    final isMe =
+        _isOwnPost(ref, post, ref.read(userByIdProvider(post.authorId)));
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: KkColors.bgCard,
@@ -372,43 +401,45 @@ class PostDetailScreen extends ConsumerWidget {
               ),
               const Divider(height: 1, color: KkColors.divider, indent: 56),
             ],
-            _sheetItem(
-              icon: Icons.flag_outlined,
-              label: '举报',
-              onTap: () {
-                Navigator.pop(context);
-                showReportSheet(
-                  context,
-                  targetType: 'post',
-                  targetId: post.id,
-                );
-              },
-            ),
-            const Divider(height: 1, color: KkColors.divider, indent: 56),
-            _sheetItem(
-              icon: Icons.visibility_off_outlined,
-              label: '不感兴趣',
-              onTap: () {
-                final messenger = ScaffoldMessenger.maybeOf(context);
-                Navigator.pop(context); // 关 more sheet
-                ref
-                    .read(appStateProvider.notifier)
-                    .markNotInterested(post.id);
-                // 回到 feed:discover/kankan watch appState,重建后该动态被过滤
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(KkRoutes.discover);
-                }
-                messenger?.showSnackBar(
-                  const SnackBar(
-                    content: Text('已减少类似推荐'),
-                    duration: Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
+            if (!isMe) ...[
+              _sheetItem(
+                icon: Icons.flag_outlined,
+                label: '举报',
+                onTap: () {
+                  Navigator.pop(context);
+                  showReportSheet(
+                    context,
+                    targetType: 'post',
+                    targetId: post.id,
+                  );
+                },
+              ),
+              const Divider(height: 1, color: KkColors.divider, indent: 56),
+              _sheetItem(
+                icon: Icons.visibility_off_outlined,
+                label: '不感兴趣',
+                onTap: () {
+                  final messenger = ScaffoldMessenger.maybeOf(context);
+                  Navigator.pop(context); // 关 more sheet
+                  ref
+                      .read(appStateProvider.notifier)
+                      .markNotInterested(post.id);
+                  // 回到 feed:discover/kankan watch appState,重建后该动态被过滤
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go(KkRoutes.discover);
+                  }
+                  messenger?.showSnackBar(
+                    const SnackBar(
+                      content: Text('已减少类似推荐'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+            ],
             const Divider(height: 1, color: KkColors.divider),
             _sheetItem(
               icon: Icons.close,
@@ -443,12 +474,22 @@ class PostDetailScreen extends ConsumerWidget {
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              ref.read(postRepositoryProvider).removePost(post.id);
-              // 刷新依赖 postRepositoryProvider 的屏
-              // (discover 推荐/关注/profile 动态 重建后该动态消失)。
-              ref.invalidate(postRepositoryProvider);
+              try {
+                await ref.read(postsApiProvider).delete(post.id);
+                ref.invalidate(postByIdProvider(post.id));
+                ref.invalidate(paginatedPostsProvider);
+                ref.invalidate(userPostsProvider(post.authorId));
+                ref.invalidate(myActivityProvider);
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('删除失败，请稍后重试')),
+                  );
+                }
+                return;
+              }
               // 删除后在动态详情页 → pop 回上一页。
               if (context.canPop()) {
                 context.pop();
@@ -495,6 +536,169 @@ class PostDetailScreen extends ConsumerWidget {
                 color: color ?? KkColors.t1,
                 fontWeight: weight,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isOwnPost(WidgetRef ref, Post post, KkUser? author) {
+    final current = ref.read(authProvider).currentUser;
+    if (current == null) return false;
+    return post.authorId == current.id ||
+        post.authorId == 'me' ||
+        author?.id == current.id ||
+        (author?.name.trim().isNotEmpty == true &&
+            author!.name.trim() == current.name.trim());
+  }
+}
+
+// ── 固定底部评论栏(远端模式)：写评论 + 发送常驻屏幕最下方，发完刷新评论列表 ──
+class _PostCommentBar extends ConsumerStatefulWidget {
+  final String postId;
+  const _PostCommentBar({required this.postId});
+
+  @override
+  ConsumerState<_PostCommentBar> createState() => _PostCommentBarState();
+}
+
+class _PostCommentBarState extends ConsumerState<_PostCommentBar> {
+  final _ctrl = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _sending = false;
+
+  String get _key => commentThreadKey('post', widget.postId);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    // 有回复目标 → 作为楼中楼回复提交；否则发新的顶级评论。
+    final parentId = ref.read(commentReplyTargetProvider(_key));
+    setState(() => _sending = true);
+    try {
+      await ref
+          .read(commentsApiProvider)
+          .create('post', widget.postId, text, parentId: parentId);
+      _ctrl.clear();
+      if (parentId != null) {
+        ref.read(commentReplyTargetProvider(_key).notifier).state = null;
+      }
+      if (mounted) FocusScope.of(context).unfocus();
+      // 刷新评论列表（与内联 CommentThread 同一 provider key）→ 新评论/回复立刻出现、计数 +1。
+      await ref.read(paginatedCommentsProvider(_key).notifier).refresh();
+      ref.invalidate(postByIdProvider(widget.postId));
+      ref.invalidate(paginatedPostsProvider);
+    } on AppException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('评论失败，请稍后再试')));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 有人点了某条评论的「回复」→ 目标非空：自动聚焦输入 + 顶部显「回复中 · 取消」。
+    final replyTo = ref.watch(commentReplyTargetProvider(_key));
+    ref.listen<String?>(commentReplyTargetProvider(_key), (prev, next) {
+      if (next != null) _focusNode.requestFocus();
+    });
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: KkSpacing.lg, vertical: KkSpacing.sm),
+        decoration: const BoxDecoration(
+          color: KkColors.bgCard,
+          border: Border(top: BorderSide(color: KkColors.bd)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (replyTo != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: KkSpacing.xs),
+                child: Row(
+                  children: [
+                    Text('回复中',
+                        style: KkType.bodySm.copyWith(color: KkColors.t3)),
+                    const SizedBox(width: KkSpacing.xs),
+                    Tappable(
+                      onTap: () => ref
+                          .read(commentReplyTargetProvider(_key).notifier)
+                          .state = null,
+                      child:
+                          const Icon(Icons.close, size: 14, color: KkColors.t3),
+                    ),
+                  ],
+                ),
+              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    focusNode: _focusNode,
+                    minLines: 1,
+                    maxLines: 4,
+                    style: KkType.body,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      hintText: replyTo != null ? '回复…' : '写评论…',
+                      hintStyle: KkType.body.copyWith(color: KkColors.t4),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: KkSpacing.md, vertical: KkSpacing.sm),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(KkRadius.pill),
+                        borderSide: const BorderSide(color: KkColors.bd),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(KkRadius.pill),
+                        borderSide: const BorderSide(color: KkColors.teal),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: KkSpacing.sm),
+                Tappable(
+                  onTap: _sending ? null : _submit,
+                  borderRadius: BorderRadius.circular(KkRadius.pill),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: KkSpacing.lg, vertical: KkSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: _sending ? KkColors.t3 : KkColors.teal,
+                      borderRadius: BorderRadius.circular(KkRadius.pill),
+                    ),
+                    child: const Text(
+                      '发送',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        fontFamily: 'NotoSerifSC',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -578,8 +782,7 @@ class _QuoteProject extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right,
-                    size: 18, color: KkColors.t3),
+                const Icon(Icons.chevron_right, size: 18, color: KkColors.t3),
               ],
             ),
           ),
@@ -600,8 +803,7 @@ class _FollowButton extends ConsumerWidget {
     final following =
         ref.watch(appStateProvider).followedUserIds.contains(userId);
     return Tappable(
-      onTap: () =>
-          ref.read(appStateProvider.notifier).toggleFollow(userId),
+      onTap: () => ref.read(appStateProvider.notifier).toggleFollow(userId),
       borderRadius: BorderRadius.circular(KkRadius.pill),
       child: Container(
         padding: const EdgeInsets.symmetric(

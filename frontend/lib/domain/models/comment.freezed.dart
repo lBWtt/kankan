@@ -28,6 +28,9 @@ mixin _$Comment {
   /// 正文
   String get content;
 
+  /// Soft-deleted comments stay visible as a placeholder to preserve context.
+  bool get isDeleted;
+
   /// 点赞数(真实)
   int get likes;
 
@@ -56,6 +59,8 @@ mixin _$Comment {
             (identical(other.authorId, authorId) ||
                 other.authorId == authorId) &&
             (identical(other.content, content) || other.content == content) &&
+            (identical(other.isDeleted, isDeleted) ||
+                other.isDeleted == isDeleted) &&
             (identical(other.likes, likes) || other.likes == likes) &&
             const DeepCollectionEquality().equals(other.replies, replies) &&
             (identical(other.createdAtMs, createdAtMs) ||
@@ -70,13 +75,14 @@ mixin _$Comment {
       hostId,
       authorId,
       content,
+      isDeleted,
       likes,
       const DeepCollectionEquality().hash(replies),
       createdAtMs);
 
   @override
   String toString() {
-    return 'Comment(id: $id, hostType: $hostType, hostId: $hostId, authorId: $authorId, content: $content, likes: $likes, replies: $replies, createdAtMs: $createdAtMs)';
+    return 'Comment(id: $id, hostType: $hostType, hostId: $hostId, authorId: $authorId, content: $content, isDeleted: $isDeleted, likes: $likes, replies: $replies, createdAtMs: $createdAtMs)';
   }
 }
 
@@ -91,6 +97,7 @@ abstract mixin class $CommentCopyWith<$Res> {
       String hostId,
       String authorId,
       String content,
+      bool isDeleted,
       int likes,
       List<Comment> replies,
       int createdAtMs});
@@ -113,6 +120,7 @@ class _$CommentCopyWithImpl<$Res> implements $CommentCopyWith<$Res> {
     Object? hostId = null,
     Object? authorId = null,
     Object? content = null,
+    Object? isDeleted = null,
     Object? likes = null,
     Object? replies = null,
     Object? createdAtMs = null,
@@ -138,6 +146,10 @@ class _$CommentCopyWithImpl<$Res> implements $CommentCopyWith<$Res> {
           ? _self.content
           : content // ignore: cast_nullable_to_non_nullable
               as String,
+      isDeleted: null == isDeleted
+          ? _self.isDeleted
+          : isDeleted // ignore: cast_nullable_to_non_nullable
+              as bool,
       likes: null == likes
           ? _self.likes
           : likes // ignore: cast_nullable_to_non_nullable
@@ -247,16 +259,32 @@ extension CommentPatterns on Comment {
 
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>(
-    TResult Function(String id, String hostType, String hostId, String authorId,
-            String content, int likes, List<Comment> replies, int createdAtMs)?
+    TResult Function(
+            String id,
+            String hostType,
+            String hostId,
+            String authorId,
+            String content,
+            bool isDeleted,
+            int likes,
+            List<Comment> replies,
+            int createdAtMs)?
         $default, {
     required TResult orElse(),
   }) {
     final _that = this;
     switch (_that) {
       case _Comment() when $default != null:
-        return $default(_that.id, _that.hostType, _that.hostId, _that.authorId,
-            _that.content, _that.likes, _that.replies, _that.createdAtMs);
+        return $default(
+            _that.id,
+            _that.hostType,
+            _that.hostId,
+            _that.authorId,
+            _that.content,
+            _that.isDeleted,
+            _that.likes,
+            _that.replies,
+            _that.createdAtMs);
       case _:
         return orElse();
     }
@@ -277,15 +305,31 @@ extension CommentPatterns on Comment {
 
   @optionalTypeArgs
   TResult when<TResult extends Object?>(
-    TResult Function(String id, String hostType, String hostId, String authorId,
-            String content, int likes, List<Comment> replies, int createdAtMs)
+    TResult Function(
+            String id,
+            String hostType,
+            String hostId,
+            String authorId,
+            String content,
+            bool isDeleted,
+            int likes,
+            List<Comment> replies,
+            int createdAtMs)
         $default,
   ) {
     final _that = this;
     switch (_that) {
       case _Comment():
-        return $default(_that.id, _that.hostType, _that.hostId, _that.authorId,
-            _that.content, _that.likes, _that.replies, _that.createdAtMs);
+        return $default(
+            _that.id,
+            _that.hostType,
+            _that.hostId,
+            _that.authorId,
+            _that.content,
+            _that.isDeleted,
+            _that.likes,
+            _that.replies,
+            _that.createdAtMs);
       case _:
         throw StateError('Unexpected subclass');
     }
@@ -311,6 +355,7 @@ extension CommentPatterns on Comment {
             String hostId,
             String authorId,
             String content,
+            bool isDeleted,
             int likes,
             List<Comment> replies,
             int createdAtMs)?
@@ -319,8 +364,16 @@ extension CommentPatterns on Comment {
     final _that = this;
     switch (_that) {
       case _Comment() when $default != null:
-        return $default(_that.id, _that.hostType, _that.hostId, _that.authorId,
-            _that.content, _that.likes, _that.replies, _that.createdAtMs);
+        return $default(
+            _that.id,
+            _that.hostType,
+            _that.hostId,
+            _that.authorId,
+            _that.content,
+            _that.isDeleted,
+            _that.likes,
+            _that.replies,
+            _that.createdAtMs);
       case _:
         return null;
     }
@@ -336,6 +389,7 @@ class _Comment implements Comment {
       required this.hostId,
       required this.authorId,
       required this.content,
+      this.isDeleted = false,
       this.likes = 0,
       final List<Comment> replies = const [],
       required this.createdAtMs})
@@ -359,6 +413,11 @@ class _Comment implements Comment {
   /// 正文
   @override
   final String content;
+
+  /// Soft-deleted comments stay visible as a placeholder to preserve context.
+  @override
+  @JsonKey()
+  final bool isDeleted;
 
   /// 点赞数(真实)
   @override
@@ -401,6 +460,8 @@ class _Comment implements Comment {
             (identical(other.authorId, authorId) ||
                 other.authorId == authorId) &&
             (identical(other.content, content) || other.content == content) &&
+            (identical(other.isDeleted, isDeleted) ||
+                other.isDeleted == isDeleted) &&
             (identical(other.likes, likes) || other.likes == likes) &&
             const DeepCollectionEquality().equals(other._replies, _replies) &&
             (identical(other.createdAtMs, createdAtMs) ||
@@ -415,13 +476,14 @@ class _Comment implements Comment {
       hostId,
       authorId,
       content,
+      isDeleted,
       likes,
       const DeepCollectionEquality().hash(_replies),
       createdAtMs);
 
   @override
   String toString() {
-    return 'Comment(id: $id, hostType: $hostType, hostId: $hostId, authorId: $authorId, content: $content, likes: $likes, replies: $replies, createdAtMs: $createdAtMs)';
+    return 'Comment(id: $id, hostType: $hostType, hostId: $hostId, authorId: $authorId, content: $content, isDeleted: $isDeleted, likes: $likes, replies: $replies, createdAtMs: $createdAtMs)';
   }
 }
 
@@ -437,6 +499,7 @@ abstract mixin class _$CommentCopyWith<$Res> implements $CommentCopyWith<$Res> {
       String hostId,
       String authorId,
       String content,
+      bool isDeleted,
       int likes,
       List<Comment> replies,
       int createdAtMs});
@@ -459,6 +522,7 @@ class __$CommentCopyWithImpl<$Res> implements _$CommentCopyWith<$Res> {
     Object? hostId = null,
     Object? authorId = null,
     Object? content = null,
+    Object? isDeleted = null,
     Object? likes = null,
     Object? replies = null,
     Object? createdAtMs = null,
@@ -484,6 +548,10 @@ class __$CommentCopyWithImpl<$Res> implements _$CommentCopyWith<$Res> {
           ? _self.content
           : content // ignore: cast_nullable_to_non_nullable
               as String,
+      isDeleted: null == isDeleted
+          ? _self.isDeleted
+          : isDeleted // ignore: cast_nullable_to_non_nullable
+              as bool,
       likes: null == likes
           ? _self.likes
           : likes // ignore: cast_nullable_to_non_nullable

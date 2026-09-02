@@ -11,7 +11,7 @@ from typing import Dict, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models import Notification, Project, Report, User
+from app.models import Notification, Post, Project, Report, User
 from app.services.audit import log_admin_action
 
 # 管理动作 → (允许的起始状态, 目标状态)。红线：下架 taken_down 与删除 deleted 是两个独立状态。
@@ -23,6 +23,8 @@ _TRANSITIONS: Dict[str, Tuple[Set[str], str]] = {
     "require_edit": ({"published", "hidden", "under_review"}, "under_review"),
     # 标记风险：同样转 under_review 但不通知作者（后台 v1.2：先排查，查实才要求修改/下架）
     "mark_risk": ({"published", "hidden", "under_review"}, "under_review"),
+    # 上架/发布：草稿/被拒/下架/隐藏/审核中 → published（补 published_at，见 apply_project_action）。
+    "publish": ({"draft", "rejected", "taken_down", "hidden", "under_review"}, "published"),
 }
 
 # 动作发给作者的 content_status 通知文案（外部抓取内容无站内作者，自动跳过）
@@ -56,6 +58,9 @@ def apply_project_action(
         )
 
     project.status = target
+    # 发布/恢复到 published 且从未发布过 → 补发布时间，否则 feed 按 published_at 排序会异常。
+    if target == "published" and project.published_at is None:
+        project.published_at = datetime.now(timezone.utc)
     if action == "soft_delete":
         project.deleted_at = datetime.now(timezone.utc)
     if action == "take_down":
@@ -88,6 +93,17 @@ def set_featured_rank(db: Session, admin: User, project_id: uuid.UUID, rank: Opt
     project.featured_rank = rank
     log_admin_action(db, admin.id, "feature_project", "project", project.id, {"featured_rank": rank})
     return project
+
+
+def admin_delete_post(db: Session, admin: User, post_id: uuid.UUID) -> None:
+    """管理员软删任意动态（不限本人）——用于统一管理马甲/清理违规内容。
+    与 posts.delete_post 的「仅本人」不同：后台按 is_admin 授权，可删任何人的动态。幂等：已删再删也 OK。"""
+    p = db.get(Post, post_id)
+    if p is None:
+        raise AppError(404, "NOT_FOUND", "动态不存在")
+    if p.deleted_at is None:
+        p.deleted_at = datetime.now(timezone.utc)
+    log_admin_action(db, admin.id, "delete_post", "post", p.id, {"author_user_id": str(p.author_user_id)})
 
 
 def resolve_report(

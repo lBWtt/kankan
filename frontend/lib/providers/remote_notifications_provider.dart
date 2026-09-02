@@ -11,8 +11,12 @@ import 'app_state_provider.dart';
 
 /// 远端通知列表。拉回后用后端 is_read 回填 [appState] 的未读集合
 /// （tab 角标 / 我的页 / 设置页的未读数都读它，必须同源）。
+///
+/// **autoDispose**：不缓存到天荒地老。原来是普通 FutureProvider，首次拉完就一直缓存——
+/// 于是「换账号 / 别人给你点赞关注后再看通知」都还是旧的一份（甚至空的），新通知永远不出现。
+/// 改成 autoDispose：离开通知屏即释放，每次进通知屏都重新拉最新；配合屏内下拉刷新兜底。
 final remoteNotificationsProvider =
-    FutureProvider<List<NotificationItem>>((ref) async {
+    FutureProvider.autoDispose<List<NotificationItem>>((ref) async {
   final list = await ref.read(notificationsApiProvider).list();
   final unread = {for (final n in list) if (!n.read) n.id};
   // 微任务里回填，避开「build 期改另一个 provider」的时序坑。

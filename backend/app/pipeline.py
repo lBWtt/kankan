@@ -21,16 +21,18 @@ import sys
 from app.core.db import SessionLocal
 from app.services.ai_processor import process_collected
 from app.services.ingestion import ingest_raw_items
+from app.services.video_frames import backfill_candidate_frames
 
 
 def cmd_collect(args) -> int:
-    with open(args.file, "r", encoding="utf-8") as f:
+    # Windows PowerShell 5 的 UTF-8 输出默认带 BOM；utf-8-sig 同时兼容有/无 BOM 文件。
+    with open(args.file, "r", encoding="utf-8-sig") as f:
         items = json.load(f)
     if not isinstance(items, list):
         print("文件内容必须是 JSON 数组（每个元素一条抓取内容）", file=sys.stderr)
         return 1
     with SessionLocal() as db:
-        stats = ingest_raw_items(db, items, default_platform=args.platform)
+        stats = ingest_raw_items(db, items, default_platform=args.platform, default_kind=args.kind)
     print(f"入池 {stats['ingested']} 条；重复跳过 {stats['duplicate']} 条；"
           f"缺 source_url/title 无效 {stats['invalid']} 条")
     return 0
@@ -38,9 +40,19 @@ def cmd_collect(args) -> int:
 
 def cmd_process(args) -> int:
     with SessionLocal() as db:
-        stats = process_collected(db, limit=args.limit)
+        stats = process_collected(db, limit=args.limit, source_platform=args.platform)
     print(f"整理完成 {stats['processed']} 条（其中 {stats['to_review']} 条已进待审核队列）；"
           f"失败 {stats['failed']} 条（详见日志，下次运行会重试）")
+    return 0 if stats["failed"] == 0 else 1
+
+
+def cmd_frames(args) -> int:
+    with SessionLocal() as db:
+        stats = backfill_candidate_frames(db, limit=args.limit, source_platform=args.platform)
+    print(
+        f"扫描 {stats['scanned']} 条；补图 {stats['enriched']} 条、共 {stats['frames']} 张；"
+        f"失败 {stats['failed']} 条"
+    )
     return 0 if stats["failed"] == 0 else 1
 
 
@@ -51,11 +63,19 @@ def main() -> int:
     p_collect = sub.add_parser("collect", help="把抓取的 JSON 条目入候选池（ai_collected）")
     p_collect.add_argument("file", help="JSON 文件路径（数组，每条至少含 source_url + title）")
     p_collect.add_argument("--platform", default=None, help="条目没写来源平台时的默认值")
+    p_collect.add_argument("--kind", default="project", choices=["project", "post"],
+                           help="落地路径：project 建项目（默认）/ post 建动态（即刻/资讯改写）")
     p_collect.set_defaults(func=cmd_collect)
 
     p_process = sub.add_parser("process", help="调 LLM(Claude/DeepSeek) 整理 ai_collected 的候选 → 待审核")
     p_process.add_argument("--limit", type=int, default=20, help="本次最多整理几条（默认 20）")
+    p_process.add_argument("--platform", default=None, help="只整理指定来源，避免吃掉其他待处理队列")
     p_process.set_defaults(func=cmd_process)
+
+    p_frames = sub.add_parser("frames", help="给已整理未发布的社交视频候选自动补关键帧")
+    p_frames.add_argument("--limit", type=int, default=20, help="本次最多扫描几条（默认 20）")
+    p_frames.add_argument("--platform", default=None, help="只补指定来源，如 douyin")
+    p_frames.set_defaults(func=cmd_frames)
 
     args = parser.parse_args()
     return args.func(args)

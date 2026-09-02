@@ -37,11 +37,11 @@ class AppError(Exception):
 # 503 DEPENDENCY_DOWN      依赖服务（Redis/DB）不可用，请稍后重试
 #
 # ---- 业务错误码 ----
-# 409 PUBLISH_GATE_FAILED      发布准入不满足：tools≥1 或简介含可复现说明（PRD §2.3 红线）
-# 409 HOW_TO_DISABLED          该项目关闭了"想看怎么做"（allow_how_to_interest=false）
+# 409 PUBLISH_GATE_FAILED      发布准入不满足：tools≥1 或简介含足够说明（避免灌水）
+# 409 HOW_TO_DISABLED          该项目关闭了"想试"（allow_how_to_interest=false；列名保留）
 # 409 CANDIDATE_INVALID_STATE  候选状态不允许该操作（如对 discarded 执行 approve）
 # 409 PROJECT_INVALID_STATE    项目状态不允许该管理动作（如对 deleted 执行 take-down）
-# 422 ANON_ID_REQUIRED         游客触发想看怎么做/分享时必须带 anon_client_id
+# 422 ANON_ID_REQUIRED         游客触发想试/分享时必须带 anon_client_id
 
 
 

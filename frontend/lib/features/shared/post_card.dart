@@ -5,20 +5,24 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
+import '../../core/utils/domain_meta.dart';
 import '../../core/utils/parse_count.dart';
 import '../../core/utils/time_ago.dart';
 import '../../core/widgets/cover_art.dart';
+import 'kk_image.dart';
 import '../../core/widgets/kk_reaction_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../domain/models/models.dart';
-import '../../data/seed/mock_seed.dart';
 import '../../l10n/kk_strings.dart';
+import '../../core/utils/login_gate.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
 import 'avatar.dart';
 import 'image_lightbox.dart';
 import 'report_sheet.dart';
+import 'share_sheet.dart';
 
 /// HANDOFF §1 动态卡(轻)— 发现页 feed 用。
 ///
@@ -47,6 +51,7 @@ class PostCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final author = ref.watch(userByIdProvider(post.authorId));
     final appState = ref.watch(appStateProvider);
+    final isOwnPost = _isOwnPost(ref, author);
     final isLiked = appState.likedItemIds.contains(post.id);
     final likeCount = post.likes + (isLiked ? 1 : 0);
     // P2-i18n / 无障碍:点赞 / 评论 icon-only 按钮的 semanticLabel 接 KkStrings。
@@ -79,43 +84,51 @@ class PostCard extends ConsumerWidget {
               ),
               const SizedBox(width: KkSpacing.md),
               Expanded(
-                // 修 bug:原来用 Tappable 包名字块,其内部 Center + minHeight44
-                // 把名字垂直居中在 44px 盒里(用户反馈"名字在中间")。改自适应
-                // GestureDetector,名字块贴顶显示。
-                child: GestureDetector(
-                  onTap: () => context.push(KkRoutes.profile(post.authorId)),
-                  behavior: HitTestBehavior.opaque,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        author?.name ?? post.authorId,
-                        style: KkType.body.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () =>
+                          context.push(KkRoutes.profile(post.authorId)),
+                      behavior: HitTestBehavior.translucent,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            author?.name ?? post.authorId,
+                            style: KkType.body.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          // 第二行「简介 · 时间」(简介≈作者角色)。无简介只显时间——
+                          // 绝不退回 @UUID（用户反馈：名字下面不该出现一串代码/id）。
+                          Text(
+                            (author?.bio != null && author!.bio!.isNotEmpty)
+                                ? '${author.bio} · ${timeAgo(post.createdAtMs)}'
+                                : timeAgo(post.createdAtMs),
+                            style: KkType.bodySm.copyWith(
+                              fontSize: 12,
+                              color: KkColors.t3,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 1),
-                      // 第二行「简介 · 时间」对齐原型(简介≈作者角色;无简介退回 @id)。
-                      Text(
-                        '${(author?.bio != null && author!.bio!.isNotEmpty) ? author.bio : '@${post.authorId}'} · ${timeAgo(post.createdAtMs)}',
-                        style: KkType.bodySm.copyWith(
-                          fontSize: 12,
-                          color: KkColors.t3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              _FollowButton(userId: post.authorId),
+              // 自己的动态不应出现“关注自己”。远端作者 ID 是 UUID。
+              if (!isOwnPost) _FollowButton(userId: post.authorId),
             ],
           ),
           const SizedBox(height: KkSpacing.md),
-          // 正文
-          Text(post.content, style: KkType.body.copyWith(height: 1.6)),
+          // 正文（长文/多换行折叠，点「展开」看全文——避免一条占满整屏）
+          _ExpandableText(post.content),
           // 配图网格(任务⑮A:1/2/3/4-9 布局,放正文下、标签/引用上)
           if (post.media.isNotEmpty) ...[
             const SizedBox(height: KkSpacing.md),
@@ -158,24 +171,48 @@ class PostCard extends ConsumerWidget {
                   horizontal: KkSpacing.xs,
                 ),
                 semanticLabel: '${s.like} ${formatCount(likeCount)}',
-                onTap: () => ref
-                    .read(appStateProvider.notifier)
-                    .togglePostLike(post.id),
+                onTap: () {
+                  if (!guardLogin(context, ref)) return;
+                  ref.read(appStateProvider.notifier).togglePostLike(post.id);
+                },
               ),
               const SizedBox(width: KkSpacing.lg),
               _IconStat(
                 icon: Icons.chat_bubble_outline,
                 // F-8:评论数取 commentsFor(post.id).length(与详情页 / 卡片同源),
                 // 不用写死的 post.commentCount(D 类 bug 在 feed 复现)。
-                value: formatCount(commentsFor(post.id).length),
+                value: formatCount(post.commentCount),
                 color: KkColors.t3,
                 // P2-无障碍:icon-only 按钮传 semanticLabel,读屏念「评论 <n>」。
-                semanticLabel:
-                    '${s.comment} ${formatCount(commentsFor(post.id).length)}',
+                semanticLabel: '${s.comment} ${formatCount(post.commentCount)}',
                 // 默认:推全屏评论页(HANDOFF §6.1)。调用方可覆盖(如 discover 用底部弹层)。
                 onTap: onCommentTap ??
                     () => context.push(KkRoutes.comments('post', post.id)),
               ),
+              const SizedBox(width: KkSpacing.lg),
+              // ── [ZCode] 卡片底部分享按钮（不点进详情也能分享）──
+              _IconStat(
+                icon: Icons.ios_share_outlined,
+                value: '',
+                color: KkColors.t3,
+                onTap: () {
+                  final media = post.media.isNotEmpty ? post.media.first : null;
+                  final cover = media == null
+                      ? null
+                      : (media.type == 'image' ? media.url : media.poster);
+                  showShareSheet(
+                    context,
+                    title: post.content.split('\n').first,
+                    subtitle: author?.name,
+                    authorName: author?.name,
+                    shareType: 'post',
+                    shareUrl: 'https://kankan.app/post/${post.id}',
+                    coverPattern: 'waves',
+                    coverImageUrl: cover,
+                  );
+                },
+              ),
+              // ── [Claude 原始] ──
               const Spacer(),
             ],
           ),
@@ -202,6 +239,7 @@ class PostCard extends ConsumerWidget {
   //   post_detail/profile/comment 多处复用;为一致性调真 sheet,不在长按菜单新写网络)。
   // sheetCtx 只用于关 quick menu;showReportSheet 用外层 context(pop 后 sheetCtx 失效)。
   void _showQuickMenu(BuildContext context, WidgetRef ref) {
+    final isOwn = _isOwnPost(ref, ref.read(userByIdProvider(post.authorId)));
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: KkColors.bgCard,
@@ -209,25 +247,27 @@ class PostCard extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _sheetItem(
-              icon: Icons.visibility_off_outlined,
-              label: '不感兴趣',
-              onTap: () {
-                final messenger = ScaffoldMessenger.maybeOf(sheetCtx);
-                Navigator.pop(sheetCtx);
-                ref
-                    .read(appStateProvider.notifier)
-                    .markNotInterested(post.id);
-                messenger?.showSnackBar(
-                  const SnackBar(
-                    content: Text('已减少类似推荐'),
-                    duration: Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
-            const Divider(height: 1, color: KkColors.divider),
+            if (!isOwn) ...[
+              _sheetItem(
+                icon: Icons.visibility_off_outlined,
+                label: '不感兴趣',
+                onTap: () {
+                  final messenger = ScaffoldMessenger.maybeOf(sheetCtx);
+                  Navigator.pop(sheetCtx);
+                  ref
+                      .read(appStateProvider.notifier)
+                      .markNotInterested(post.id);
+                  messenger?.showSnackBar(
+                    const SnackBar(
+                      content: Text('已减少类似推荐'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 1, color: KkColors.divider),
+            ],
             _sheetItem(
               icon: Icons.link_outlined,
               label: '复制链接',
@@ -246,19 +286,21 @@ class PostCard extends ConsumerWidget {
                 );
               },
             ),
-            const Divider(height: 1, color: KkColors.divider),
-            _sheetItem(
-              icon: Icons.flag_outlined,
-              label: '举报',
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                showReportSheet(
-                  context,
-                  targetType: 'post',
-                  targetId: post.id,
-                );
-              },
-            ),
+            if (!isOwn) ...[
+              const Divider(height: 1, color: KkColors.divider),
+              _sheetItem(
+                icon: Icons.flag_outlined,
+                label: '举报',
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  showReportSheet(
+                    context,
+                    targetType: 'post',
+                    targetId: post.id,
+                  );
+                },
+              ),
+            ],
             const Divider(height: 1, color: KkColors.divider),
             _sheetItem(
               icon: Icons.close,
@@ -269,6 +311,16 @@ class PostCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  bool _isOwnPost(WidgetRef ref, KkUser? author) {
+    final current = ref.read(authProvider).currentUser;
+    if (current == null) return false;
+    return post.authorId == current.id ||
+        post.authorId == 'me' ||
+        author?.id == current.id ||
+        (author?.name.trim().isNotEmpty == true &&
+            author!.name.trim() == current.name.trim());
   }
 }
 
@@ -302,6 +354,63 @@ Widget _sheetItem({
   );
 }
 
+// ── 可折叠正文：超过 [collapsedLines] 行（含换行多但字数少的情况）时折叠，显示「展开」──
+class _ExpandableText extends StatefulWidget {
+  final String text;
+  final int collapsedLines = 6;
+  const _ExpandableText(this.text);
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = KkType.body.copyWith(height: 1.6);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 用 TextPainter 预判：折叠行数下是否溢出（换行多但字少也会溢出→照样给展开）。
+        final tp = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          maxLines: widget.collapsedLines,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = tp.didExceedMaxLines;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.text,
+              style: style,
+              maxLines: _expanded ? null : widget.collapsedLines,
+              overflow:
+                  _expanded ? TextOverflow.clip : TextOverflow.ellipsis,
+            ),
+            if (overflows)
+              GestureDetector(
+                onTap: () => setState(() => _expanded = !_expanded),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 2),
+                  child: Text(
+                    _expanded ? '收起' : '展开',
+                    style: KkType.bodySm.copyWith(
+                      color: KkColors.teal,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 // ── 任务⑮A:配图网格(按张数布局,小红书/朋友圈式)──
 //
 // 1 张 → 单大图(16:9,圆角 md)
@@ -325,7 +434,10 @@ class _ImageGrid extends StatelessWidget {
     final overflow = media.length - 9; // >0 表示有溢出
 
     // 任务 A:灯箱只收图片 url(video 排除),供 _GridCell onTap 用。
-    final imageUrls = [for (final m in shown) if (m.type != 'video') m.url];
+    final imageUrls = [
+      for (final m in shown)
+        if (m.type != 'video') m.url
+    ];
 
     if (count == 1) {
       // 单大图 16:9
@@ -445,15 +557,10 @@ class _GridCell extends StatelessWidget {
             // 图/封面:有 URL → Image.network(loading/error 回退 CoverArt);
             // 无 URL → CoverArt 占位(同 project_card 套路,不引新依赖)
             if (url.isNotEmpty)
-              Image.network(
-                url,
+              KkImage(
+                url: url,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return const CoverArt(pattern: 'grid');
-                },
-                errorBuilder: (context, error, stackTrace) =>
-                    const CoverArt(pattern: 'grid'),
+                placeholder: (context) => const CoverArt(pattern: 'grid'),
               )
             else
               const CoverArt(pattern: 'grid'),
@@ -544,13 +651,14 @@ class _QuoteProject extends ConsumerWidget {
                   ),
                   alignment: Alignment.center,
                   child: Icon(
-                    _domainIcon(p.domain),
+                    domainIcon(p.domain),
                     size: 20,
                     color: KkColors.teal,
                   ),
                 ),
                 const SizedBox(width: KkSpacing.md),
-                // 项目名(t1 粗) + @handle(t3,作者 handle)
+                // 项目名(t1 粗) + 一句话简介(t3)。原来第二行显 @作者UUID，很丑，
+                // 改成项目 tagline/summary（更有用，且不暴露内部 id）。
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -565,16 +673,18 @@ class _QuoteProject extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '@${p.authorId}',
-                        style: KkType.mono.copyWith(
-                          fontSize: 11,
-                          color: KkColors.t3,
+                      if (p.summary.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          p.summary,
+                          style: KkType.bodySm.copyWith(
+                            fontSize: 11,
+                            color: KkColors.t3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -609,7 +719,7 @@ class _DomainBadge extends StatelessWidget {
         border: Border.all(color: KkColors.teal, width: 0.8),
       ),
       child: Text(
-        _domainLabel(domain),
+        domainLabel(domain),
         style: const TextStyle(
           color: KkColors.teal,
           fontSize: 10,
@@ -618,41 +728,6 @@ class _DomainBadge extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// 7 领域值 → 中文标签(与 me 页 _domainLabel / profile_edit._domainOptions 同源)。
-  static const _map = <String, String>{
-    'ai_image': 'AI图',
-    'ai_video': 'AI视频',
-    'web': '网页',
-    'app': 'App',
-    'tool': '工具',
-    'opensource': '开源',
-    'prompt': 'Prompt',
-  };
-
-  static String _domainLabel(String value) => _map[value] ?? value;
-}
-
-/// 领域 → 图标(同 project_card._domainIcon,引用卡小封面用)。
-IconData _domainIcon(String domain) {
-  switch (domain) {
-    case 'ai_image':
-      return Icons.image_outlined;
-    case 'ai_video':
-      return Icons.play_circle_outline;
-    case 'web':
-      return Icons.language;
-    case 'app':
-      return Icons.phone_iphone;
-    case 'tool':
-      return Icons.build_outlined;
-    case 'opensource':
-      return Icons.code;
-    case 'prompt':
-      return Icons.chat_bubble_outline;
-    default:
-      return Icons.article_outlined;
   }
 }
 
@@ -664,10 +739,10 @@ class _FollowButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final following = ref.watch(appStateProvider).followedUserIds.contains(userId);
+    final following =
+        ref.watch(appStateProvider).followedUserIds.contains(userId);
     return Tappable(
-      onTap: () =>
-          ref.read(appStateProvider.notifier).toggleFollow(userId),
+      onTap: () => ref.read(appStateProvider.notifier).toggleFollow(userId),
       borderRadius: BorderRadius.circular(KkRadius.pill),
       child: Container(
         padding: const EdgeInsets.symmetric(

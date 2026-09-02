@@ -53,6 +53,12 @@ mixin _$Project {
   /// 仓库 star 数(repo 项目用,与 RepoInfo.stars 同源)
   int get repoStars;
 
+  /// 体验链接(作者作品的可去用地址,http/https)。有则详情页显「去体验」按钮。
+  String? get tryUrl;
+
+  /// published / pending_review / draft / rejected / deleted
+  String get status;
+
   /// 创建时间(毫秒)
   int get createdAtMs;
 
@@ -87,6 +93,8 @@ mixin _$Project {
                 other.takeawayCount == takeawayCount) &&
             (identical(other.repoStars, repoStars) ||
                 other.repoStars == repoStars) &&
+            (identical(other.tryUrl, tryUrl) || other.tryUrl == tryUrl) &&
+            (identical(other.status, status) || other.status == status) &&
             (identical(other.createdAtMs, createdAtMs) ||
                 other.createdAtMs == createdAtMs));
   }
@@ -107,11 +115,13 @@ mixin _$Project {
       commentCount,
       takeawayCount,
       repoStars,
+      tryUrl,
+      status,
       createdAtMs);
 
   @override
   String toString() {
-    return 'Project(id: $id, title: $title, summary: $summary, authorId: $authorId, resultData: $resultData, actions: $actions, tags: $tags, authorNote: $authorNote, domain: $domain, likes: $likes, commentCount: $commentCount, takeawayCount: $takeawayCount, repoStars: $repoStars, createdAtMs: $createdAtMs)';
+    return 'Project(id: $id, title: $title, summary: $summary, authorId: $authorId, resultData: $resultData, actions: $actions, tags: $tags, authorNote: $authorNote, domain: $domain, likes: $likes, commentCount: $commentCount, takeawayCount: $takeawayCount, repoStars: $repoStars, tryUrl: $tryUrl, status: $status, createdAtMs: $createdAtMs)';
   }
 }
 
@@ -134,6 +144,8 @@ abstract mixin class $ProjectCopyWith<$Res> {
       int commentCount,
       int takeawayCount,
       int repoStars,
+      String? tryUrl,
+      String status,
       int createdAtMs});
 
   $ResultDataCopyWith<$Res> get resultData;
@@ -164,6 +176,8 @@ class _$ProjectCopyWithImpl<$Res> implements $ProjectCopyWith<$Res> {
     Object? commentCount = null,
     Object? takeawayCount = null,
     Object? repoStars = null,
+    Object? tryUrl = freezed,
+    Object? status = null,
     Object? createdAtMs = null,
   }) {
     return _then(_self.copyWith(
@@ -219,6 +233,14 @@ class _$ProjectCopyWithImpl<$Res> implements $ProjectCopyWith<$Res> {
           ? _self.repoStars
           : repoStars // ignore: cast_nullable_to_non_nullable
               as int,
+      tryUrl: freezed == tryUrl
+          ? _self.tryUrl
+          : tryUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
+      status: null == status
+          ? _self.status
+          : status // ignore: cast_nullable_to_non_nullable
+              as String,
       createdAtMs: null == createdAtMs
           ? _self.createdAtMs
           : createdAtMs // ignore: cast_nullable_to_non_nullable
@@ -344,6 +366,8 @@ extension ProjectPatterns on Project {
             int commentCount,
             int takeawayCount,
             int repoStars,
+            String? tryUrl,
+            String status,
             int createdAtMs)?
         $default, {
     required TResult orElse(),
@@ -365,6 +389,8 @@ extension ProjectPatterns on Project {
             _that.commentCount,
             _that.takeawayCount,
             _that.repoStars,
+            _that.tryUrl,
+            _that.status,
             _that.createdAtMs);
       case _:
         return orElse();
@@ -400,6 +426,8 @@ extension ProjectPatterns on Project {
             int commentCount,
             int takeawayCount,
             int repoStars,
+            String? tryUrl,
+            String status,
             int createdAtMs)
         $default,
   ) {
@@ -420,6 +448,8 @@ extension ProjectPatterns on Project {
             _that.commentCount,
             _that.takeawayCount,
             _that.repoStars,
+            _that.tryUrl,
+            _that.status,
             _that.createdAtMs);
       case _:
         throw StateError('Unexpected subclass');
@@ -454,6 +484,8 @@ extension ProjectPatterns on Project {
             int commentCount,
             int takeawayCount,
             int repoStars,
+            String? tryUrl,
+            String status,
             int createdAtMs)?
         $default,
   ) {
@@ -474,6 +506,8 @@ extension ProjectPatterns on Project {
             _that.commentCount,
             _that.takeawayCount,
             _that.repoStars,
+            _that.tryUrl,
+            _that.status,
             _that.createdAtMs);
       case _:
         return null;
@@ -498,6 +532,8 @@ class _Project implements Project {
       this.commentCount = 0,
       this.takeawayCount = 0,
       this.repoStars = 0,
+      this.tryUrl,
+      this.status = 'published',
       required this.createdAtMs})
       : _actions = actions,
         _tags = tags;
@@ -574,6 +610,15 @@ class _Project implements Project {
   @JsonKey()
   final int repoStars;
 
+  /// 体验链接(作者作品的可去用地址,http/https)。有则详情页显「去体验」按钮。
+  @override
+  final String? tryUrl;
+
+  /// published / pending_review / draft / rejected / deleted
+  @override
+  @JsonKey()
+  final String status;
+
   /// 创建时间(毫秒)
   @override
   final int createdAtMs;
@@ -610,6 +655,8 @@ class _Project implements Project {
                 other.takeawayCount == takeawayCount) &&
             (identical(other.repoStars, repoStars) ||
                 other.repoStars == repoStars) &&
+            (identical(other.tryUrl, tryUrl) || other.tryUrl == tryUrl) &&
+            (identical(other.status, status) || other.status == status) &&
             (identical(other.createdAtMs, createdAtMs) ||
                 other.createdAtMs == createdAtMs));
   }
@@ -630,11 +677,13 @@ class _Project implements Project {
       commentCount,
       takeawayCount,
       repoStars,
+      tryUrl,
+      status,
       createdAtMs);
 
   @override
   String toString() {
-    return 'Project(id: $id, title: $title, summary: $summary, authorId: $authorId, resultData: $resultData, actions: $actions, tags: $tags, authorNote: $authorNote, domain: $domain, likes: $likes, commentCount: $commentCount, takeawayCount: $takeawayCount, repoStars: $repoStars, createdAtMs: $createdAtMs)';
+    return 'Project(id: $id, title: $title, summary: $summary, authorId: $authorId, resultData: $resultData, actions: $actions, tags: $tags, authorNote: $authorNote, domain: $domain, likes: $likes, commentCount: $commentCount, takeawayCount: $takeawayCount, repoStars: $repoStars, tryUrl: $tryUrl, status: $status, createdAtMs: $createdAtMs)';
   }
 }
 
@@ -658,6 +707,8 @@ abstract mixin class _$ProjectCopyWith<$Res> implements $ProjectCopyWith<$Res> {
       int commentCount,
       int takeawayCount,
       int repoStars,
+      String? tryUrl,
+      String status,
       int createdAtMs});
 
   @override
@@ -689,6 +740,8 @@ class __$ProjectCopyWithImpl<$Res> implements _$ProjectCopyWith<$Res> {
     Object? commentCount = null,
     Object? takeawayCount = null,
     Object? repoStars = null,
+    Object? tryUrl = freezed,
+    Object? status = null,
     Object? createdAtMs = null,
   }) {
     return _then(_Project(
@@ -744,6 +797,14 @@ class __$ProjectCopyWithImpl<$Res> implements _$ProjectCopyWith<$Res> {
           ? _self.repoStars
           : repoStars // ignore: cast_nullable_to_non_nullable
               as int,
+      tryUrl: freezed == tryUrl
+          ? _self.tryUrl
+          : tryUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
+      status: null == status
+          ? _self.status
+          : status // ignore: cast_nullable_to_non_nullable
+              as String,
       createdAtMs: null == createdAtMs
           ? _self.createdAtMs
           : createdAtMs // ignore: cast_nullable_to_non_nullable

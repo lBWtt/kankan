@@ -7,11 +7,8 @@ import '../../core/utils/parse_count.dart';
 import '../../core/utils/time_ago.dart';
 import '../../core/widgets/skeletons.dart';
 import '../../core/widgets/kk_back_button.dart';
-import '../../data/seed/mock_seed.dart';
+import '../../data/api/activity_api.dart';
 import '../../domain/models/models.dart';
-import '../../domain/repositories/post_repository.dart';
-import '../../domain/repositories/project_repository.dart';
-import '../../providers/app_state_provider.dart';
 import '../me/widgets/contribution_heatmap.dart';
 
 /// 个人活动页 — HANDOFF §6.10 真实数字 + §3 零旁白 + §5 珊瑚橙只给 take/like。
@@ -32,34 +29,9 @@ class ActivityScreen extends ConsumerStatefulWidget {
 }
 
 class _ActivityScreenState extends ConsumerState<ActivityScreen> {
-  // Phase 5-c:300ms 假 loading,骨架屏占位(与 discover/kankan/library/follows/ranking 一致)
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final projectRepo = ref.watch(projectRepositoryProvider);
-    final postRepo = ref.watch(postRepositoryProvider);
-    final appState = ref.watch(appStateProvider);
-
-    // ── 真实统计(HANDOFF §6.10,禁 ×200 编造)──
-    final myProjects = projectRepo.byAuthor('me');
-    final myPosts = postRepo.byAuthor('me');
-    final publishCount = myProjects.length + myPosts.length;
-    final likeCount = myProjects.fold<int>(0, (s, p) => s + p.likes) +
-        myPosts.fold<int>(0, (s, p) => s + p.likes);
-    final savedCount = appState.savedProjectIds.length;
-
-    // ── 时间线事件聚合(4 类真实数据源,按 createdAtMs 降序)──
-    final events = _buildEvents(myProjects, myPosts, appState.savedTakeaways);
+    final activity = ref.watch(myActivityProvider);
 
     return Scaffold(
       backgroundColor: KkColors.bg,
@@ -72,26 +44,34 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         title: Text('我的活动', style: KkType.h1),
         // 原日历入口是 no-op 死按钮(无日历页),移除——宁可没按钮,不放假按钮。
       ),
-      body: _loading
-          ? _skeletonContent()
-          : ListView(
+      body: activity.when(
+        loading: _skeletonContent,
+        error: (_, __) => Center(
+          child: TextButton(
+            onPressed: () => ref.invalidate(myActivityProvider),
+            child: const Text('加载失败，点击重试'),
+          ),
+        ),
+        data: (data) => ListView(
               padding: const EdgeInsets.symmetric(vertical: KkSpacing.lg),
               children: [
                 // Section 1: 年度统计三档卡片
-                _statsRow(publishCount, likeCount, savedCount),
+                _statsRow(data.stats.publishCount,
+                    data.stats.receivedLikeCount, data.stats.favoriteCount),
                 const SizedBox(height: KkSpacing.lg),
 
                 // Section 2: 大热力图(标题 + 副文 + 自定义 4 档图例)
-                _heatmapSection(),
+                _heatmapSection(data.cells),
                 const SizedBox(height: KkSpacing.lg),
 
                 // Section 3: 活动时间线(4 类事件聚合,最多 30 条)
-                _timelineSection(events),
+                _timelineSection(_eventsFromApi(data.events)),
 
                 // Section 4: 底部留白
                 const SizedBox(height: KkSpacing.xxl),
               ],
             ),
+      ),
     );
   }
 
@@ -305,7 +285,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   // ──────────────────────────────────────────────────────────────────
   // 复用 ContributionHeatmap,包在外层 bgCard 卡里 + 标题 + 副文;
   // 卡片下方加自定义 4 档图例(teal alpha 0.2 / 0.4 / 0.7 / 1.0)。
-  Widget _heatmapSection() {
+  Widget _heatmapSection(List<HeatmapCell> cells) {
     // 4 档色阶:teal 透明度 0.2 / 0.4 / 0.7 / 1.0
     const alphas = [0.2, 0.4, 0.7, 1.0];
 
@@ -334,7 +314,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                 const SizedBox(height: KkSpacing.md),
                 // 热力图组件(自带 bgCard + 边框,在此作为内嵌面板)
                 ContributionHeatmap(
-                  cells: mockHeatmapCells,
+                  cells: cells,
                   showStats: false,
                   showLegend: false,
                 ),
@@ -498,121 +478,23 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   // 4. 我收到的通知 (mockNotifications 过滤 actorId != 'me' 或 type == 'system')
   //
   // 按时间降序合并,最多 30 条(HANDOFF §6.10 真实数据,禁编造)。
-  List<_ActivityEvent> _buildEvents(
-    List<Project> myProjects,
-    List<Post> myPosts,
-    List<SavedTakeaway> savedTakeaways,
-  ) {
-    final events = <_ActivityEvent>[];
-
-    // 1. 我发布的项目
-    for (final p in myProjects) {
-      events.add(_ActivityEvent(
-        type: 'publish_project',
-        icon: Icons.work_outline,
-        color: KkColors.teal,
-        text: '发布了作品《${p.title}》',
-        createdAtMs: p.createdAtMs,
-      ));
-    }
-
-    // 2. 我发布的动态(preview = content 前 40 字)
-    for (final p in myPosts) {
-      final preview = p.content.length > 40
-          ? '${p.content.substring(0, 40)}…'
-          : p.content;
-      events.add(_ActivityEvent(
-        type: 'publish_post',
-        icon: Icons.chat_bubble_outline,
-        color: KkColors.teal,
-        text: '发布了动态',
-        preview: preview,
-        createdAtMs: p.createdAtMs,
-      ));
-    }
-
-    // 3. 我拿走的内容(珊瑚橙,只给 take — HANDOFF §5)
-    for (final t in savedTakeaways) {
-      events.add(_ActivityEvent(
-        type: 'takeaway',
-        icon: Icons.download_done_outlined,
-        color: KkColors.coral,
-        text: '存下了《${t.projectTitle}》的 ${t.label ?? ''}',
-        createdAtMs: t.savedAtMs,
-      ));
-    }
-
-    // 4. 我收到的通知(actorId != 'me' 或 type == 'system')
-    for (final n in mockNotifications) {
-      final isRecipient = n.actorId != 'me' || n.type == 'system';
-      if (!isRecipient) continue;
-
-      // actorName:actorId 为 null → '系统';否则 findUser(actorId)?.name ?? '系统'
-      final actorName = n.actorId == null
-          ? '系统'
-          : (findUser(n.actorId!)?.name ?? '系统');
-
-      String text;
-      IconData icon;
-      Color color;
-
-      switch (n.type) {
-        case 'like':
-          text = '$actorName 赞了你的动态';
-          icon = Icons.favorite_border; // outline 心形,§5 允许 like 用 coral
-          color = KkColors.coral;
-          break;
-        case 'comment':
-          // preview 截断 30 字
-          final preview = n.preview ?? '';
-          final truncated = preview.length > 30
-              ? '${preview.substring(0, 30)}…'
-              : preview;
-          text = '$actorName 评论了你:$truncated';
-          icon = Icons.chat_bubble_outline;
-          color = KkColors.teal;
-          break;
-        case 'follow':
-          text = '$actorName 关注了你';
-          icon = Icons.person_add_outlined;
-          color = KkColors.teal;
-          break;
-        case 'favorite':
-          text = '$actorName 收藏了你的作品';
-          icon = Icons.bookmark_border_outlined;
-          color = KkColors.teal;
-          break;
-        case 'system':
-          // preview 截断 40 字
-          final preview = n.preview ?? '';
-          final truncated = preview.length > 40
-              ? '${preview.substring(0, 40)}…'
-              : preview;
-          text = '系统通知:$truncated';
-          icon = Icons.info_outline;
-          color = KkColors.teal;
-          break;
-        default:
-          continue;
-      }
-
-      events.add(_ActivityEvent(
-        type: 'notif',
+  List<_ActivityEvent> _eventsFromApi(List<ActivityEventData> events) {
+    return events.map((event) {
+      final (icon, color) = switch (event.type) {
+        'publish_project' => (Icons.work_outline, KkColors.teal),
+        'publish_post' => (Icons.chat_bubble_outline, KkColors.teal),
+        'favorite' => (Icons.bookmark_border_outlined, KkColors.teal),
+        'try' => (Icons.rocket_launch_outlined, KkColors.coral),
+        _ => (Icons.notifications_outlined, KkColors.teal),
+      };
+      return _ActivityEvent(
+        type: event.type,
         icon: icon,
         color: color,
-        text: text,
-        createdAtMs: n.createdAtMs,
-      ));
-    }
-
-    // 按 createdAtMs 降序(最近在前)
-    events.sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
-
-    // 最多 30 条,超过截断
-    if (events.length > 30) {
-      return events.sublist(0, 30);
-    }
-    return events;
+        text: event.text,
+        createdAtMs: event.createdAtMs,
+      );
+    }).toList();
   }
 }
 
@@ -625,7 +507,6 @@ class _ActivityEvent {
   final IconData icon;
   final Color color;
   final String text;
-  final String? preview;
   final int createdAtMs;
 
   const _ActivityEvent({
@@ -633,7 +514,6 @@ class _ActivityEvent {
     required this.icon,
     required this.color,
     required this.text,
-    this.preview,
     required this.createdAtMs,
   });
 }

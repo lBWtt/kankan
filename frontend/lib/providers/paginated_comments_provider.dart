@@ -2,6 +2,7 @@
 // 它对应产品里的什么功能：项目 / 动态详情评论区无限滚动加载更多顶级评论。
 // 如果它出错了：评论加载/追加/刷新失败，或重复加载，或点赞态错。
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart'; // Riverpod 3.x：StateProvider 移到 legacy
 
 import '../core/config/app_config.dart';
 import '../core/pagination/paginated_notifier.dart';
@@ -18,6 +19,12 @@ import 'app_state_provider.dart';
 /// UUID 或 mock 短 id，也不含 ':'），保证双向解析无歧义。当前仅做正向序列化，
 /// 不需要反解析（Notifier 不需要拆 key）。
 String commentThreadKey(String hostType, String hostId) => '$hostType:$hostId';
+
+/// 输入框外置时（如动态详情底部固定评论栏），「当前正在回复哪条评论」的目标 id
+/// （null = 发新的顶级评论）。按 [commentThreadKey] 分桶：CommentThread 的「回复」按钮写它，
+/// 底部固定评论栏读它并带上 parentId 提交。修复「输入框移到底部后点回复没反应」。
+final commentReplyTargetProvider =
+    StateProvider.family<String?, String>((ref, key) => null);
 
 /// 评论列表的分页 state。
 ///

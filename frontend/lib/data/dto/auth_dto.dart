@@ -10,11 +10,15 @@ class LoginResult {
   final KkUser user;
   final bool isNewUser;
 
+  /// 后端 MeResponse.is_admin：是否管理员账号（决定是否显示审核入口）。
+  final bool isAdmin;
+
   const LoginResult({
     required this.accessToken,
     required this.refreshToken,
     required this.user,
     required this.isNewUser,
+    this.isAdmin = false,
   });
 }
 
@@ -40,20 +44,26 @@ KkUser userFromMeJson(Map<String, dynamic> j) {
   return KkUser(
     id: id,
     name: name,
+    handle: (j['handle'] as String?)?.trim().isNotEmpty == true
+        ? (j['handle'] as String).trim()
+        : null,
     avatar: j['avatar_url'] as String?,
     bio: j['bio'] as String?,
+    school: j['school'] as String?,
+    age: (j['age'] as num?)?.toInt(),
   );
 }
 
 /// 后端 LoginResponse → LoginResult。
 LoginResult loginResultFromJson(Map<String, dynamic> j) {
   final userJson = j['user'];
+  final userMap =
+      userJson is Map ? Map<String, dynamic>.from(userJson) : const <String, dynamic>{};
   return LoginResult(
     accessToken: (j['access_token'] ?? '').toString(),
     refreshToken: (j['refresh_token'] ?? '').toString(),
-    user: userFromMeJson(
-      userJson is Map ? Map<String, dynamic>.from(userJson) : const {},
-    ),
+    user: userFromMeJson(userMap),
     isNewUser: j['is_new_user'] == true,
+    isAdmin: userMap['is_admin'] == true,
   );
 }

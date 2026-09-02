@@ -15,7 +15,6 @@ from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
 from app.core.utils import parse_datetime_cursor, safe_like_pattern
 from app.models import (
-    ClueSubscription,
     Favorite,
     HowToInterest,
     Project,
@@ -46,6 +45,7 @@ def card_from_project(p: Project, author: Optional[UserBrief] = None, counts: Op
     """项目卡片组装。可选参数 author/counts 用于列表端点填充作者和计数；默认为 None 保持向后兼容。"""
     return ProjectCard(
         id=p.id,
+        status=p.status,
         title=p.title,
         tagline=p.tagline,
         subtitle=p.tagline,
@@ -60,6 +60,17 @@ def card_from_project(p: Project, author: Optional[UserBrief] = None, counts: Op
         domains=p.domains or [],
         tools=p.tools or [],
         ai_badge=p.ai_badge,
+        work_form=p.work_form,
+        creator_type=p.creator_type,
+        access_friction=p.access_friction,
+        attraction_score=p.attraction_score,
+        value_score=p.value_score,
+        hook_clarity=p.hook_clarity,
+        visual_impact=p.visual_impact,
+        is_strong_visual=bool(p.is_strong_visual),
+        is_direct_tryable=bool(p.is_direct_tryable),
+        policy_version=p.policy_version or "1.1",
+        score_version=p.score_version,
         published_at=p.published_at,
         author=author,
         counts=counts,
@@ -158,7 +169,7 @@ def clue_related_projects(db: Session, p: Project, limit: int = 6) -> List[Proje
 
 def list_linked_projects(
     db: Session, link_model, user: User, cursor: Optional[str], page_size: int
-) -> Tuple[List[Project], Optional[str], bool]:
+) -> Tuple[List[Tuple[object, Project]], Optional[str], bool]:
     """我的收藏/想试列表：按动作时间倒序，游标=（动作时间,动作行id）；
     只展示仍是 published 的项目（被下架/删除的自动隐藏，不报错）。
     author 由 cards_from_projects_with_stats 批量自查，无需 selectinload。"""
@@ -167,8 +178,6 @@ def list_linked_projects(
         .join(Project, Project.id == link_model.project_id)
         .where(
             link_model.user_id == user.id,
-            Project.status == "published",
-            Project.deleted_at.is_(None),
         )
         .order_by(link_model.created_at.desc(), link_model.id.desc())
     )
@@ -184,7 +193,7 @@ def list_linked_projects(
     if has_more and rows:
         last_link = rows[-1][0]
         next_cursor = encode_cursor([last_link.created_at.isoformat(), str(last_link.id)])
-    return [proj for _, proj in rows], next_cursor, has_more
+    return rows, next_cursor, has_more
 
 
 def get_visible_project(db: Session, project_id: uuid.UUID, user: Optional[User]) -> Project:
@@ -318,7 +327,7 @@ def user_brief_from_user(u: Optional[User]) -> Optional[UserBrief]:
     """从 User 模型构建 UserBrief；用户不存在或被软删时返回 None。"""
     if u is None or u.deleted_at is not None:
         return None
-    return UserBrief(id=u.id, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role)
+    return UserBrief(id=u.id, handle=u.handle, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role)
 
 
 def cards_from_projects_with_stats(db: Session, projects: List[Project]) -> List[ProjectCard]:
@@ -365,7 +374,6 @@ def _viewer_state(db: Session, pid: uuid.UUID, user: Optional[User]) -> ViewerSt
         is_favorited=has(Favorite),
         is_tried=has(TryItem),
         has_how_to_interest=has(HowToInterest),
-        is_clue_subscribed=has(ClueSubscription),
         reactions=list(my_reactions),
     )
 
@@ -389,7 +397,7 @@ def detail_from_project(db: Session, p: Project, user: Optional[User]) -> Projec
     if p.author_user_id:
         u = db.get(User, p.author_user_id)
         if u is not None:
-            author = UserBrief(id=u.id, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role)
+            author = UserBrief(id=u.id, handle=u.handle, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role)
     other_projects = []
     if p.author_user_id is not None:
         other_projects = db.scalars(
@@ -405,7 +413,8 @@ def detail_from_project(db: Session, p: Project, user: Optional[User]) -> Projec
         ).all()
 
     card = card_from_project(p).model_dump()
-    for field in ("author", "counts", "viewer"):
+    # ProjectCard 已包含 status；详情在下方显式设置 status，不能重复传参。
+    for field in ("author", "counts", "viewer", "status"):
         card.pop(field, None)
 
     return ProjectDetail(
@@ -419,6 +428,12 @@ def detail_from_project(db: Session, p: Project, user: Optional[User]) -> Projec
         source_platform=p.source_platform,
         original_author_name=p.original_author_name,
         original_author_url=p.original_author_url,
+        try_url=p.try_url,
+        experience_type=p.experience_type,
+        experience_url=p.experience_url,
+        experience_content=p.experience_content,
+        selected_proof_media=p.selected_proof_media,
+        title_candidates=p.title_candidates,
         media=[
             MediaItem(
                 id=m.id, type=m.media_type, kind=m.media_type,

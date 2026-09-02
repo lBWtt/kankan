@@ -7,10 +7,10 @@ import '../../core/theme/tokens.dart';
 import '../../core/utils/parse_count.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
-import '../../data/seed/mock_seed.dart';
 import '../../domain/models/models.dart';
-import '../../domain/repositories/post_repository.dart';
-import '../../domain/repositories/project_repository.dart';
+import '../../providers/search_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../data/api/topics_api.dart';
 import '../../router/routes.dart';
 import '../shared/empty_state.dart';
 import '../shared/post_card.dart';
@@ -44,6 +44,7 @@ class TopicScreen extends ConsumerStatefulWidget {
 class _TopicScreenState extends ConsumerState<TopicScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabCtrl;
+  bool _savingFollow = false;
 
   @override
   void initState() {
@@ -59,23 +60,33 @@ class _TopicScreenState extends ConsumerState<TopicScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 真实 heat 从 mockTopics 取(HANDOFF §6.10 禁编造)
-    final topic = mockTopics.where((t) => t.tag == widget.tag).firstOrNull;
+    // 真实 heat + 该 tag 下项目/动态：mock 走内存聚合、remote 走 /topics/{tag}。
+    final async = ref.watch(topicDetailProvider(widget.tag));
+    final bundle = async.asData?.value;
 
     return Scaffold(
       backgroundColor: KkColors.bg,
-      appBar: _topBar(context),
+      appBar: _topBar(context, bundle),
       body: Column(
         children: [
-          _heatCard(topic),
+          _heatCard(bundle?.topic),
           _tabBar(),
           Expanded(
-            child: TabBarView(
-              controller: _tabCtrl,
-              children: [
-                _PostsTab(tag: widget.tag),
-                _ProjectsTab(tag: widget.tag),
-              ],
+            child: async.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (_, __) => ListView(
+                children: const [
+                  EmptyState(variant: EmptyStateVariant.generic),
+                ],
+              ),
+              data: (b) => TabBarView(
+                controller: _tabCtrl,
+                children: [
+                  _PostsTab(posts: b.posts),
+                  _ProjectsTab(projects: b.projects),
+                ],
+              ),
             ),
           ),
         ],
@@ -84,7 +95,8 @@ class _TopicScreenState extends ConsumerState<TopicScreen>
   }
 
   // ── 顶栏:返回 / #tag(teal h1) / 分享 ──
-  PreferredSizeWidget _topBar(BuildContext context) {
+  PreferredSizeWidget _topBar(BuildContext context, TopicBundle? bundle) {
+    final topic = bundle?.topic;
     return AppBar(
       backgroundColor: KkColors.bg,
       elevation: 0,
@@ -98,19 +110,28 @@ class _TopicScreenState extends ConsumerState<TopicScreen>
         overflow: TextOverflow.ellipsis,
       ),
       actions: [
+        TextButton(
+          onPressed: bundle == null || _savingFollow
+              ? null
+              : () => _toggleFollow(bundle.isFollowed),
+          child: _savingFollow
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(bundle?.isFollowed == true ? '已关注' : '+ 关注'),
+        ),
         Tappable(
           onTap: () {
-            final t = mockTopics
-                .where((t) => t.tag == widget.tag)
-                .firstOrNull;
             showShareSheet(
               context,
               title: '#${widget.tag}',
-              subtitle: '看看话题 · ${t?.projectCount ?? 0} 篇作品 · ${t?.postCount ?? 0} 条动态',
+              subtitle: '看看话题 · ${topic?.projectCount ?? 0} 篇作品 · ${topic?.postCount ?? 0} 条动态',
               shareType: 'topic',
               shareUrl: 'https://kankan.app/topic/${Uri.encodeComponent(widget.tag)}',
               coverPattern: 'grid',
-              likes: t?.totalLikes,
+              likes: topic?.totalLikes,
             );
           },
           child: const Icon(Icons.ios_share_outlined,
@@ -119,6 +140,30 @@ class _TopicScreenState extends ConsumerState<TopicScreen>
         const SizedBox(width: KkSpacing.sm),
       ],
     );
+  }
+
+  Future<void> _toggleFollow(bool currentlyFollowed) async {
+    final auth = ref.read(authProvider);
+    if (!auth.isLoggedIn) {
+      final from = Uri.encodeComponent(KkRoutes.topic(widget.tag));
+      context.push('${KkRoutes.login}?from=$from');
+      return;
+    }
+    setState(() => _savingFollow = true);
+    try {
+      await ref.read(topicsApiProvider).setFollowed(widget.tag, !currentlyFollowed);
+      ref.invalidate(topicDetailProvider(widget.tag));
+      ref.invalidate(followedTopicsProvider);
+      ref.invalidate(topTopicsProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('操作失败，请稍后重试')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingFollow = false);
+    }
   }
 
   // ── 热度卡片(header,TabBar 之上)──
@@ -239,21 +284,15 @@ class _Stat extends StatelessWidget {
   }
 }
 
-// ── 动态 Tab:该 tag 下所有 Post,按 createdAtMs 降序 ──
-//
-// 真排序(HANDOFF §6.9):Web 版重灾区是按 tag 子串匹配 + 随机排序;
-// Flutter 端用 p.tags.contains(tag) 精确匹配 + 时间倒序。
-class _PostsTab extends ConsumerWidget {
-  final String tag;
+// ── 动态 Tab:该 tag 下所有 Post(已由 topicDetailProvider 按时间倒序聚合)──
+class _PostsTab extends StatelessWidget {
+  final List<Post> posts;
 
-  const _PostsTab({required this.tag});
+  const _PostsTab({required this.posts});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(postRepositoryProvider);
-    // all() 返回 List.unmodifiable,需 toList() 才能排序
-    final list = repo.all().where((p) => p.tags.contains(tag)).toList()
-      ..sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
+  Widget build(BuildContext context) {
+    final list = posts;
 
     if (list.isEmpty) {
       return ListView(
@@ -280,21 +319,15 @@ class _PostsTab extends ConsumerWidget {
   }
 }
 
-// ── 项目 Tab:该 tag 下所有 Project,按 likes 降序 ──
-//
-// byTag(tag) 用 p.tags.contains(tag) 精确匹配(HANDOFF §6.2 — 真实 tags 索引,
-// Web 版靠标题子串硬凑的罪)。
-class _ProjectsTab extends ConsumerWidget {
-  final String tag;
+// ── 项目 Tab:该 tag 下所有 Project(已由 topicDetailProvider 聚合排序)──
+class _ProjectsTab extends StatelessWidget {
+  final List<Project> projects;
 
-  const _ProjectsTab({required this.tag});
+  const _ProjectsTab({required this.projects});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(projectRepositoryProvider);
-    // byTag 返回 toList(),已是可变副本,直接排序
-    final list = repo.byTag(tag)
-      ..sort((a, b) => b.likes.compareTo(a.likes));
+  Widget build(BuildContext context) {
+    final list = projects;
 
     if (list.isEmpty) {
       return ListView(

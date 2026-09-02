@@ -2,12 +2,9 @@
 //
 // 覆盖 lib/core/utils/parse_count.dart 的两个公开函数:
 //   - parseCount:动态值(可能 null / int / double / String)→ int。
-//     支持 'k'(×1000)与 'w'(×10000)后缀,英文逗号千分位,trim,大小写不敏感。
+//     支持 'k'(×1000)、'w/万'(×10000)、'亿'后缀及采集文本里的数字提取。
 //   - formatCount:int → 人类可读短串('<1000 原样 / <10000 'x.yk' / ≥10000 'x.yw')。
 //
-// 注意:本代码只支持 'k' / 'w' 后缀,**不支持** 中文 '万' 后缀
-// (toLowerCase 不会把 '万' 转成 'w')。本测试显式覆盖这一行为,以便未来若
-// 增加 '万' 支持时能被发现/更新。
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kankan_flutter/core/utils/parse_count.dart';
 
@@ -32,12 +29,10 @@ void main() {
         expect(parseCount('hello world'), 0);
       });
 
-      test('中文「万」后缀不被支持 → 0(known limitation)', () {
-        // '万' 与 'w' 是不同字符;toLowerCase 不转换。double.tryParse('1.2万') 失败 → 0。
-        // 这是当前实现的实际行为(若未来支持「万」需更新本测试)。
-        expect(parseCount('1.2万'), 0);
-        expect(parseCount('1万'), 0);
-        expect(parseCount('2.3万'), 0);
+      test('中文「万」后缀与采集标准一致', () {
+        expect(parseCount('1.2万'), 12000);
+        expect(parseCount('1万'), 10000);
+        expect(parseCount('2.3万'), 23000);
       });
     });
 
@@ -132,13 +127,12 @@ void main() {
     });
 
     group('边界:负数 / 混合脏数据', () {
-      test('"-100" → -100(double.tryParse 支持,无符号分支)', () {
-        // 注:parseCount 不做符号守卫,formatCount 才守负数。
-        expect(parseCount('-100'), -100);
+      test('"-100" → 0（互动计数不接受负数）', () {
+        expect(parseCount('-100'), 0);
       });
 
-      test('"12abc" → 0(混合串 tryParse 失败)', () {
-        expect(parseCount('12abc'), 0);
+      test('"12abc" → 12（采集文本提取数字）', () {
+        expect(parseCount('12abc'), 12);
       });
 
       test('"k" 单独后缀 → 0(空数字 + 后缀,double.tryParse("") 失败)', () {

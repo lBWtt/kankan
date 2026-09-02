@@ -50,7 +50,7 @@ def raw_item(suffix: str, **over) -> dict:
         "text": "原始正文：作者用 Claude 把周报自动化了，附带完整提示词和截图。",
         "source_platform": "xiaohongshu",
         "original_author_name": f"@作者{suffix}",
-        "media": [f"https://example.com/{MARK}/{suffix}.png"],
+        "media": [f"/uploads/{MARK}/{suffix}.png"],
     }
     item.update(over)
     return item
@@ -58,13 +58,17 @@ def raw_item(suffix: str, **over) -> dict:
 
 def analysis(title: str, scores: AnalysisScores, **over) -> CandidateAnalysis:
     fields = dict(
-        title=title, tagline="把每周写周报这件事完全交给 AI", category="work_efficiency",
+        is_work=True, work_rejection_reason=None, work_form="prompt", creator_type="indie",
+        access_friction="instant", title_candidates=[title, (title+"更省时间")[:28]],
+        hook_sentence="把每周写周报这件事完全交给 AI", category="work_efficiency",
         summary="作者把周报流程交给 AI：自动汇总本周记录、按模板生成草稿，再人工微调，每周省一小时。",
         description="详细介绍：先收集本周的待办与会议记录，让 AI 按固定模板汇总成周报草稿，最后人工补充关键数据。",
         domains=["office", "dev"], tools=["Claude"], tags=[f"{MARK}标签", "周报自动化"],
         target_users=["上班族"], use_cases=["每周写周报"],
         implementation_steps=["整理本周记录喂给 AI", "用固定模板生成草稿", "人工核对关键数据"],
-        scores=scores, risk_flags=[], risk_note=None, why_recommend="人人都要写周报，共鸣强",
+        scores=scores, value_score=85, risk_flags=[], risk_note=None, why_recommend="人人都要写周报，共鸣强",
+        experience_type="prompt_content", experience_url=None,
+        experience_content="把本周记录按固定模板整理成周报草稿", selected_proof_media_index=0,
     )
     fields.update(over)
     return CandidateAnalysis(**fields)
@@ -74,14 +78,16 @@ def analysis(title: str, scores: AnalysisScores, **over) -> CandidateAnalysis:
 def fake_analyze(payload: dict) -> CandidateAnalysis:
     title = payload["原文标题"]
     if "-A " in title:
-        return analysis(f"{MARK}A 让 AI 替你写周报", AnalysisScores(fun=92, shareable=90, fresh=85, useful=88, reproducible=80))
+        return analysis(f"{MARK}A让AI替你写完每周周报", AnalysisScores(
+            hook_clarity=92, visual_impact=90, surprise=85, tryability=88, shareability=80))
     if "-B " in title:
         return analysis(f"{MARK}B 英文教程：AI 自动整理收件箱",
-                        AnalysisScores(fun=70, shareable=72, fresh=68, useful=70, reproducible=70),
+                        AnalysisScores(hook_clarity=70, visual_impact=70, surprise=70, tryability=70, shareability=70),
                         implementation_steps=None,
                         risk_flags=["low_quality"], risk_note="原文信息量偏低，方法描述含糊")
     if "-E " in title:
-        return analysis(f"{MARK}E 无图候选", AnalysisScores(fun=75, shareable=75, fresh=75, useful=75, reproducible=75))
+        return analysis(f"{MARK}E无图但标题长度符合要求", AnalysisScores(
+            hook_clarity=75, visual_impact=75, surprise=75, tryability=75, shareability=75))
     raise ValueError(f"模拟整理失败：{title}")
 
 
@@ -89,12 +95,12 @@ def main():
     print("== 1. 入池（ingestion：查重 + 原料保全）==")
     with SessionLocal() as db:
         stats = ingest_raw_items(db, [
-            raw_item("A", media=[f"https://example.com/{MARK}/a1.png", f"https://example.com/{MARK}/a2.png"]),
+            raw_item("A", media=[f"/uploads/{MARK}/a1.png", f"/uploads/{MARK}/a2.png"]),
             raw_item("B", title="pipeline-B Automate your inbox with AI",  # 纯英文：验证语言猜测
                      text="Original post: the author wired Claude to triage email automatically.",
-                     media=[f"https://example.com/{MARK}/b1.png",
-                            {"url": f"https://example.com/{MARK}/b.mp4", "media_type": "video",
-                             "thumbnail_url": f"https://example.com/{MARK}/b_thumb.png"}]),
+                     media=[f"/uploads/{MARK}/b1.png",
+                            {"url": f"/uploads/{MARK}/b.mp4", "media_type": "video",
+                             "thumbnail_url": f"/uploads/{MARK}/b_thumb.png"}]),
             {"source_url": f"https://example.com/{MARK}/no-title", "text": "没有标题的坏条目"},
             raw_item("A"),  # 同批重复（同 source_url）
             raw_item("E", media=[]),   # 无媒体：整理后应停在 ai_processed
@@ -148,8 +154,8 @@ def main():
         check("A 实现思路带【AI 推测】标注 + 3 步",
               a.ai_implementation_hint.startswith("【AI 推测") and "3. " in a.ai_implementation_hint,
               str(a.ai_implementation_hint))
-        check("A scores_json 留审计（权重+合成分）", a.scores_json["composite"] == 88
-              and a.scores_json["weights"]["fun"] == 0.25)
+        check("A scores_json 留审计（权重+合成分）", a.scores_json["attraction_score"] == 88
+              and a.scores_json["weights"]["hook_clarity"] == 0.25)
         check("A tags_json 形状 = {items: [...]}", a.tags_json == {"items": [f"{MARK}标签", "周报自动化"]})
         check("A 整理后原文仍在 raw_json（外文处理红线）", a.raw_json["title"] == f"{MARK}-A 原文标题")
         check("B 没把握 → 实现思路置空（宁缺勿错）",

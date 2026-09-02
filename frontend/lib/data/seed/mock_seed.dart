@@ -97,17 +97,17 @@ final mockProjects = <Project>[
       media: [
         MediaItem(
           type: 'image',
-          url: 'https://sfile.chatglm.cn/images-ppt/a5fb2321b9d5.png',
+          url: 'assets/mock/cover_0.png',
           alt: '赛博朋克茶馆 霓虹灯笼',
         ),
         MediaItem(
           type: 'image',
-          url: 'https://picsum.photos/seed/cybertea2/800/1000',
+          url: 'assets/mock/cover_1.png',
           alt: '茶馆内景 全息菜单',
         ),
         MediaItem(
           type: 'image',
-          url: 'https://picsum.photos/seed/cybertea3/800/1000',
+          url: 'assets/mock/cover_2.png',
           alt: '茶馆外街景',
         ),
       ],
@@ -136,8 +136,8 @@ final mockProjects = <Project>[
     domain: 'ai_image',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/179c3d3b3d1b.jpg'),
-        MediaItem(type: 'image', url: 'https://picsum.photos/seed/jieqi2/800/600'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_3.png'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_4.png'),
       ],
       io: IoBlock(
         input: 'masterpiece, traditional chinese painting, 24 solar terms, 立春, soft watercolor, flat composition',
@@ -175,7 +175,7 @@ final mockProjects = <Project>[
         MediaItem(
           type: 'video',
           url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-          poster: 'https://sfile.chatglm.cn/images-ppt/bfb88838ab60.jpeg',
+          poster: 'assets/mock/cover_5.png',
           durationSec: 8,
           alt: '城市黎明延时',
         ),
@@ -202,10 +202,10 @@ final mockProjects = <Project>[
         MediaItem(
           type: 'video',
           url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-          poster: 'https://sfile.chatglm.cn/images-ppt/8540030f8ce1.jpg',
+          poster: 'assets/mock/cover_6.png',
           durationSec: 5,
         ),
-        MediaItem(type: 'image', url: 'https://picsum.photos/seed/inkfish_frame/800/450'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_7.png'),
       ],
     ),
     actions: const [
@@ -234,8 +234,8 @@ final mockProjects = <Project>[
     domain: 'web',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/47a9a604f473.png', alt: '首页截图'),
-        MediaItem(type: 'image', url: 'https://picsum.photos/seed/navweb2/1000/600', alt: '分类页截图'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_8.png', alt: '首页截图'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_9.png', alt: '分类页截图'),
       ],
     ),
     actions: const [
@@ -257,7 +257,7 @@ final mockProjects = <Project>[
     domain: 'web',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/40c16eb70ea8.jpeg'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_0.png'),
       ],
     ),
     actions: const [
@@ -280,9 +280,9 @@ final mockProjects = <Project>[
     domain: 'app',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/2cb8926bbbea.png', alt: '主界面'),
-        MediaItem(type: 'image', url: 'https://picsum.photos/seed/app_record2/600/1000', alt: '统计页'),
-        MediaItem(type: 'image', url: 'https://picsum.photos/seed/app_record3/600/1000', alt: '设置页'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_1.png', alt: '主界面'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_2.png', alt: '统计页'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_3.png', alt: '设置页'),
       ],
     ),
     actions: const [
@@ -305,8 +305,8 @@ final mockProjects = <Project>[
     domain: 'app',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/d9b8b7fca13d.jpeg'),
-        MediaItem(type: 'image', url: 'https://picsum.photos/seed/pomodoro2/600/1000'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_4.png'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_5.png'),
       ],
     ),
     actions: const [
@@ -329,7 +329,7 @@ final mockProjects = <Project>[
     domain: 'tool',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/14c467b11f9e.png'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_6.png'),
       ],
       io: IoBlock(
         input: 'python compress.py ./photos --quality 85 --max-width 1920',
@@ -361,7 +361,7 @@ final mockProjects = <Project>[
     domain: 'tool',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/4eb33bec5485.png'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_7.png'),
       ],
       io: IoBlock(
         input: 'md2pdf report.md -o report.pdf --theme github',
@@ -395,7 +395,7 @@ final mockProjects = <Project>[
     domain: 'opensource',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/dbb5816557c3.jpg'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_8.png'),
       ],
       repo: RepoInfo(
         name: 'flutter_heatmap',
@@ -425,7 +425,7 @@ final mockProjects = <Project>[
     domain: 'opensource',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/4bdca2a67305.png'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_9.png'),
       ],
       repo: RepoInfo(
         name: 'rn-perf-monitor',
@@ -458,7 +458,7 @@ final mockProjects = <Project>[
     domain: 'prompt',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/967e52879b04.jpg'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_0.png'),
       ],
       io: IoBlock(
         input: '你是一位资深代码评审。请评审以下代码,关注:\n1. 可读性\n2. 潜在 bug\n3. 性能\n4. 安全\n\n代码:\n```python\ndef add(a, b):\n    return a + b\n```',
@@ -490,7 +490,7 @@ final mockProjects = <Project>[
     domain: 'prompt',
     resultData: const ResultData(
       media: [
-        MediaItem(type: 'image', url: 'https://sfile.chatglm.cn/images-ppt/e733e22680f6.jpg'),
+        MediaItem(type: 'image', url: 'assets/mock/cover_1.png'),
       ],
       io: IoBlock(
         input: '帮我把这段想法整理成文章:\n"今天用了 cursor 写代码 感觉 ai 补全比 copilot 好很多 特别是跨文件理解 但有时候它会乱改 我觉得关键是 review 它的 diff"',
@@ -524,9 +524,9 @@ final mockPosts = <Post>[
     tags: const ['midjourney', 'v6'],
     quoteProjectId: 'p_aiimg_1',
     media: const [
-      MediaItem(type: 'image', url: 'https://picsum.photos/seed/mj_v6_a/800/800'),
-      MediaItem(type: 'image', url: 'https://picsum.photos/seed/mj_v6_b/800/800'),
-      MediaItem(type: 'image', url: 'https://picsum.photos/seed/mj_v6_c/800/800'),
+      MediaItem(type: 'image', url: 'assets/mock/cover_2.png'),
+      MediaItem(type: 'image', url: 'assets/mock/cover_3.png'),
+      MediaItem(type: 'image', url: 'assets/mock/cover_4.png'),
     ],
     likes: 45,
     commentCount: 3,
@@ -550,8 +550,8 @@ final mockPosts = <Post>[
     media: const [
       MediaItem(
         type: 'video',
-        url: 'https://picsum.photos/seed/runway_g3_clip/1200/675',
-        poster: 'https://picsum.photos/seed/runway_g3_poster/1200/675',
+        url: 'assets/mock/cover_5.png',
+        poster: 'assets/mock/cover_6.png',
         durationSec: 12,
       ),
     ],
@@ -576,8 +576,8 @@ final mockPosts = <Post>[
     tags: const ['sdxl', 'controlnet', '参数'],
     quoteProjectId: 'p_aiimg_2',
     media: const [
-      MediaItem(type: 'image', url: 'https://picsum.photos/seed/sdxl_canny_a/800/600'),
-      MediaItem(type: 'image', url: 'https://picsum.photos/seed/sdxl_canny_b/800/600'),
+      MediaItem(type: 'image', url: 'assets/mock/cover_7.png'),
+      MediaItem(type: 'image', url: 'assets/mock/cover_8.png'),
     ],
     likes: 56,
     commentCount: 5,
@@ -597,7 +597,7 @@ final mockPosts = <Post>[
     id: 'post_7',
     content: '写代码评审提示词最关键的不是"你是专家"这种角色设定,而是"具体建议而非泛泛而谈"这种输出约束。后者直接决定质量。',
     authorId: 'wang',
-    tags: const ['prompt', '心得'],
+    tags: const ['prompt', '效率'],
     quoteProjectId: 'p_prompt_1',
     likes: 102,
     commentCount: 11,
@@ -610,7 +610,7 @@ final mockPosts = <Post>[
     tags: const ['python', 'webp', '图片优化'],
     quoteProjectId: 'p_tool_1',
     media: const [
-      MediaItem(type: 'image', url: 'https://picsum.photos/seed/webp_compare/1000/562'),
+      MediaItem(type: 'image', url: 'assets/mock/cover_9.png'),
     ],
     likes: 41,
     commentCount: 3,
@@ -973,13 +973,6 @@ int _mockHeatLevel(int dayIndex) {
   if (h <= 2) return 2;
   if (h <= 4) return 3;
   return 1;
-}
-
-/// 热力图单元(model 内嵌,无需 freezed —— 简单不可变值对象)。
-class HeatmapCell {
-  final int dateMs;
-  final int level; // 0-4
-  const HeatmapCell({required this.dateMs, required this.level});
 }
 
 // ── 浏览历史种子(me 屏 + 浏览历史页用)──

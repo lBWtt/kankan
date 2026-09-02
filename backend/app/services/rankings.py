@@ -17,11 +17,11 @@ from app.core.redis import redis_client
 from app.models import AnalyticsEvent, Favorite, HowToInterest, Project, ProjectAction, ProjectActionEvent, Share, TryItem
 from app.services.interactions import window_start
 
-# 行为权重（PRD §10 / 字段 v1.3 §5.4）。红线：必须含 how_to_interest×5。
+# 行为权重（PRD §10 / 字段 v1.3 §5.4）。「想试」是主信号，权重 5（列名仍是 how_to_interest）。
 # view/detail_click 来自埋点表（补全决策：view=card_impression、detail_click=detail_view，
 # 事件名对齐字段 v1.3 §10 清单）；其余从互动子表聚合。
 _W_VIEW, _W_DETAIL = 1.0, 2.0
-_W_FAVORITE, _W_TRY, _W_HOW_TO, _W_SHARE = 4.0, 4.0, 5.0, 6.0
+_W_FAVORITE, _W_TRY, _W_WANT_TRY, _W_SHARE = 4.0, 4.0, 5.0, 6.0
 _W_ACTION_TAKE_SUCCESS, _W_ACTION_HOW_CLICK, _W_ACTION_GO_CLICK = 6.0, 5.0, 3.0
 
 _HALF_LIFE_HOURS = 72.0  # 时间衰减 0.5^(age_hours/72)，约 3 天半衰期
@@ -54,7 +54,7 @@ def compute_weekly_hot(db: Session, limit: Optional[int]) -> List[Tuple[uuid.UUI
     sources = [
         _source(Favorite, _W_FAVORITE),
         _source(TryItem, _W_TRY),
-        _source(HowToInterest, _W_HOW_TO),
+        _source(HowToInterest, _W_WANT_TRY),
         _source(Share, _W_SHARE, Share.share_status == "completed"),
         _source(AnalyticsEvent, _W_VIEW, AnalyticsEvent.event_name == "card_impression",
                 AnalyticsEvent.project_id.isnot(None)),
@@ -223,3 +223,67 @@ def fetch_in_order(db: Session, ids: List[uuid.UUID]) -> List[Project]:
         )
     }
     return [rows[i] for i in ids if i in rows]
+
+
+# ---------- 动态榜 / 作者榜（阶段3补：原来只有项目榜，动态/作者走 mock）----------
+
+def hot_posts(db: Session, limit: int = 50):
+    """动态榜：按点赞数（like_count 去规范化）降序，时间新的优先。返回 Post 行列表。"""
+    from app.models import Post
+    return list(db.scalars(
+        select(Post).order_by(Post.like_count.desc(), Post.created_at.desc()).limit(limit)
+    ).all())
+
+
+def top_authors(db: Session, limit: int = 50) -> List[dict]:
+    """作者榜：每位作者的总获赞（已发布项目的反应数 + 动态 like_count 之和）+ 项目数 + 动态数，
+    按总获赞降序取前 N。返回 dict 列表（供 AuthorRankOut 组装）。"""
+    from app.models import Post, ProjectReaction, User
+
+    proj_rows = db.execute(
+        select(Project.author_user_id, Project.id).where(
+            Project.status == "published",
+            Project.deleted_at.is_(None),
+            Project.author_user_id.isnot(None),
+        )
+    ).all()
+    react_rows = db.execute(
+        select(ProjectReaction.project_id, func.count()).group_by(ProjectReaction.project_id)
+    ).all()
+    react_by_proj = {pid: n for pid, n in react_rows}
+    post_rows = db.execute(select(Post.author_user_id, Post.like_count)).all()
+
+    acc: dict = {}
+
+    def slot(aid):
+        return acc.setdefault(aid, {"likes": 0, "projects": 0, "posts": 0})
+
+    for aid, pid in proj_rows:
+        s = slot(aid)
+        s["projects"] += 1
+        s["likes"] += react_by_proj.get(pid, 0)
+    for aid, lc in post_rows:
+        s = slot(aid)
+        s["posts"] += 1
+        s["likes"] += (lc or 0)
+
+    ranked = sorted(acc.items(), key=lambda kv: kv[1]["likes"], reverse=True)[:limit]
+    author_ids = [aid for aid, _ in ranked]
+    users = (
+        {u.id: u for u in db.scalars(select(User).where(User.id.in_(author_ids)))}
+        if author_ids else {}
+    )
+    out: List[dict] = []
+    for aid, s in ranked:
+        u = users.get(aid)
+        if u is None or u.deleted_at is not None:
+            continue
+        out.append({
+            "user_id": aid,
+            "nickname": u.nickname,
+            "avatar_url": u.avatar_url,
+            "total_likes": s["likes"],
+            "project_count": s["projects"],
+            "post_count": s["posts"],
+        })
+    return out

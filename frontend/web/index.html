@@ -18,21 +18,64 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="description" content="看看 · 展示你的 AI 作品，给别人直接去用">
+  <meta name="theme-color" content="#1D9E75">
 
-  <!-- iOS meta tags & icons -->
+  <!-- iOS meta tags & icons（iPhone Safari「添加到主屏」后当独立 app 用）-->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="kankan_flutter">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="看看">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>kankan_flutter</title>
+  <title>看看</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #fbf9f4;
+    }
+    #app-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+      box-sizing: border-box;
+      color: #174d3a;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      transition: opacity 180ms ease;
+    }
+    #app-loading img {
+      width: 76px;
+      height: 76px;
+      border-radius: 20px;
+      box-shadow: 0 12px 34px rgba(20, 93, 67, .18);
+    }
+    #app-loading strong { font-size: 20px; letter-spacing: .08em; }
+    #app-loading span { color: #628073; font-size: 14px; }
+    #app-progress { width: 168px; height: 4px; margin-top: 2px; border-radius: 4px; background: #e3ece7; overflow: hidden; }
+    #app-progress > i { display: block; width: 0; height: 100%; border-radius: 4px; background: #1D9E75; transition: width .3s ease; }
+    #app-loading.done { opacity: 0; pointer-events: none; }
+  </style>
 </head>
 <body>
+  <div id="app-loading" role="status" aria-live="polite">
+    <img src="icons/apple-touch-icon.png" alt="">
+    <strong>看看</strong>
+    <span id="app-loading-msg">正在打开</span>
+    <div id="app-progress"><i></i></div>
+  </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -41,6 +84,27 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script>
+    const loading = document.getElementById('app-loading');
+    const msg = document.getElementById('app-loading-msg');
+    const bar = document.querySelector('#app-progress > i');
+    // 模拟进度：先快后慢逼近 90%，首帧到达时补满——让首次的几秒有可见反馈，不像卡死。
+    let p = 0;
+    const tick = setInterval(() => {
+      p += Math.max(0.5, (90 - p) * 0.06);
+      if (p > 90) p = 90;
+      if (bar) bar.style.width = p.toFixed(1) + '%';
+    }, 200);
+    // 首次加载重（canvaskit ~2.8MB），2.5s 还没好就如实说明，之后就快了。
+    const slowTimer = setTimeout(() => { if (msg) msg.textContent = '首次加载较慢'; }, 2500);
+    window.addEventListener('flutter-first-frame', () => {
+      clearInterval(tick);
+      clearTimeout(slowTimer);
+      if (bar) bar.style.width = '100%';
+      loading?.classList.add('done');
+      setTimeout(() => loading?.remove(), 260);
+    }, { once: true });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

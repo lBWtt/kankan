@@ -1,10 +1,10 @@
 # ============================================================
-# 这个文件是干什么的：定义 6 张"用户动作表"——收藏、想试、想看怎么做（游客也能点）、
-#   线索订阅、"我做了类似的"关联、创意反馈。
-# 它对应产品里的什么功能：产品的全部互动按钮；其中"想看怎么做"是全产品的主信号，
+# 这个文件是干什么的：定义几张"用户动作表"——收藏、想试、"想试"主信号（游客也能点，
+#   列名保留 how_to_interest）、"我做了类似的"关联、创意反馈。
+# 它对应产品里的什么功能：产品的全部互动按钮；其中"想试"是全产品的主信号，
 #   热度分和需求看板都靠这些表算出来。
 # 如果它出错了，用户会看到什么现象：点收藏/想试没反应或重复计数，
-#   热门榜单排序失真，作者收不到"有人想看怎么做"的通知。
+#   热门榜单排序失真，作者收不到"有人想试你的作品"的通知。
 # ============================================================
 import uuid
 from typing import Optional
@@ -49,14 +49,14 @@ class TryItem(CreatedAtMixin, Base):
 
 
 class HowToInterest(CreatedAtMixin, Base):
-    """想看怎么做（主信号）。红线：user_id 必须可空——游客用 anon_client_id 记录，绝不设登录墙。
-    去重规则（部分唯一索引在迁移脚本里建）：登录用户按 (user_id, project_id) 去重，
-    游客按 (anon_client_id, project_id) 去重。"""
+    """「想试」主信号（类名/表名 how_to_interest 保留，语义=想试/想去用）。红线：user_id 必须可空——
+    游客用 anon_client_id 记录，绝不设登录墙。去重规则（部分唯一索引在迁移脚本里建）：
+    登录用户按 (user_id, project_id) 去重，游客按 (anon_client_id, project_id) 去重。"""
 
     __tablename__ = "how_to_interests"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    # C-MDL-3：ondelete=CASCADE——用户注销时其"想看怎么做"随删（游客记录由 anon_client_id 维系，不依赖用户）
+    # C-MDL-3：ondelete=CASCADE——用户注销时其"想试"记录随删（游客记录由 anon_client_id 维系，不依赖用户）
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     anon_client_id: Mapped[Optional[str]] = mapped_column(String(64))
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
@@ -79,22 +79,6 @@ class HowToInterest(CreatedAtMixin, Base):
             postgresql_where=text("user_id IS NULL"),
         ),
         Index("ix_how_to_interests_project_id", "project_id"),
-    )
-
-
-class ClueSubscription(CreatedAtMixin, Base):
-    """实现线索页的"订阅更新"：需登录，防重复订阅。"""
-
-    __tablename__ = "clue_subscriptions"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    # C-MDL-3：ondelete=CASCADE——用户/项目删除时线索订阅随删
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "project_id", name="uq_clue_subscriptions_user_project"),
-        Index("ix_clue_subscriptions_project_id", "project_id"),
     )
 
 

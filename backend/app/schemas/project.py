@@ -145,7 +145,6 @@ class ViewerState(BaseModel):
     is_favorited: bool = False
     is_tried: bool = False
     has_how_to_interest: bool = False
-    is_clue_subscribed: bool = False
     is_following_author: bool = False
     reactions: List[str] = Field(default=[], description="我点过的反应类型")
 
@@ -176,10 +175,23 @@ class ProjectCard(BaseModel):
     domains: List[Domain]
     tools: List[str]
     ai_badge: AiBadge
+    work_form: Optional[str] = None
+    creator_type: Optional[str] = None
+    access_friction: Optional[str] = None
+    attraction_score: Optional[int] = None
+    value_score: Optional[int] = None
+    hook_clarity: Optional[int] = None
+    visual_impact: Optional[int] = None
+    is_strong_visual: bool = False
+    is_direct_tryable: bool = False
+    policy_version: str = "1.1"
+    score_version: Optional[str] = None
     author: Optional[UserBrief] = Field(None, description="作者信息，列表端点填充")
     counts: Optional[ProjectCounts] = Field(None, description="互动计数，列表端点填充真实值")
     viewer: Optional[ViewerState] = None
     published_at: Optional[datetime] = None
+    linked_at: Optional[datetime] = None
+    status: ProjectStatus
 
 
 class ProjectDetail(ProjectCard):
@@ -194,6 +206,12 @@ class ProjectDetail(ProjectCard):
     source_platform: Optional[str] = None
     original_author_name: Optional[str] = None
     original_author_url: Optional[str] = None
+    try_url: Optional[str] = Field(None, description="体验链接：作者作品的可去用地址，前端「去体验」打开")
+    experience_type: Optional[str] = None
+    experience_url: Optional[str] = None
+    experience_content: Optional[str] = None
+    selected_proof_media: Optional[dict] = None
+    title_candidates: Optional[List[str]] = None
     media: List[MediaItem] = []
     actions: List[ProjectActionOut] = []
     tags: List[str] = []
@@ -201,7 +219,6 @@ class ProjectDetail(ProjectCard):
     target_users: List[str] = []
     use_cases: List[str] = []
     allow_how_to_interest: bool = True
-    status: ProjectStatus
     author: Optional[UserBrief] = Field(None, description="外部抓取内容为 null")
     counts: ProjectCounts = ProjectCounts()
     viewer: ViewerState = ViewerState()
@@ -231,6 +248,7 @@ class ProjectCreate(BaseModel):
     source_kind: Optional[str] = Field(None, description="新版前端：original/curated；服务端映射到 source_type")
     is_original: bool = True
     source_url: Optional[str] = Field(None, description="is_original=false 必填")
+    try_url: Optional[str] = Field(None, max_length=2000, description="体验链接：作品的可去用地址(http/https)，让别人直接去用")
     original_author_name: Optional[str] = Field(None, max_length=100)
     # H-API-7：target_users / use_cases 数量上限 10
     target_users: List[str] = Field(default=[], max_length=10)
@@ -272,6 +290,8 @@ class ProjectCreate(BaseModel):
             raise ValueError("非原创内容必须提供 source_url")
         if self.related_original_project_id and not self.is_original:
             raise ValueError("从'我做了类似的'入口发布时 is_original 必须为 true")
+        if self.try_url and not (self.try_url.startswith("http://") or self.try_url.startswith("https://")):
+            raise ValueError("体验链接必须是 http/https 网址")
         return self
 
 
@@ -293,6 +313,7 @@ class ProjectUpdate(BaseModel):
     target_users: Optional[List[str]] = Field(None, max_length=10)
     use_cases: Optional[List[str]] = Field(None, max_length=10)
     allow_how_to_interest: Optional[bool] = None
+    try_url: Optional[str] = Field(None, max_length=2000, description="体验链接(http/https)")
     # H-MDL-9：tags 数量上限 20，元素长度 1-50
     tags: Optional[List[str]] = Field(None, max_length=20)
 
@@ -313,6 +334,13 @@ class SimilarProjectsResponse(BaseModel):
     items: List[ProjectCard]
 
 
+class HomeSlateResponse(BaseModel):
+    slate_id: str
+    policy_version: str = "1.1"
+    items: List[ProjectCard]
+    shortages: List[str] = Field(default_factory=list)
+
+
 class ImplementationClue(BaseModel):
     """GET /projects/{id}/implementation-clue：实现线索页，游客可读。"""
 
@@ -325,7 +353,6 @@ class ImplementationClue(BaseModel):
     ai_implementation_hint: Optional[str] = None
     related_projects: List[ProjectCard] = []
     how_to_interest_count: int = 0
-    is_subscribed: bool = Field(False, description="游客恒为 false")
 
 
 class RankedItem(BaseModel):
@@ -339,3 +366,14 @@ class RankingResponse(BaseModel):
     type: str
     generated_at: datetime
     items: List[RankedItem]
+
+
+class AuthorRankOut(BaseModel):
+    """GET /rankings/authors：作者榜一项——总获赞（项目反应+动态赞）+ 项目/动态数。"""
+
+    user_id: uuid.UUID
+    nickname: Optional[str] = None
+    avatar_url: Optional[str] = None
+    total_likes: int
+    project_count: int
+    post_count: int

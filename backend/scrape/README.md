@@ -5,8 +5,14 @@
 
 ```
 MediaCrawler 抓 (jsonl)  →  mediacrawler_adapter.py (转标准 JSON)  →
-  pipeline collect (入候选池)  →  pipeline process (DeepSeek 富化)  →  人工审核  →  approve  →  App
+  prefilter.py (采集标准粗筛)  →  pipeline collect (入候选池)  →
+  pipeline process (DeepSeek 富化)  →  人工审核  →  approve  →  App
 ```
+
+**采集标准（够不够格进池）** 定义在 `collection_standard.py`（唯一真源）：热度门槛
+（收藏为主、点赞为辅，按平台）+ **收藏率门槛**（收藏÷点赞 ≥ 0.08，砍情绪/观点帖）+
+完整性（有图/视频、正文够长）。`prefilter.py` 按它粗筛并打印**可审计报告**（每条留/砍+原因）。
+热度是**粗筛**，内容好不好交下游 DeepSeek 五维分——三道漏斗，别在粗筛里判语义。
 
 ## 一、装 MediaCrawler（✅ 已装好，此节仅备查/换机重装用）
 
@@ -53,14 +59,68 @@ D:/conda/envs/mediacrawler/python.exe main.py \
 cd /f/kankan/backend
 python scrape/mediacrawler_adapter.py --dir F:/MediaCrawler --platform xhs -o items_xhs.json
 
-# 3) 入候选池
-python -m app.pipeline collect items_xhs.json --platform xiaohongshu
+# 3) 采集标准粗筛（打印审计报告 + 输出通过项，按收藏率降序）
+python scrape/prefilter.py --in items_xhs.json --platform xiaohongshu -o items_xhs_passed.json
 
-# 4) DeepSeek 富化 → 待审核队列
+# 4) 入候选池（只入通过的）
+python -m app.pipeline collect items_xhs_passed.json --platform xiaohongshu
+
+# 5) DeepSeek 富化 → 待审核队列
 AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-xxx python -m app.pipeline process --limit 30
 
-# 5) 人工审核 → approve（审核接口/后台）→ App 里出现
+# 6) 人工审核 → approve（App 内管理员构建的「审核」悬浮球，或后台接口）→ App 里出现
 ```
+
+## 三·五、GitHub 采集（工具/资讯类项目，不走 MediaCrawler）
+
+GitHub 有官方 API，比爬抖音稳，直接一步出标准条目。选品 7:3：A 桶「新+火」
+（trending 增速榜 + 近期新建按 star）70%，B 桶「挖宝小众」（star 在区间内、近期还在维护）30%。
+排序看 **star 增速**（stars/建库天数），有 demo / 命中主题白名单加分；细节见 `CONTENT_SOURCING_PLAN.md`。
+
+```bash
+cd /f/kankan/backend
+# 强烈建议先设 token（无 token 限流 60 次/时、Search 10 次/分，易中途 403）
+set GITHUB_TOKEN=ghp_xxx            # PowerShell: $env:GITHUB_TOKEN="ghp_xxx"
+
+# 1) 采集（一步出标准条目；可调 --limit/--ratio/--topics/--min-stars 等）
+python scrape/github_collector.py -o items_github.json --limit 40
+
+# 2) 粗筛（github 门槛只做完整性/活性兜底，真筛在 collector；stars→收藏、forks→点赞列）
+python scrape/prefilter.py --in items_github.json --platform github -o items_github_passed.json
+
+# 3) 入池 → 富化 → 审核（与 xhs/dy 同）
+python -m app.pipeline collect items_github_passed.json --platform github
+AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-xxx python -m app.pipeline process
+```
+
+> 封面用 GitHub 社交预览图（`opengraph.githubassets.com`，公开可下载、无防盗链），
+> approve→建项目时的媒体转存能直接转到本地/OSS。`homepage` 字段是体验链接候选（可填项目 try_url）。
+
+## 三·六、即刻项目提取（content_kind=project）
+
+即刻 explore 是登录态 SPA，直连只有空壳。用 **Playwright 带登录态跑浏览器、拦 feed 的 API 响应**
+（干净 JSON）。只提取同时具备「个体成果语义 + proof」的具体项目；真实站外作品入口优先，
+但允许暂缺并标记为待人工补链接。普通动态、观点、教程和无成果证据的纯文字内容全部跳过。
+
+> 跑在 **mediacrawler conda 环境**（3.11 + chromium，已装）。首次 `--headful` 扫码登录，登录态存
+> `.jike_userdata/`，之后免扫、可 headless。
+
+```bash
+# 1) 采集（首次登录）
+D:/conda/envs/mediacrawler/python.exe scrape/jike_collector.py -o items_jike.json --scrolls 8 --headful
+#   之后免扫：去掉 --headful 即可
+
+# 2) 入项目池（collector 已做成果/外链/proof 三道闸）
+cd /f/kankan/backend
+python -m app.pipeline collect items_jike.json --platform jike --kind project
+
+# 3) 项目整理 → 待审核（走内容宪法项目 prompt）
+AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-xxx python -m app.pipeline process
+
+# 4) 审核 approve → 建正式 Project
+```
+
+即刻动态改写不属于这条管道，也不在本阶段处理。
 
 ## 四、待办（下一步）
 

@@ -7,5 +7,7 @@
         <domain includeSubdomains="true">10.0.2.2</domain>      <!-- Android 模拟器访问宿主机 -->
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">192.168.0.49</domain>  <!-- 本机后端·真机同 WiFi 体验用 -->
+        <!-- 生产已切 https://lovluu.com（备案下来+certbot 证书），不再需要裸 IP 明文；线上走 HTTPS。 -->
     </domain-config>
 </network-security-config>

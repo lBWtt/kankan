@@ -1,0 +1,77 @@
+[
+  {
+    "source_url": "https://www.appinn.com/ios-location-online/",
+    "title": "xLOC – 纯网页实现 iOS 虚拟定位，据说可过丁丁、苹果手表高血压通知、睡眠呼吸暂停检测",
+    "text": "xLOC – 纯网页实现 iOS 虚拟定位，据说可过丁丁、苹果手表高血压通知、睡眠呼吸暂停检测。更新：昨日有同学留言：通过 WLOC 成功开了高血压通知和睡眠呼吸暂停检测。使用 Apple Watch 的同学可以研究一下。\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n还记得前几天的iOS 虚拟定位吗？最近类似的项目很多，原理类似，不过使用方式更加简单了。\n\n\n\n最早这个项目还需要使用第三方软件来劫持定位信息，现在最新的，只需要网页就行了。\n\n\n\n感谢 Weily，项目地址：\n\n\n\n\ngithub.com/loc567/loc567\n\n\n\ngithub.com/OpenHRTT/wloc\n\n\n\n\n其中第二个敢说「可过丁丁等强风控软件」，就…感觉很厉害的样子。\n\n\n\n\n\n\n\n\n\n\n\n原理是利用 IKEv2 VPN + PAC + 根证书，仅代理 Apple 网络定位请求，然后在代理中修改定位响应。大致流程：\n\n\n\n\nSafari 打开网页，注册\n\n\n\n进入“教程”页并点击“下载证书”。\n\n\n\n前往“设置 -> 通用 -> VPN 与设备管理”安装证书。\n\n\n\n前往“设置 -> 通用 -> 关于本机 -> 证书信任设置”，手动完全信任该根证书。\n\n\n\n回到网页地图页，搜索地点或点击地图选择位置。\n\n",
+    "source_platform": "appinn",
+    "content_kind": "project",
+    "try_url": "https://www.appinn.com/ios-location-online/",
+    "language": "zh-CN",
+    "media": [
+      {
+        "url": "https://www.appinn.com/wp-content/uploads/2026/07/Copy-of-appinn-homework-2026-07-19T151029.330.jpg",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.appinn.com/openmarkdown/",
+    "title": "OpenMarkdown – 支持 CLI / MCP，你和 AI 一起编辑 Markdown 文件",
+    "text": "OpenMarkdown – 支持 CLI / MCP，你和 AI 一起编辑 Markdown 文件。OpenMarkdown 不是开源软件。它是一款支持 MCP 的 Markdown 编辑器，可以让你和 AI 一起编辑 .md 文档。@Appinn\n\n\n\n第一次见以 Open 为开头的软件名称，但不是开源软件。不过它是一款免费软件，目前仅有 macOS 端。\n\n\n\n\n\n\n\nOpenMarkdown 的最大特色是 CLI/MCP 支持，配合 Agent 程序，可以实现：你和 AI 共同编辑一个 .md 文档。\n\n\n\n效果是这样的：\n\n\n\n当你选中一段文本时，对 Claude Code 说：将此转换为表格，然后就能在 OpenMarkdown 中实时看到内容发生了变化：\n\n\n\n\n\n\n\n感觉还挺酷的，比自己转换更方便一些。\n\n\n\n虽然，这种使用方式有点怪怪的，因为直接让 AI 来写 .md 就很方便。但同时编辑一个文档的感觉，还挺智能的。\n\n\n\n至于到底有没有用，还需要时间检验。\n\n\n\n安装方式\n\n\n\n将下面这段话发给你的 OpenClaw、Hermes、Codex、Claude Code 等 AI Agent 程序即可：\n\n\n\nRead openmarkdown.dev/install ",
+    "source_platform": "appinn",
+    "content_kind": "project",
+    "try_url": "https://openmarkdown.dev/",
+    "language": "zh-CN",
+    "media": [
+      {
+        "url": "https://www.appinn.com/wp-content/uploads/2026/07/Copy-of-appinn-homework-2026-07-19T172348.187.jpg",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.appinn.com/cat-catch-2-7-1/",
+    "title": "猫抓 2.7.1 更新，持续增强 m3u8 下载能力｜猫抓是什么？",
+    "text": "猫抓 2.7.1 更新，持续增强 m3u8 下载能力｜猫抓是什么？。猫抓（cat-catch）是一款浏览器扩展，用来下载在线视频，包含绝大多数可以在浏览器中直接播放的视频，用起来非常简单。@Appinn\n\n\n\n最近猫抓 2.7.1 更新，继续增强了 m3u8 下载能力，提升浏览器兼容性（尤其 Firefox、Edge、Brave），以及修复稳定性，推荐更新。\n\n\n\n\n\n\n\n上次关注到猫抓还是2025年11月份的猫抓 2.6.5 更新，开始屏蔽抖音视频下载｜猫抓是什么？，当时因为收到抖音委托律师的拒绝抓取请求，创建了一个新的屏蔽列表页面，并将抖音加入该屏蔽列表。从此猫抓的扩展商店版将不会下载抖音视频。但因为源代码由多位贡献者，拒绝屏蔽请求，源代码不受影响。\n\n\n\n一晃大半年过去了，陆陆续续更新了6个版本。\n\n\n\n猫抓 2.6.6～2.7.1，都更新了什么？\n\n\n\nm3u8 下载能力持续增强\n\n\n\n这是这几个版本更新最多的部分，围绕下载成功率、兼容性和易用性进行了大量改进。\n\n\n\n\n下载失败自动重试，提高成功率。\n\n\n\n支持从缓存读取数据，解决一次性 URL 无法重复下载的问题。\n\n\n\n新增数据预处理，可剔除图片切片数据。\n\n\n\n支持 EXT-X-BYTE",
+    "source_platform": "appinn",
+    "content_kind": "project",
+    "try_url": "https://github.com/xifangczy/cat-catch/",
+    "language": "zh-CN",
+    "media": [
+      {
+        "url": "https://www.appinn.com/wp-content/uploads/2026/07/Copy-of-appinn-homework-2026-07-18T162940.028.jpg",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.appinn.com/ghost-font-anti-ai/",
+    "title": "Ghost Font / 幽灵字体：反AI字体，仅人类可以阅读",
+    "text": "Ghost Font / 幽灵字体：反AI字体，仅人类可以阅读。Ghost Font 幽灵字体 是一款反 AI 字体，它通过视频的方式隐藏字母，让 AI 无法识别，仅人类可以阅读。@Appinn\n\n\n\n但是，青小蛙是觉得，AI 已经把人类逼到这个份上了么…\n\n\n\n\n\n\n\n主题上图，无法显示出该字体，但肉眼可见。\n\n\n\n就是说，这套字体不止 AI 无法识别，停下来的截图、翻录屏幕，都无法识别，只能肉眼可见。\n\n\n\n来看预览：\n\n\n\n \n\n\n\n什么是 Ghost Font 幽灵字体？\n\n\n\nGhost Font 是一款反人工智能字体，它利用动态效果来书写信息。通过结合动态效果、视频、噪声和诱饵，它提供了一种独特的与真人交流信息的方式。\n\n\n\n严格来说，它并非传统意义上的 TTF 字体文件。但 Ghost Font 是一项实验，旨在探索一种人工智能难以理解的图形化文字交流方式。虽然它的清晰度不如普通文本，但人眼仍然能够立即辨认出字母，然而即使是顶尖的人工智能模型也难以轻易解读。\n\n\n\n\n\n\n\n青小蛙尝试把视频喂给AI，不好意思，我的AI不认识视频 \n\n\n\n作者使用了 GPT-Sol 5.6 Ultra、Claude Fable 模型来读取视频，失败了。均",
+    "source_platform": "appinn",
+    "content_kind": "project",
+    "try_url": "https://www.mixfont.com/ghost-font",
+    "language": "zh-CN",
+    "media": [
+      {
+        "url": "https://www.appinn.com/wp-content/uploads/2026/07/Copy-of-appinn-homework-2026-07-13T163825.617.jpg",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.appinn.com/apple-wloc/",
+    "title": "Apple WLOC – iOS 虚拟定位",
+    "text": "Apple WLOC – iOS 虚拟定位。Apple WLOC 是一款用于修改 Apple 网络定位服务（Wi-Fi/基站），实现 iOS 虚拟定位的开源项目。@Appinn\n\n\n\n\n\n\n\n注意：这是 Wi-Fi / 基站的虚拟定位，不改变 GPS。\n\n\n\n三个步骤：\n\n\n\n第一步：使用下面 app 中的模块订阅功能，并启用 MITM：\n\n\n\n\n\n\n\n第二步：安装快捷指令\n\n\n\n\nwloc 设置地理位置：https://www.icloud.com/shortcuts/a82717d8fdad4e6280866fcf911173f7\n\n\n\nwloc 清理恢复位置：https://www.icloud.com/shortcuts/f42632d406504f24a2cd163af4fe012f\n\n\n\n\n第三步：在地图.app / 高德中选点，分享链接到剪贴板\n\n\n\n设置位置： 在地图 App 里选好位置（长按地图选点）→ 共享 → 选「wloc 设置地理位置」即可切换。苹果地图：选点 → 共享 → 「wloc 设置地理位置」高德地图：选点 → 分享 → 更多 → 「wloc 设置地理位置」\n\n\n\n然后就好了，已经有了虚拟地址。\n",
+    "source_platform": "appinn",
+    "content_kind": "project",
+    "try_url": "https://www.icloud.com/shortcuts/a82717d8fdad4e6280866fcf911173f7",
+    "language": "zh-CN",
+    "media": [
+      {
+        "url": "https://www.appinn.com/wp-content/uploads/2026/07/Copy-of-appinn-homework-2026-07-16T145534.222.jpg",
+        "media_type": "image"
+      }
+    ]
+  }
+]

@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/prefs.dart';
 import '../core/utils/backend_id.dart';
+import 'auth_provider.dart';
 import '../data/api/interactions_api.dart';
 import '../data/dto/project_card_dto.dart';
 import '../domain/models/models.dart';
 import '../domain/repositories/project_repository.dart';
-import 'auth_provider.dart';
 
 /// 实现线索(Implementation Clue)— ZAI_PLAYBOOK P0 主信号下游的网络层。
 ///
@@ -16,11 +16,9 @@ import 'auth_provider.dart';
 /// Phase 5 接 SDK 时替换本文件内部,上层 [ImplementationClueScreen] 不动
 /// (依赖倒置,与 ProjectRepository 同思路)。
 ///
-/// 后端契约(待接):
+/// 后端契约:
 ///   - GET  /projects/{id}/implementation-clue  → ClueData
-///   - POST /projects/{id}/how-to-interest      → { count: int }
-///   - POST /projects/{id}/clue-subscription    → 订阅
-///   - DELETE /projects/{id}/clue-subscription  → 取消订阅
+///   - POST /projects/{id}/how-to-interest      → { count: int }（「想试」信号）
 
 // ──────────────────────────────────────────────────────────────────
 // Domain 模型 — ClueData(ZAI_PLAYBOOK Part 4 数据契约)
@@ -57,11 +55,8 @@ class ClueData {
   /// 相关作品(复用现有 Project 模型 + ProjectCard 渲染)
   final List<Project> relatedProjects;
 
-  /// 「想看怎么做」累计人数
+  /// 「想试」累计人数
   final int howToInterestCount;
-
-  /// 当前用户是否已订阅线索更新(游客恒 false)
-  final bool isSubscribed;
 
   const ClueData({
     required this.projectId,
@@ -73,7 +68,6 @@ class ClueData {
     this.aiImplementationHint,
     this.relatedProjects = const [],
     this.howToInterestCount = 0,
-    this.isSubscribed = false,
   });
 
   ClueData copyWith({
@@ -86,7 +80,6 @@ class ClueData {
     String? aiImplementationHint,
     List<Project>? relatedProjects,
     int? howToInterestCount,
-    bool? isSubscribed,
   }) =>
       ClueData(
         projectId: projectId ?? this.projectId,
@@ -98,7 +91,6 @@ class ClueData {
         aiImplementationHint: aiImplementationHint ?? this.aiImplementationHint,
         relatedProjects: relatedProjects ?? this.relatedProjects,
         howToInterestCount: howToInterestCount ?? this.howToInterestCount,
-        isSubscribed: isSubscribed ?? this.isSubscribed,
       );
 }
 
@@ -316,40 +308,29 @@ const Map<String, _MockClue> _mockClue = {
 /// Riverpod 3.x 稳定支持。watch 整个 state,increment/toggle 后自动 rebuild。
 @immutable
 class ClueInteractionState {
-  /// projectId → 累计「想看怎么做」人数
+  /// projectId → 累计「想试」人数
   final Map<String, int> howToCounts;
 
-  /// 已订阅线索更新的项目 ID 集合
-  final Set<String> subscribedProjectIds;
-
-  /// 当前用户(本会话内)已点过「想看怎么做」的项目 ID 集合。
-  /// 防止同一用户反复点击导致 count 失真(P1 状态一致性修复)。
-  /// mock 下用户恒 'me',真实场景此集合应来自后端「我是否已标记」。
+  /// 当前用户(本会话内)已点过「想试」的项目 ID 集合。
+  /// 防止同一用户反复点击导致 count 失真。
   final Set<String> markedProjectIds;
 
   const ClueInteractionState({
     this.howToCounts = const {},
-    this.subscribedProjectIds = const {},
     this.markedProjectIds = const {},
   });
 
   int howToCount(String projectId) => howToCounts[projectId] ?? 0;
 
-  bool isSubscribed(String projectId) =>
-      subscribedProjectIds.contains(projectId);
-
-  /// 当前用户是否已对某项目点过「想看怎么做」。
+  /// 当前用户是否已对某项目点过「想试」。
   bool hasMarked(String projectId) => markedProjectIds.contains(projectId);
 
   ClueInteractionState copyWith({
     Map<String, int>? howToCounts,
-    Set<String>? subscribedProjectIds,
     Set<String>? markedProjectIds,
   }) =>
       ClueInteractionState(
         howToCounts: howToCounts ?? this.howToCounts,
-        subscribedProjectIds:
-            subscribedProjectIds ?? this.subscribedProjectIds,
         markedProjectIds: markedProjectIds ?? this.markedProjectIds,
       );
 }
@@ -357,6 +338,16 @@ class ClueInteractionState {
 class ClueInteractionNotifier extends Notifier<ClueInteractionState> {
   @override
   ClueInteractionState build() {
+    // 账号隔离（关键）：切换账号时清掉「本人已标记」的个人态——否则 A 点过「想试」的项目，
+    // 换成 B 登录后仍被判定为已标记（幂等守卫拦住，B 点了没反应/计数不动）。
+    // howToCounts 是聚合值（几个人想试），是真数据、对所有账号一致，不清；只清 markedProjectIds。
+    ref.listen(authProvider, (prev, next) {
+      final prevScope = prev?.currentUser?.id ?? 'guest';
+      final nextScope = next.currentUser?.id ?? 'guest';
+      if (prevScope != nextScope) {
+        state = state.copyWith(markedProjectIds: <String>{});
+      }
+    });
     // 启动载入 mock 初始计数(真实场景后端拉,这里写死)。
     return ClueInteractionState(howToCounts: Map.of(_mockHowToCounts));
   }
@@ -395,52 +386,12 @@ class ClueInteractionNotifier extends Notifier<ClueInteractionState> {
     return state.howToCount(projectId);
   }
 
-  /// 用后端真值回填计数/订阅态（远端模式下 [clueProvider] 拉到线索后调）。
-  /// 屏幕的计数/订阅从本 notifier 读，故必须回填，否则真后端项目显示 0。
+  /// 用后端真值回填「想试」计数（远端模式下 [clueProvider] 拉到线索后调）。
   /// 计数不覆盖用户本会话已乐观标记的项目（避免把刚 +1 的乐观值压回旧值）。
-  void seedFromBackend(String projectId,
-      {required int count, required bool subscribed}) {
+  void seedFromBackend(String projectId, {required int count}) {
     final counts = Map<String, int>.from(state.howToCounts);
     if (!state.hasMarked(projectId)) counts[projectId] = count;
-    final subs = Set<String>.from(state.subscribedProjectIds);
-    if (subscribed) {
-      subs.add(projectId);
-    } else {
-      subs.remove(projectId);
-    }
-    state = state.copyWith(howToCounts: counts, subscribedProjectIds: subs);
-  }
-
-  /// 切换订阅(ZAI_PLAYBOOK Part 4 订阅区)。乐观切换本地态;
-  /// 登录 + 真后端项目(UUID)→ 同步 POST/DELETE /clue-subscription,失败回滚。
-  /// mock 项目 / 未登录 → 只本地切换(演示,不设登录墙)。
-  void toggleSubscription(String projectId) {
-    final wasSubscribed = state.subscribedProjectIds.contains(projectId);
-    final next = Set<String>.from(state.subscribedProjectIds);
-    if (wasSubscribed) {
-      next.remove(projectId);
-    } else {
-      next.add(projectId);
-    }
-    state = state.copyWith(subscribedProjectIds: next); // 乐观更新
-    _syncSubscription(projectId, on: !wasSubscribed);
-  }
-
-  /// 订阅落库:登录 + 真后端项目才发请求;失败回滚本地,保持一致。
-  Future<void> _syncSubscription(String projectId, {required bool on}) async {
-    if (!ref.read(authProvider).isLoggedIn) return;
-    if (!looksLikeBackendId(projectId)) return;
-    try {
-      await ref.read(interactionsApiProvider).setClueSubscription(projectId, on);
-    } catch (_) {
-      final revert = Set<String>.from(state.subscribedProjectIds);
-      if (on) {
-        revert.remove(projectId);
-      } else {
-        revert.add(projectId);
-      }
-      state = state.copyWith(subscribedProjectIds: revert);
-    }
+    state = state.copyWith(howToCounts: counts);
   }
 }
 
@@ -455,10 +406,9 @@ final clueInteractionProvider =
 
 /// 线索主数据 provider。clue 屏 `ref.watch(clueProvider(projectId))`。
 ///
-/// 返回 [ClueData],含静态来源/工具/AI 思路/相关作品,以及交互态快照
-/// (howToInterestCount / isSubscribed 取 fetch 时刻值)。屏内若需实时刷新
-/// 计数与订阅态,另 `ref.watch(clueInteractionProvider)`(本 provider 不会
-/// 在交互态变化时自动 rebuild — 这是刻意的:静态内容不必跟着计数变)。
+/// 返回 [ClueData],含静态来源/工具/AI 思路/相关作品,以及「想试」计数快照
+/// (howToInterestCount 取 fetch 时刻值)。屏内若需实时刷新计数,另
+/// `ref.watch(clueInteractionProvider)`(本 provider 不在交互态变化时自动 rebuild)。
 final clueProvider =
     FutureProvider.family<ClueData, String>((ref, projectId) async {
   // 真后端项目(UUID 形) → 拉 GET /projects/{id}/implementation-clue 真数据。
@@ -473,11 +423,10 @@ final clueProvider =
           .map((m) => projectFromCardJson(Map<String, dynamic>.from(m)))
           .toList();
       final count = (json['how_to_interest_count'] as num?)?.toInt() ?? 0;
-      final subscribed = json['is_subscribed'] == true;
-      // 回填交互 notifier（屏幕计数/订阅从它读）。微任务里做，避开「build 期改 provider」。
+      // 回填交互 notifier（屏幕计数从它读）。微任务里做，避开「build 期改 provider」。
       Future.microtask(() => ref
           .read(clueInteractionProvider.notifier)
-          .seedFromBackend(projectId, count: count, subscribed: subscribed));
+          .seedFromBackend(projectId, count: count));
       return ClueData(
         projectId: projectId,
         sourceUrl: json['source_url'] as String?,
@@ -489,7 +438,6 @@ final clueProvider =
         aiImplementationHint: json['ai_implementation_hint'] as String?,
         relatedProjects: related,
         howToInterestCount: count,
-        isSubscribed: subscribed,
       );
     } catch (_) {
       // 远端失败：落回下方 mock/空展示，不中断（游客可读，尽量给内容）。
@@ -523,7 +471,6 @@ final clueProvider =
     aiImplementationHint: mock?.aiImplementationHint,
     relatedProjects: related,
     howToInterestCount: interaction.howToCount(projectId),
-    isSubscribed: interaction.isSubscribed(projectId),
   );
 });
 

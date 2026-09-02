@@ -6,9 +6,9 @@ import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
-import '../../domain/models/topic.dart';
-import '../../domain/repositories/search_repository.dart';
+import '../../domain/models/models.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/search_provider.dart';
 import '../../router/routes.dart';
 
 /// 搜索屏 — HANDOFF §3 零旁白。
@@ -40,6 +40,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _ctrl.addListener(_onInputChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
   }
 
   void _onInputChanged() {
@@ -66,7 +69,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final input = _ctrl.text.trim();
-    final searchRepo = ref.watch(searchRepositoryProvider);
 
     return Scaffold(
       backgroundColor: KkColors.bg,
@@ -79,16 +81,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         title: _searchField(),
       ),
       body: input.isEmpty
-          ? _buildEmptyInput(context, searchRepo)
-          : _buildSuggestions(context, searchRepo, input),
+          ? _buildEmptyInput(context)
+          : _buildSuggestions(context, input),
     );
   }
 
   // ── 输入为空:最近搜索(时间分组)+ 热门话题(原 Phase 3 逻辑)──
 
-  Widget _buildEmptyInput(BuildContext context, SearchRepository searchRepo) {
+  Widget _buildEmptyInput(BuildContext context) {
     final recentWithTime = ref.watch(appStateProvider).recentSearchesWithTime;
-    final hotTopics = searchRepo.searchTopics('').take(8).toList();
+    // 统一走 topTopicsProvider：mock 读内存、remote 读 /topics；加载中 → 空。
+    final hotTopics = ref.watch(topTopicsProvider(8)).asData?.value ?? const <Topic>[];
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: KkSpacing.md),
@@ -121,7 +124,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
             child: Column(
               children: [
-                for (final t in hotTopics) _topicTile(t),
+                for (int i = 0; i < hotTopics.length; i++)
+                  _topicTile(hotTopics[i], i + 1),
               ],
             ),
           ),
@@ -215,10 +219,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildSuggestions(
     BuildContext context,
-    SearchRepository searchRepo,
     String input,
   ) {
-    final suggestions = _buildSuggestionList(searchRepo, input);
+    final suggestions = _buildSuggestionList(input);
     if (suggestions.isEmpty) {
       return Center(
         child: Padding(
@@ -238,19 +241,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   /// 前 3 条 topics(tag 前缀)+ 3 条 users(name 前缀)+ 3 条 projects(title 前缀)。
-  /// searchRepo.searchXxx(input) 返回 contains 匹配,再本地过滤 startsWith。
-  /// (startsWith ⊂ contains,过滤后即前缀匹配结果。)
-  List<_Suggestion> _buildSuggestionList(
-    SearchRepository searchRepo,
-    String input,
-  ) {
+  /// 统一走异步 provider（mock 内存 / remote 后端），结果加载中先按已到的数据渲染。
+  /// searchXxx(input) 返回 contains 匹配,再本地过滤 startsWith(startsWith ⊂ contains)。
+  List<_Suggestion> _buildSuggestionList(String input) {
     final s = input.trim().toLowerCase();
     if (s.isEmpty) return const [];
     final out = <_Suggestion>[];
 
+    final topics =
+        ref.watch(searchTopicsProvider(s)).asData?.value ?? const <Topic>[];
+    final users =
+        ref.watch(searchUsersProvider(s)).asData?.value ?? const <KkUser>[];
+    final projects =
+        ref.watch(searchProjectsProvider(s)).asData?.value ?? const <Project>[];
+
     // Topics:tag 前缀匹配(取前 3)
     var topicCount = 0;
-    for (final t in searchRepo.searchTopics(s)) {
+    for (final t in topics) {
       if (!t.tag.toLowerCase().startsWith(s)) continue;
       out.add(_Suggestion(
         label: '#${t.tag}',
@@ -261,7 +268,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     // Users:name 前缀匹配(取前 3)
     var userCount = 0;
-    for (final u in searchRepo.searchUsers(s)) {
+    for (final u in users) {
       if (!u.name.toLowerCase().startsWith(s)) continue;
       out.add(_Suggestion(
         label: u.name,
@@ -272,7 +279,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     // Projects:title 前缀匹配(取前 3)
     var projectCount = 0;
-    for (final p in searchRepo.searchProjects(s)) {
+    for (final p in projects) {
       if (!p.title.toLowerCase().startsWith(s)) continue;
       out.add(_Suggestion(
         label: p.title,
@@ -320,7 +327,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _searchField() {
     return Container(
-      height: 36,
+      height: 42,
       margin: const EdgeInsets.only(right: KkSpacing.lg),
       decoration: BoxDecoration(
         color: KkColors.bgSubtle,
@@ -330,15 +337,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         controller: _ctrl,
         focusNode: _focus,
         autofocus: true,
+        onTap: _focus.requestFocus,
         textInputAction: TextInputAction.search,
-        style: KkType.body,
+        textAlignVertical: TextAlignVertical.center,
+        style: KkType.body.copyWith(color: KkColors.t1),
         decoration: InputDecoration(
           hintText: '搜索',
           hintStyle: KkType.body.copyWith(color: KkColors.t4),
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: KkSpacing.md,
-            vertical: 0,
+            vertical: KkSpacing.sm,
           ),
           prefixIcon: const Icon(Icons.search, size: 18, color: KkColors.t3),
           prefixIconConstraints: const BoxConstraints(
@@ -346,11 +355,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             minHeight: 36,
           ),
           suffixIcon: _ctrl.text.isNotEmpty
-              ? Tappable(
-                  onTap: _ctrl.clear,
-                  borderRadius: BorderRadius.circular(KkRadius.pill),
-                  child:
-                      const Icon(Icons.close, size: 16, color: KkColors.t3),
+              ? IconButton(
+                  onPressed: _ctrl.clear,
+                  padding: EdgeInsets.zero,
+                  splashRadius: 18,
+                  icon: const Icon(Icons.close, size: 16, color: KkColors.t3),
                 )
               : null,
           suffixIconConstraints: const BoxConstraints(
@@ -400,29 +409,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _recentChip(String q, {VoidCallback? onTap, VoidCallback? onDelete}) {
-    return Tappable(
+    // 用 GestureDetector 而非 Tappable：Tappable 在 Wrap(bounded 宽度)里会撑满整行
+    // → 每个词独占一行、居中(用户反馈"最近搜索一行一个巨丑")。GestureDetector 自适应内容宽。
+    // 小红书式：小而密的灰底标签，无边框，字号小。删除 ✕ 做得很淡（不喧宾夺主）。
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(KkRadius.pill),
+      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: KkSpacing.md,
-          vertical: KkSpacing.xs + 2,
+          horizontal: KkSpacing.sm + 2,
+          vertical: 5,
         ),
         decoration: BoxDecoration(
-          color: KkColors.bgCard,
+          color: KkColors.bgSubtle,
           borderRadius: BorderRadius.circular(KkRadius.pill),
-          border: Border.all(color: KkColors.bd),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(q, style: KkType.bodySm.copyWith(color: KkColors.t2)),
-            const SizedBox(width: KkSpacing.xs),
-            Tappable(
+            Text(
+              q,
+              style: KkType.bodySm.copyWith(color: KkColors.t2, fontSize: 12),
+            ),
+            const SizedBox(width: 5),
+            GestureDetector(
               onTap: onDelete,
-              borderRadius: BorderRadius.circular(10),
-              child: const Icon(Icons.close,
-                  size: 12, color: KkColors.t4),
+              behavior: HitTestBehavior.opaque,
+              child: const Icon(Icons.close, size: 11, color: KkColors.t4),
             ),
           ],
         ),
@@ -430,7 +443,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _topicTile(Topic t) {
+  Widget _topicTile(Topic t, int rank) {
     return Tappable(
       onTap: () => _submit(t.tag),
       borderRadius: BorderRadius.circular(KkRadius.md),
@@ -445,7 +458,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             SizedBox(
               width: 28,
               child: Text(
-                '#${hotRank(t)}',
+                '#$rank',
                 style: KkType.mono.copyWith(
                   color: KkColors.t4,
                   fontSize: 12,
@@ -491,11 +504,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  // 当前 tile 在 hotTopics 里的序号(从 1 开始)
-  int hotRank(Topic t) {
-    final all = ref.read(searchRepositoryProvider).searchTopics('');
-    return all.indexOf(t) + 1;
-  }
 }
 
 /// 建议项类型 — 区分 topics / users / projects,仅用于显示类型图标。

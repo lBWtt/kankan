@@ -15,7 +15,7 @@ from app.api.deps import ERRORS_AUTHED, ERRORS_PUBLIC, auth_optional, auth_requi
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.pagination import decode_cursor, encode_cursor
-from app.core.utils import parse_datetime_cursor
+from app.core.utils import parse_datetime_cursor, safe_like_pattern
 from app.models import Project, User
 from app.schemas.common import OkResponse, Page
 from app.schemas.post import PostOut
@@ -33,6 +33,33 @@ def _get_public_user(db: Session, user_id: uuid.UUID) -> User:
     if u is None or u.deleted_at is not None:
         raise AppError(404, "NOT_FOUND", "用户不存在")
     return u
+
+
+@router.get("/search", response_model=list[UserBrief], summary="搜索用户（@handle/昵称/简介，游客可用）")
+def search_users(
+    q: str = Query(..., min_length=1, max_length=50, description="关键词，匹配 @handle/昵称/简介"),
+    limit: int = Query(30, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """按 @handle/昵称/简介模糊匹配未软删用户，按昵称升序返回前 N 个。
+    @handle 是稳定用户名（改名后仍能搜到人）——查询里可带或不带前导 @。"""
+    # 去掉用户可能输入的前导 @，让 "@lin" 和 "lin" 都能命中 handle。
+    like = safe_like_pattern(q.lstrip("@"))
+    rows = db.scalars(
+        select(User)
+        .where(
+            User.deleted_at.is_(None),
+            func.coalesce(User.handle, "").ilike(like)
+            | func.coalesce(User.nickname, "").ilike(like)
+            | func.coalesce(User.bio, "").ilike(like),
+        )
+        .order_by(User.nickname.asc())
+        .limit(limit)
+    ).all()
+    return [
+        UserBrief(id=u.id, handle=u.handle, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role)
+        for u in rows
+    ]
 
 
 @router.get("/{user_id}", response_model=UserPublic, summary="用户公开主页（游客可用）")
@@ -53,8 +80,8 @@ def get_user(
         viewer is not None and social.is_following(db, viewer.id, u.id)
     )
     return UserPublic(
-        id=u.id, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role,
-        bio=u.bio, published_project_count=count,
+        id=u.id, handle=u.handle, nickname=u.nickname, avatar_url=u.avatar_url, role=u.role,
+        bio=u.bio, school=u.school, age=u.age, published_project_count=count,
         following_count=social.following_count(db, u.id),
         follower_count=social.follower_count(db, u.id),
         is_followed_by_me=followed,

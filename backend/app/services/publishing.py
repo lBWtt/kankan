@@ -30,13 +30,12 @@ from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
 def check_user_publish_gate(tools: List[str], description: Optional[str]) -> None:
-    """发布准入（PRD §2.3 红线）：tools≥1 或简介含可复现说明；纯单图无方法不发布。
-    可复现说明的启发式与候选审核一致：description≥20 字（summary 被 schema 强制 ≥20 字，
-    不能用作准入依据，否则准入形同虚设——补全决策）。"""
-    if not tools and not (description and len(description.strip()) >= 20):
+    """发布准入：要有一点实质内容——至少 1 个工具，或写了详情。
+    不再要求详情 ≥20 字；手机端快速发布时，短说明也应可进入审核/展示链路。"""
+    if not tools and not (description and description.strip()):
         raise AppError(
-            409, "PUBLISH_GATE_FAILED", "发布准入不满足：需要至少 1 个工具，或在详情里写明可复现方法（≥20 字）",
-            {"problems": ["准入不满足：tools≥1 或 description 含可复现方法说明（≥20 字）"]},
+            409, "PUBLISH_GATE_FAILED", "发布准入不满足：至少填 1 个工具，或写一点详情",
+            {"problems": ["准入不满足：tools≥1 或 description 非空"]},
         )
 
 
@@ -102,7 +101,9 @@ def _derive_public_text(body: ProjectCreate) -> tuple[str, str, str, Optional[st
 
     summary = _clean_text(body.summary) or _clip(intro or tagline, 500)
     if len(summary) < 20:
-        summary = _clip(f"{summary} 这个项目提供了可复现的做法和使用线索。", 500)
+        # 不再自动塞"可复现/线索"文案（与"去体验/去用"定位冲突，且用户不知情）。
+        # 简介太短时用标题/一句话补足（真内容），不注入方向性文案。
+        summary = _clip(f"{summary} {tagline or title}".strip(), 500)
 
     description = _clean_text(body.description) or (intro if intro and intro != summary else None)
     return title, tagline, summary, description
@@ -121,7 +122,7 @@ def _validate_action_url(raw: Optional[str]) -> Optional[str]:
 def _check_project_v2_gate(body: ProjectCreate) -> None:
     """新版发布准入：有 action 视为有可执行方法；否则沿用 tools 或详情方法说明。"""
     method_text = body.description or body.intro
-    if body.actions:
+    if body.actions or body.media_ids:
         return
     check_user_publish_gate(body.tools, method_text)
 
@@ -252,6 +253,7 @@ def create_user_project(db: Session, user: User, body: ProjectCreate) -> Project
         source_type=_source_type_from_body(body),
         is_original=is_original,
         source_url=body.source_url,
+        try_url=_clean_text(body.try_url),  # 体验链接（作者作品的可去用地址）
         original_author_name=body.original_author_name,
         allow_how_to_interest=body.allow_how_to_interest,
         tools=body.tools,

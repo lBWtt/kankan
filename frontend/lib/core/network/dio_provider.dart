@@ -49,7 +49,7 @@ final dioProvider = Provider<Dio>((ref) {
       if (data is Map &&
           data['access_token'] != null &&
           data['refresh_token'] != null) {
-        store.set(
+        await store.set(
           access: data['access_token'].toString(),
           refresh: data['refresh_token'].toString(),
         );

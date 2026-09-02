@@ -6,17 +6,20 @@ import '../../core/config/app_config.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/utils/backend_id.dart';
+import '../../core/widgets/kk_back_button.dart';
 import '../../core/widgets/tappable.dart';
 import '../../data/api/users_api.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../../domain/repositories/project_repository.dart';
 import '../../providers/app_state_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../providers/remote_post_provider.dart';
 import '../../providers/remote_project_provider.dart';
 import '../../router/routes.dart';
 import '../shared/empty_state.dart';
+import '../shared/list_state_views.dart';
 import '../shared/post_card.dart';
 import '../shared/profile_header.dart';
 import '../shared/project_card.dart';
@@ -41,7 +44,14 @@ import '../shared/report_sheet.dart';
 class ProfileScreen extends ConsumerStatefulWidget {
   final String userId;
 
-  const ProfileScreen({super.key, required this.userId});
+  /// 初始 Tab（0=动态 1=项目 2=收藏）。从「我发布的→查看全部」进来传 1，直接看作品。
+  final int initialTabIndex;
+
+  const ProfileScreen({
+    super.key,
+    required this.userId,
+    this.initialTabIndex = 0,
+  });
 
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
@@ -54,7 +64,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
   }
 
   @override
@@ -63,11 +77,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     super.dispose();
   }
 
-  bool get _isMe => widget.userId == 'me';
-
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userByIdProvider(widget.userId));
+    final auth = ref.watch(authProvider);
+    // 「是不是我自己」：userId=='me'（mock 场景）或等于当前登录账号的 UUID。
+    // 修 bug：me_screen「查看全部」跳的是我的 UUID，之前只判 =='me' → 误判成看别人的主页
+    // （显示「关注」按钮、第三人称视角）。补上 UUID 比对，自己的主页正确进自视角。
     final projectRepo = ref.watch(projectRepositoryProvider);
     final postRepo = ref.watch(postRepositoryProvider);
     final appState = ref.watch(appStateProvider);
@@ -95,9 +111,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         );
       }
     }
-    var totalLikes =
-        projects.fold<int>(0, (s, p) => s + p.likes) +
-            posts.fold<int>(0, (s, p) => s + p.likes);
+    final currentUser = auth.currentUser;
+    final isMe = currentUser != null &&
+        (widget.userId == 'me' ||
+            widget.userId == currentUser.id ||
+            displayUser?.id == currentUser.id ||
+            (displayUser?.name.trim().isNotEmpty == true &&
+                displayUser!.name.trim() == currentUser.name.trim()));
+    var totalLikes = projects.fold<int>(0, (s, p) => s + p.likes) +
+        posts.fold<int>(0, (s, p) => s + p.likes);
     // Tab 计数:mock 用 byAuthor 长度;远程用户 mock 列表为空,改用真列表长度
     // (家族 provider 同参数与 Tab 内共享缓存,不多打一次网络)。loading 退化 0。
     var postCount = posts.length;
@@ -130,32 +152,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             followingCount: following,
             followerCount: followers,
             totalLikes: totalLikes,
-            onTapFollowing: () =>
-                context.push(KkRoutes.follows(widget.userId)),
-            onTapFollowers: () => context.push(
-                '${KkRoutes.follows(widget.userId)}?type=followers'),
+            onTapFollowing: () => context.push(KkRoutes.follows(widget.userId)),
+            onTapFollowers: () => context
+                .push('${KkRoutes.follows(widget.userId)}?type=followers'),
+            // 返回键放左上角（符合直觉，与「更多」分开左右）。
+            // 和动态详情等页面共用同一个返回组件与触控规格。
+            bannerLeading: const KkBackButton(color: Colors.white),
             bannerActions: [
-              // 返回(浮在 banner 上,半透明白底圆)
-              BannerIconButton(
-                icon: Icons.arrow_back,
-                onTap: () {
-                  // 兜底同 KkBackButton:profile 可深链(/u/:id),栈空时 pop 哑火 → 回发现页。
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go(KkRoutes.discover);
-                  }
-                },
-              ),
-              // 更多(拉黑/举报 sheet)
+              // 更多(自己=编辑/退出；他人=拉黑/举报 sheet)
               BannerIconButton(
                 icon: Icons.more_horiz,
-                onTap: () => _showMoreSheet(context),
+                onTap: () => _showMoreSheet(context, isMe),
               ),
             ],
             // 右侧操作槽:自己 → 编辑资料;他人 → 关注/已关注
-            actionSlot: _isMe ? _editButton() : _followButton(isFollowing),
+            actionSlot: isMe ? _editButton() : _followButton(isFollowing),
           ),
+          const SizedBox(height: KkSpacing.sm),
+          _contributionStrip(projectCount, postCount, totalLikes),
           const SizedBox(height: KkSpacing.sm),
           // Tab 栏
           _tabBar(projectCount, postCount),
@@ -166,7 +180,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               children: [
                 _PostsTab(userId: widget.userId),
                 _ProjectsTab(userId: widget.userId),
-                _SavedTab(userId: widget.userId, isMe: _isMe),
+                _SavedTab(userId: widget.userId, isMe: isMe),
               ],
             ),
           ),
@@ -178,11 +192,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   // 任务⑩A:旧 _profileCard / _countBlock 已删,头部复用共享 ProfileHeader
   // (渐变 banner + 大头像 + inline 统计 + 右侧关注/编辑按钮)。
 
+  Widget _contributionStrip(int projectCount, int postCount, int totalLikes) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
+      padding: const EdgeInsets.all(KkSpacing.md),
+      decoration: BoxDecoration(
+        color: KkColors.bgCard,
+        borderRadius: BorderRadius.circular(KkRadius.md),
+        border: Border.all(color: KkColors.bd),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_graph_outlined, size: 18, color: KkColors.teal),
+          const SizedBox(width: KkSpacing.sm),
+          Text('TA 的贡献',
+              style: KkType.body.copyWith(fontWeight: FontWeight.w600)),
+          const Spacer(),
+          Text(
+            '$projectCount 作品 · $postCount 动态 · $totalLikes 获赞',
+            style: KkType.bodySm.copyWith(color: KkColors.t3),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _followButton(bool isFollowing) {
     return Tappable(
-      onTap: () => ref
-          .read(appStateProvider.notifier)
-          .toggleFollow(widget.userId),
+      onTap: () =>
+          ref.read(appStateProvider.notifier).toggleFollow(widget.userId),
       borderRadius: BorderRadius.circular(KkRadius.pill),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -260,7 +298,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   /// 更多操作 sheet(拉黑 / 举报)
   /// HANDOFF §3 零旁白:不写"举报后会怎样",只列动作。
-  void _showMoreSheet(BuildContext context) {
+  void _showMoreSheet(BuildContext context, bool isMe) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: KkColors.bgCard,
@@ -268,7 +306,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_isMe) ...[
+            if (isMe) ...[
               _sheetItem(
                 icon: Icons.edit_outlined,
                 label: '编辑资料',
@@ -308,6 +346,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     ),
                   );
                   if (ok == true && context.mounted) {
+                    // 修 bug：原来只弹 toast、没真登出（令牌还在，写操作照常）。
+                    // 与 settings 的登出一致，真调 logout() 清令牌+登录态。
+                    ref.read(authProvider.notifier).logout();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('已退出登录'),
@@ -407,18 +448,17 @@ class _PostsTab extends ConsumerWidget {
   final String userId;
   const _PostsTab({required this.userId});
 
-  bool get _isRemote =>
-      AppConfig.useRemote && looksLikeBackendId(userId);
+  bool get _isRemote => AppConfig.useRemote && looksLikeBackendId(userId);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 远程用户(UUID)→ GET /users/{id}/posts 三态;mock 用户→ byAuthor。
     if (_isRemote) {
       return ref.watch(userPostsProvider(userId)).when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator(color: KkColors.teal)),
+            loading: () => const PostListSkeleton(),
             error: (e, _) => RemoteError(
               message: '动态加载失败',
+              error: e,
               onRetry: () async => ref.invalidate(userPostsProvider(userId)),
             ),
             data: (posts) => _list(context, posts),
@@ -453,18 +493,17 @@ class _ProjectsTab extends ConsumerWidget {
   final String userId;
   const _ProjectsTab({required this.userId});
 
-  bool get _isRemote =>
-      AppConfig.useRemote && looksLikeBackendId(userId);
+  bool get _isRemote => AppConfig.useRemote && looksLikeBackendId(userId);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 远程用户(UUID)→ GET /users/{id}/projects（仅 published）三态;mock→ byAuthor。
     if (_isRemote) {
       return ref.watch(userProjectsProvider(userId)).when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator(color: KkColors.teal)),
+            loading: () => const ProjectListSkeleton(),
             error: (e, _) => RemoteError(
               message: '作品加载失败',
+              error: e,
               onRetry: () async => ref.invalidate(userProjectsProvider(userId)),
             ),
             data: (projects) => _list(projects),
@@ -483,7 +522,7 @@ class _ProjectsTab extends ConsumerWidget {
     }
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(
-        KkSpacing.lg, KkSpacing.sm, KkSpacing.lg, KkSpacing.xxl),
+          KkSpacing.lg, KkSpacing.sm, KkSpacing.lg, KkSpacing.xxl),
       itemCount: projects.length,
       separatorBuilder: (_, __) => const SizedBox(height: KkSpacing.md),
       itemBuilder: (context, i) =>
@@ -508,11 +547,10 @@ class _SavedTab extends ConsumerWidget {
 
     // 他人收藏对外不可见(后端无「查他人 favorites」端点,隐私)——远程他人一律空态。
     // 自己的收藏 = 后端 UUID 收藏完整卡片(remoteFavoritesProvider) + mock 短 id 演示收藏。
-    final isRemoteOther =
-        !isMe && AppConfig.useRemote && looksLikeBackendId(userId);
     // 远程收藏卡按 savedProjectIds 过滤(乐观取消收藏即时隐藏,同 library 屏)。
+    final remoteFavsAsync = ref.watch(remoteFavoritesProvider);
     final remoteFavs = isMe
-        ? (ref.watch(remoteFavoritesProvider).value ?? const <Project>[])
+        ? (remoteFavsAsync.value ?? const <Project>[])
             .where((p) => appState.savedProjectIds.contains(p.id))
         : const <Project>[];
     final saved = isMe
@@ -520,10 +558,24 @@ class _SavedTab extends ConsumerWidget {
             ...remoteFavs,
             ...repo.all().where((p) => appState.savedProjectIds.contains(p.id)),
           ]
-        : isRemoteOther
-            ? const <Project>[]
-            : repo.byAuthor(userId).take(2).toList();
+        : const <Project>[];
 
+    if (isMe &&
+        AppConfig.useRemote &&
+        remoteFavsAsync.isLoading &&
+        appState.savedProjectIds.isNotEmpty) {
+      return const ProjectListSkeleton();
+    }
+    if (isMe &&
+        AppConfig.useRemote &&
+        remoteFavsAsync.error != null &&
+        saved.isEmpty) {
+      return RemoteError(
+        message: '收藏加载失败',
+        error: remoteFavsAsync.error,
+        onRetry: () async => ref.invalidate(remoteFavoritesProvider),
+      );
+    }
     if (saved.isEmpty) {
       return ListView(
         children: const [EmptyState(variant: EmptyStateVariant.saved)],

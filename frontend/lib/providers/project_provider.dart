@@ -16,15 +16,15 @@ import '../domain/models/models.dart';
 ///   detail_screen 已按 AsyncValue 处理 loading/error/data,无需改动。
 final projectByIdProvider =
     FutureProvider.family<Project?, String>((ref, id) async {
+  if (AppConfig.useRemote) {
+    return ref.watch(projectsApiProvider).detail(id);
+  }
   final repo = ref.watch(projectRepositoryProvider);
   final local = repo.byId(id);
   if (local != null) {
     // 模拟异步(Phase 5 接 Drift 时是真异步)
     await Future<void>.delayed(const Duration(milliseconds: 50));
     return local;
-  }
-  if (AppConfig.useRemote) {
-    return ref.watch(projectsApiProvider).detail(id);
   }
   return null;
 });
@@ -33,7 +33,7 @@ final projectByIdProvider =
 final userByIdProvider =
     Provider.family<KkUser?, String>((ref, id) {
   final repo = ref.watch(projectRepositoryProvider);
-  return repo.userById(id) ?? remoteUserById(id);
+  return remoteUserById(id) ?? repo.userById(id);
 });
 
 /// 三 Tab 排序 provider(kankan 屏用)

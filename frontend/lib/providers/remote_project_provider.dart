@@ -22,6 +22,13 @@ final userProjectsProvider =
   return ref.watch(projectsApiProvider).byUser(userId);
 });
 
+/// 我的全部作品，包含审核中等非公开状态；“我的”页不能只读公开主页接口。
+final myProjectsProvider = FutureProvider.autoDispose<List<Project>>((ref) async {
+  final auth = ref.watch(authProvider);
+  if (!auth.isLoggedIn) return const [];
+  return ref.watch(projectsApiProvider).mine();
+});
+
 /// 项目搜索结果（搜索屏「项目」Tab，远端模式用）。后端只搜 title/tagline/tools。
 /// query 变化自动重拉；空 query 早退返空。
 final remoteSearchProjectsProvider =
@@ -36,4 +43,11 @@ final remoteFavoritesProvider =
   final auth = ref.watch(authProvider);
   if (!AppConfig.useRemote || !auth.isLoggedIn) return const <Project>[];
   return ref.watch(interactionsApiProvider).listFavorites();
+});
+
+final remoteTryItemsProvider =
+    FutureProvider.autoDispose<List<TryProjectItem>>((ref) async {
+  final auth = ref.watch(authProvider);
+  if (!AppConfig.useRemote || !auth.isLoggedIn) return const <TryProjectItem>[];
+  return ref.watch(interactionsApiProvider).listTryItems();
 });

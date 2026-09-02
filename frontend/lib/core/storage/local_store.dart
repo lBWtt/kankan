@@ -25,9 +25,12 @@ import '../../providers/app_state_data.dart';
 ///   - 启动：`final s = LocalStore(prefs).loadMerged(AppStateData.initial());`
 ///   - 突变后：`LocalStore(prefs).persist(state);`
 class LocalStore {
-  LocalStore(this._prefs);
+  LocalStore(this._prefs, {String scope = 'guest'}) : _scope = scope;
 
   final SharedPreferences _prefs;
+  final String _scope;
+
+  String _key(String key) => '$_scope::$key';
 
   // ── 读：合并 persisted 与 seed ──
 
@@ -51,13 +54,18 @@ class LocalStore {
           _readStringList(PrefsKeys.kvBrowseHistory) ?? seed.browseHistory,
       unreadNotifIds:
           _readIdSet(PrefsKeys.kvUnreadNotifIds) ?? seed.unreadNotifIds,
-      recentSearchesMap:
-          _readRecentSearches() ?? seed.recentSearchesMap,
+      recentSearchesMap: _readRecentSearches() ?? seed.recentSearchesMap,
       savedTakeaways: _readTakeaways() ?? seed.savedTakeaways,
-      fontScale: _prefs.getString(PrefsKeys.kvFontScale) ?? seed.fontScale,
+      fontScale:
+          _prefs.getString(_key(PrefsKeys.kvFontScale)) ?? seed.fontScale,
       paperTexture:
-          _prefs.getBool(PrefsKeys.kvPaperTexture) ?? seed.paperTexture,
-      dndEnabled: _prefs.getBool(PrefsKeys.kvDndEnabled) ?? seed.dndEnabled,
+          _prefs.getBool(_key(PrefsKeys.kvPaperTexture)) ?? seed.paperTexture,
+      dndEnabled:
+          _prefs.getBool(_key(PrefsKeys.kvDndEnabled)) ?? seed.dndEnabled,
+      currentTabIndex: _prefs.getInt(_key(PrefsKeys.kvCurrentTabIndex)) ??
+          seed.currentTabIndex,
+      bannerImageUrl: _prefs.getString(_key(PrefsKeys.kvBannerImageUrl)) ??
+          seed.bannerImageUrl,
     );
   }
 
@@ -65,47 +73,57 @@ class LocalStore {
   // 每次突变后调用。SharedPreferences.setStringList/setString/setBool 是异步的，
   // 但 in-memory 缓存同步更新；fire-and-forget 即可，下一会话必能读回。
   void persist(AppStateData s) {
-    _prefs.setStringList(PrefsKeys.kvLikedIds, s.likedItemIds.toList());
+    _prefs.setStringList(_key(PrefsKeys.kvLikedIds), s.likedItemIds.toList());
     _prefs.setStringList(
-        PrefsKeys.kvSavedProjectIds, s.savedProjectIds.toList());
+        _key(PrefsKeys.kvSavedProjectIds), s.savedProjectIds.toList());
     _prefs.setStringList(
-        PrefsKeys.kvFollowedUserIds, s.followedUserIds.toList());
+        _key(PrefsKeys.kvFollowedUserIds), s.followedUserIds.toList());
     _prefs.setStringList(
-        PrefsKeys.kvNotInterestedIds, s.notInterestedIds.toList());
-    _prefs.setStringList(PrefsKeys.kvBrowseHistory, s.browseHistory);
+        _key(PrefsKeys.kvNotInterestedIds), s.notInterestedIds.toList());
+    _prefs.setStringList(_key(PrefsKeys.kvBrowseHistory), s.browseHistory);
     _prefs.setStringList(
-        PrefsKeys.kvUnreadNotifIds, s.unreadNotifIds.toList());
+        _key(PrefsKeys.kvUnreadNotifIds), s.unreadNotifIds.toList());
     _writeRecentSearches(s.recentSearchesMap);
     _writeTakeaways(s.savedTakeaways);
-    _prefs.setString(PrefsKeys.kvFontScale, s.fontScale);
-    _prefs.setBool(PrefsKeys.kvPaperTexture, s.paperTexture);
-    _prefs.setBool(PrefsKeys.kvDndEnabled, s.dndEnabled);
+    _prefs.setString(_key(PrefsKeys.kvFontScale), s.fontScale);
+    _prefs.setBool(_key(PrefsKeys.kvPaperTexture), s.paperTexture);
+    _prefs.setBool(_key(PrefsKeys.kvDndEnabled), s.dndEnabled);
+    _prefs.setInt(_key(PrefsKeys.kvCurrentTabIndex), s.currentTabIndex);
+    final banner = s.bannerImageUrl;
+    if (banner != null && banner.isNotEmpty) {
+      _prefs.setString(_key(PrefsKeys.kvBannerImageUrl), banner);
+    } else {
+      _prefs.remove(_key(PrefsKeys.kvBannerImageUrl));
+    }
   }
 
   // ── 内部：读 ──
 
   /// 读 ID 集合。未写过返回 null（让 seed 兜底）；写过空列表返回空 Set。
   Set<String>? _readIdSet(String key) {
-    if (!_prefs.containsKey(key)) return null;
-    return _prefs.getStringList(key)?.toSet() ?? <String>{};
+    final scoped = _key(key);
+    if (!_prefs.containsKey(scoped)) return null;
+    return _prefs.getStringList(scoped)?.toSet() ?? <String>{};
   }
 
   /// 读字符串列表。未写过返回 null。
   List<String>? _readStringList(String key) {
-    if (!_prefs.containsKey(key)) return null;
-    return _prefs.getStringList(key) ?? const [];
+    final scoped = _key(key);
+    if (!_prefs.containsKey(scoped)) return null;
+    return _prefs.getStringList(scoped) ?? const [];
   }
 
   /// 读最近搜索 Map<String,int>。未写过返回 null。
   Map<String, int>? _readRecentSearches() {
-    final raw = _prefs.getString(PrefsKeys.kvRecentSearches);
+    final raw = _prefs.getString(_key(PrefsKeys.kvRecentSearches));
     if (raw == null || raw.isEmpty) return null;
     try {
       final m = jsonDecode(raw);
       if (m is! Map) return null;
       return {
         for (final e in m.entries)
-          if (e.key is String && e.value is int) e.key as String: e.value as int,
+          if (e.key is String && e.value is int)
+            e.key as String: e.value as int,
       };
     } catch (_) {
       return null; // 脏 JSON → 退 seed
@@ -114,7 +132,7 @@ class LocalStore {
 
   /// 读「我拿走的」列表。未写过返回 null。
   List<SavedTakeaway>? _readTakeaways() {
-    final raw = _prefs.getString(PrefsKeys.kvSavedTakeaways);
+    final raw = _prefs.getString(_key(PrefsKeys.kvSavedTakeaways));
     if (raw == null || raw.isEmpty) return null;
     try {
       final list = jsonDecode(raw);
@@ -132,14 +150,14 @@ class LocalStore {
 
   void _writeRecentSearches(Map<String, int> m) {
     _prefs.setString(
-      PrefsKeys.kvRecentSearches,
+      _key(PrefsKeys.kvRecentSearches),
       jsonEncode({for (final e in m.entries) e.key: e.value}),
     );
   }
 
   void _writeTakeaways(List<SavedTakeaway> list) {
     _prefs.setString(
-      PrefsKeys.kvSavedTakeaways,
+      _key(PrefsKeys.kvSavedTakeaways),
       jsonEncode([for (final t in list) _takeawayToMap(t)]),
     );
   }
@@ -157,7 +175,8 @@ class LocalStore {
         'savedAtMs': t.savedAtMs,
       };
 
-  static SavedTakeaway _takeawayFromMap(Map<String, dynamic> m) => SavedTakeaway(
+  static SavedTakeaway _takeawayFromMap(Map<String, dynamic> m) =>
+      SavedTakeaway(
         id: m['id'] as String,
         projectId: m['projectId'] as String,
         projectTitle: m['projectTitle'] as String,

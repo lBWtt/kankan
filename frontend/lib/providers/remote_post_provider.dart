@@ -44,15 +44,15 @@ final remoteSearchPostsProvider =
 /// 动态详情页用（AsyncValue：loading/error/data）。命中已赞则点亮心。
 final postByIdProvider =
     FutureProvider.autoDispose.family<Post?, String>((ref, id) async {
-  final local = ref.watch(postRepositoryProvider).byId(id);
-  if (local != null) {
-    await Future<void>.delayed(const Duration(milliseconds: 30));
-    return local;
-  }
   if (AppConfig.useRemote) {
     final r = await ref.watch(postsApiProvider).detail(id);
     if (r.isLiked) ref.read(appStateProvider.notifier).mergeLikedIds({id});
     return r.post;
+  }
+  final local = ref.watch(postRepositoryProvider).byId(id);
+  if (local != null) {
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    return local;
   }
   return null;
 });

@@ -76,15 +76,6 @@ class _ImplementationClueScreenState
     }
   }
 
-  /// 点「订阅线索更新」— ZAI_PLAYBOOK Part 4 订阅区,**登录拦截点**。
-  /// mock 下用户恒 'me',直接切换。真实场景:未登录 → 走全局登录流程,
-  /// 登录成功后再 toggle。本回调即 onSubscribeTap hook,Claude 接登录 helper。
-  void _onSubscribeTap() {
-    ref.read(clueInteractionProvider.notifier).toggleSubscription(
-          widget.projectId,
-        );
-  }
-
   Future<void> _openUrl(String? url) async {
     if (url == null) return;
     final uri = Uri.tryParse(url);
@@ -95,11 +86,10 @@ class _ImplementationClueScreenState
   @override
   Widget build(BuildContext context) {
     final clueAsync = ref.watch(clueProvider(widget.projectId));
-    // 交互态实时 watch:计数 / 订阅态变化即 rebuild。
+    // 交互态实时 watch:计数 / 标记态变化即 rebuild。
     final interaction = ref.watch(clueInteractionProvider);
     final count = interaction.howToCount(widget.projectId);
     final marked = interaction.hasMarked(widget.projectId);
-    final subscribed = interaction.isSubscribed(widget.projectId);
 
     return Scaffold(
       backgroundColor: KkColors.bg,
@@ -113,12 +103,13 @@ class _ImplementationClueScreenState
                 child: clueAsync.when(
                   loading: _clueSkeleton,
                   error: (e, _) => RemoteError(
-                    message: '线索加载失败',
+                    message: '加载失败',
+                    error: e,
                     onRetry: () async {
                       ref.invalidate(clueProvider(widget.projectId));
                     },
                   ),
-                  data: (clue) => _body(clue, count, marked, subscribed),
+                  data: (clue) => _body(clue, count, marked),
                 ),
               ),
             ],
@@ -143,7 +134,7 @@ class _ImplementationClueScreenState
         children: [
           const KkBackButton(),
           const SizedBox(width: KkSpacing.xs),
-          Text('实现线索', style: KkType.h3),
+          const Icon(Icons.rocket_launch_outlined, size: 22, color: KkColors.t1),
           const Spacer(),
           // 右侧占位,与详情页顶栏视觉重心平衡(无操作)。
           const SizedBox(width: KkTouch.minTarget),
@@ -152,8 +143,8 @@ class _ImplementationClueScreenState
     );
   }
 
-  // ── data 态:6 块从上到下 ──
-  Widget _body(ClueData clue, int count, bool marked, bool subscribed) {
+  // ── data 态:从上到下 ──
+  Widget _body(ClueData clue, int count, bool marked) {
     // 整页无线索(所有可选块全空)→ EmptyState(SPEC §3)。
     final hasSource =
         clue.sourceUrl != null || clue.sourcePlatform != null;
@@ -171,8 +162,8 @@ class _ImplementationClueScreenState
         if (!hasContent)
           const EmptyState(
             variant: EmptyStateVariant.generic,
-            title: '暂无线索',
-            subtitle: '还没有人补充这个作品的实现线索',
+            title: '还没有人标记',
+            subtitle: '第一个标记「想试」的就是你',
           )
         else ...[
           if (hasSource) _sourceCard(clue),
@@ -189,9 +180,6 @@ class _ImplementationClueScreenState
             _relatedBlock(clue.relatedProjects),
           ],
         ],
-        // 6. 订阅区(永远显示)
-        const SizedBox(height: KkSpacing.xxl),
-        _subscribeBlock(subscribed),
       ],
     );
   }
@@ -219,12 +207,9 @@ class _ImplementationClueScreenState
               color: KkColors.t1,
             ),
           ),
-          const SizedBox(height: KkSpacing.xs),
-          // 副标题:有人标记 → 「N 人也想知道怎么做」;无人 → 鼓励先行
-          Text(
-            count > 0 ? '人也想知道怎么做' : '做个先行者，标记你想看',
-            style: KkType.body.copyWith(color: KkColors.t2),
-          ),
+          const SizedBox(height: KkSpacing.sm),
+          // 图标替代文字（「N 人想试」→ 一个 🚀 标志）。
+          const Icon(Icons.rocket_launch_outlined, size: 20, color: KkColors.t3),
           const SizedBox(height: KkSpacing.xl),
           // 主按钮:想看怎么做 / 已想看
           _howToButton(marked),
@@ -262,20 +247,10 @@ class _ImplementationClueScreenState
               )
             else
               Icon(
-                marked ? Icons.check_circle_outline : Icons.lightbulb_outline,
-                size: 20,
+                marked ? Icons.check_circle : Icons.rocket_launch_outlined,
+                size: 24,
                 color: marked ? KkColors.teal : Colors.white,
               ),
-            const SizedBox(width: KkSpacing.sm),
-            Text(
-              marked ? '已想看' : '想看怎么做',
-              style: TextStyle(
-                color: marked ? KkColors.teal : Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                fontFamily: marked ? 'NotoSerifSC' : 'JetBrainsMono',
-              ),
-            ),
           ],
         ),
       ),
@@ -483,52 +458,6 @@ class _ImplementationClueScreenState
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ── 6. 订阅区(登录拦截点)──
-  Widget _subscribeBlock(bool subscribed) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
-      child: Tappable(
-        onTap: _onSubscribeTap,
-        borderRadius: BorderRadius.circular(KkRadius.md),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: KkSpacing.lg),
-          decoration: BoxDecoration(
-            // 已订阅 → 描边态;未订阅 → 墨绿浅底
-            color: subscribed ? Colors.transparent : KkColors.mint,
-            border: Border.all(
-              color: subscribed ? KkColors.bd : KkColors.teal.withAlpha(77),
-              width: 1.5,
-            ),
-            borderRadius: BorderRadius.circular(KkRadius.md),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                subscribed
-                    ? Icons.notifications_active_outlined
-                    : Icons.notifications_none_outlined,
-                size: 18,
-                color: subscribed ? KkColors.t2 : KkColors.teal,
-              ),
-              const SizedBox(width: KkSpacing.sm),
-              Text(
-                subscribed ? '已订阅' : '订阅线索更新',
-                style: TextStyle(
-                  color: subscribed ? KkColors.t2 : KkColors.teal,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  fontFamily: 'NotoSerifSC',
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -59,10 +59,9 @@ class PublishEntrySheet extends StatelessWidget {
             icon: Icons.edit_outlined,
             title: '发动态',
             hint: '文字 + 图 + 话题 + 引用',
-            onTap: () {
-              Navigator.pop(context);
-              onPublishPost?.call();
-            },
+            // sheet 先不关，让 router 的回调决定（回调里会 pop 一次再 push）。
+            // 修 bug：原来这里又 pop 了一次 → 连底层页一起 pop（双 pop）→ 导航栈坏 → 黑屏。
+            onTap: () => onPublishPost?.call(),
           ).animate().slideY(
                 begin: 0.25,
                 end: 0,

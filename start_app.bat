@@ -17,6 +17,12 @@ REM        模拟器没起时本脚本会用正确端口自动拉起并等开机
 REM ============================================
 cd /d F:\kankan\frontend
 
+REM Native Flutter plugins (for example jni) generate CMake JSON inside PUB_CACHE.
+REM Keep both caches on ASCII-only paths; the Windows user profile contains Chinese
+REM characters, which CMake 3.22 can corrupt and later report as MalformedJsonException.
+set GRADLE_USER_HOME=F:\gradle_cache
+set PUB_CACHE=F:\pub_cache
+
 set ADB=F:\android_sdk\platform-tools\adb.exe
 set EMULATOR=F:\android_sdk\emulator\emulator.exe
 set AVD=Pixel_3a_API_33_x86_64

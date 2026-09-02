@@ -7,6 +7,7 @@ import 'app.dart';
 import 'core/prefs.dart';
 import 'core/theme/kk_colors.dart';
 import 'core/theme/tokens.dart';
+import 'data/token_store.dart';
 
 /// 入口。
 ///
@@ -60,9 +61,13 @@ Future<void> main() async {
     return true;
   };
   final prefs = await SharedPreferences.getInstance();
+  final tokenStore = await TokenStore.create(prefs);
   runApp(
     ProviderScope(
-      overrides: [prefsProvider.overrideWithValue(prefs)],
+      overrides: [
+        prefsProvider.overrideWithValue(prefs),
+        tokenStoreProvider.overrideWithValue(tokenStore),
+      ],
       child: const KankanApp(),
     ),
   );

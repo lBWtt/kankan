@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.ratelimit import rate_limit
-from app.models import ClueSubscription, Favorite, Project, ProjectAction, ProjectActionEvent, Report, Share, TryItem, User
+from app.models import Favorite, Project, ProjectAction, ProjectActionEvent, Report, Share, TryItem, User
 from app.schemas.common import OkResponse, ReactionType
 from app.schemas.interaction import (
     HowToInterestRequest,
@@ -85,19 +85,6 @@ def remove_reaction(
     db: Session = Depends(get_db),
 ):
     svc.remove_reaction(db, user, project_id, reaction_type.value)
-
-
-@router.post("/clue-subscription", response_model=OkResponse, status_code=201, responses=ERRORS_AUTHED,
-             summary="订阅线索更新（需登录）")
-def subscribe_clue(project_id: uuid.UUID, user: User = Depends(auth_required), db: Session = Depends(get_db)):
-    svc.add_user_link(db, ClueSubscription, user, project_id)
-    return OkResponse()
-
-
-@router.delete("/clue-subscription", status_code=204, responses=ERRORS_AUTHED,
-               summary="取消订阅线索更新")
-def unsubscribe_clue(project_id: uuid.UUID, user: User = Depends(auth_required), db: Session = Depends(get_db)):
-    svc.remove_user_link(db, ClueSubscription, user, project_id)
 
 
 @router.post("/reports", response_model=ReportCreated, status_code=201, responses=ERRORS_AUTHED,

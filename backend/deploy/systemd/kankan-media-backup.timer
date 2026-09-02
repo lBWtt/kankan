@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Kankan uploads backup every week
+
+[Timer]
+OnCalendar=Sun *-*-* 04:10:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target
+

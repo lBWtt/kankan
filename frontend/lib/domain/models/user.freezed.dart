@@ -17,11 +17,16 @@ mixin _$KkUser {
   String get id;
   String get name;
 
+  /// 稳定用户名 @handle(注册即定、可改;搜索/@/分享用)。改名后仍能靠它搜到人。
+  String? get handle;
+
   /// 头像 URL(null 用首字母 fallback)
   String? get avatar;
 
   /// 一句话简介
   String? get bio;
+  String? get school;
+  int? get age;
 
   /// 关注的人 ID 列表
   List<String> get followingIds;
@@ -43,8 +48,11 @@ mixin _$KkUser {
             other is KkUser &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.name, name) || other.name == name) &&
+            (identical(other.handle, handle) || other.handle == handle) &&
             (identical(other.avatar, avatar) || other.avatar == avatar) &&
             (identical(other.bio, bio) || other.bio == bio) &&
+            (identical(other.school, school) || other.school == school) &&
+            (identical(other.age, age) || other.age == age) &&
             const DeepCollectionEquality()
                 .equals(other.followingIds, followingIds) &&
             const DeepCollectionEquality()
@@ -56,14 +64,17 @@ mixin _$KkUser {
       runtimeType,
       id,
       name,
+      handle,
       avatar,
       bio,
+      school,
+      age,
       const DeepCollectionEquality().hash(followingIds),
       const DeepCollectionEquality().hash(followerIds));
 
   @override
   String toString() {
-    return 'KkUser(id: $id, name: $name, avatar: $avatar, bio: $bio, followingIds: $followingIds, followerIds: $followerIds)';
+    return 'KkUser(id: $id, name: $name, handle: $handle, avatar: $avatar, bio: $bio, school: $school, age: $age, followingIds: $followingIds, followerIds: $followerIds)';
   }
 }
 
@@ -75,8 +86,11 @@ abstract mixin class $KkUserCopyWith<$Res> {
   $Res call(
       {String id,
       String name,
+      String? handle,
       String? avatar,
       String? bio,
+      String? school,
+      int? age,
       List<String> followingIds,
       List<String> followerIds});
 }
@@ -95,8 +109,11 @@ class _$KkUserCopyWithImpl<$Res> implements $KkUserCopyWith<$Res> {
   $Res call({
     Object? id = null,
     Object? name = null,
+    Object? handle = freezed,
     Object? avatar = freezed,
     Object? bio = freezed,
+    Object? school = freezed,
+    Object? age = freezed,
     Object? followingIds = null,
     Object? followerIds = null,
   }) {
@@ -109,6 +126,10 @@ class _$KkUserCopyWithImpl<$Res> implements $KkUserCopyWith<$Res> {
           ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
+      handle: freezed == handle
+          ? _self.handle
+          : handle // ignore: cast_nullable_to_non_nullable
+              as String?,
       avatar: freezed == avatar
           ? _self.avatar
           : avatar // ignore: cast_nullable_to_non_nullable
@@ -117,6 +138,14 @@ class _$KkUserCopyWithImpl<$Res> implements $KkUserCopyWith<$Res> {
           ? _self.bio
           : bio // ignore: cast_nullable_to_non_nullable
               as String?,
+      school: freezed == school
+          ? _self.school
+          : school // ignore: cast_nullable_to_non_nullable
+              as String?,
+      age: freezed == age
+          ? _self.age
+          : age // ignore: cast_nullable_to_non_nullable
+              as int?,
       followingIds: null == followingIds
           ? _self.followingIds
           : followingIds // ignore: cast_nullable_to_non_nullable
@@ -222,16 +251,32 @@ extension KkUserPatterns on KkUser {
 
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>(
-    TResult Function(String id, String name, String? avatar, String? bio,
-            List<String> followingIds, List<String> followerIds)?
+    TResult Function(
+            String id,
+            String name,
+            String? handle,
+            String? avatar,
+            String? bio,
+            String? school,
+            int? age,
+            List<String> followingIds,
+            List<String> followerIds)?
         $default, {
     required TResult orElse(),
   }) {
     final _that = this;
     switch (_that) {
       case _KkUser() when $default != null:
-        return $default(_that.id, _that.name, _that.avatar, _that.bio,
-            _that.followingIds, _that.followerIds);
+        return $default(
+            _that.id,
+            _that.name,
+            _that.handle,
+            _that.avatar,
+            _that.bio,
+            _that.school,
+            _that.age,
+            _that.followingIds,
+            _that.followerIds);
       case _:
         return orElse();
     }
@@ -252,15 +297,31 @@ extension KkUserPatterns on KkUser {
 
   @optionalTypeArgs
   TResult when<TResult extends Object?>(
-    TResult Function(String id, String name, String? avatar, String? bio,
-            List<String> followingIds, List<String> followerIds)
+    TResult Function(
+            String id,
+            String name,
+            String? handle,
+            String? avatar,
+            String? bio,
+            String? school,
+            int? age,
+            List<String> followingIds,
+            List<String> followerIds)
         $default,
   ) {
     final _that = this;
     switch (_that) {
       case _KkUser():
-        return $default(_that.id, _that.name, _that.avatar, _that.bio,
-            _that.followingIds, _that.followerIds);
+        return $default(
+            _that.id,
+            _that.name,
+            _that.handle,
+            _that.avatar,
+            _that.bio,
+            _that.school,
+            _that.age,
+            _that.followingIds,
+            _that.followerIds);
       case _:
         throw StateError('Unexpected subclass');
     }
@@ -280,15 +341,31 @@ extension KkUserPatterns on KkUser {
 
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>(
-    TResult? Function(String id, String name, String? avatar, String? bio,
-            List<String> followingIds, List<String> followerIds)?
+    TResult? Function(
+            String id,
+            String name,
+            String? handle,
+            String? avatar,
+            String? bio,
+            String? school,
+            int? age,
+            List<String> followingIds,
+            List<String> followerIds)?
         $default,
   ) {
     final _that = this;
     switch (_that) {
       case _KkUser() when $default != null:
-        return $default(_that.id, _that.name, _that.avatar, _that.bio,
-            _that.followingIds, _that.followerIds);
+        return $default(
+            _that.id,
+            _that.name,
+            _that.handle,
+            _that.avatar,
+            _that.bio,
+            _that.school,
+            _that.age,
+            _that.followingIds,
+            _that.followerIds);
       case _:
         return null;
     }
@@ -301,8 +378,11 @@ class _KkUser implements KkUser {
   const _KkUser(
       {required this.id,
       required this.name,
+      this.handle,
       this.avatar,
       this.bio,
+      this.school,
+      this.age,
       final List<String> followingIds = const [],
       final List<String> followerIds = const []})
       : _followingIds = followingIds,
@@ -313,6 +393,10 @@ class _KkUser implements KkUser {
   @override
   final String name;
 
+  /// 稳定用户名 @handle(注册即定、可改;搜索/@/分享用)。改名后仍能靠它搜到人。
+  @override
+  final String? handle;
+
   /// 头像 URL(null 用首字母 fallback)
   @override
   final String? avatar;
@@ -320,6 +404,10 @@ class _KkUser implements KkUser {
   /// 一句话简介
   @override
   final String? bio;
+  @override
+  final String? school;
+  @override
+  final int? age;
 
   /// 关注的人 ID 列表
   final List<String> _followingIds;
@@ -360,8 +448,11 @@ class _KkUser implements KkUser {
             other is _KkUser &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.name, name) || other.name == name) &&
+            (identical(other.handle, handle) || other.handle == handle) &&
             (identical(other.avatar, avatar) || other.avatar == avatar) &&
             (identical(other.bio, bio) || other.bio == bio) &&
+            (identical(other.school, school) || other.school == school) &&
+            (identical(other.age, age) || other.age == age) &&
             const DeepCollectionEquality()
                 .equals(other._followingIds, _followingIds) &&
             const DeepCollectionEquality()
@@ -373,14 +464,17 @@ class _KkUser implements KkUser {
       runtimeType,
       id,
       name,
+      handle,
       avatar,
       bio,
+      school,
+      age,
       const DeepCollectionEquality().hash(_followingIds),
       const DeepCollectionEquality().hash(_followerIds));
 
   @override
   String toString() {
-    return 'KkUser(id: $id, name: $name, avatar: $avatar, bio: $bio, followingIds: $followingIds, followerIds: $followerIds)';
+    return 'KkUser(id: $id, name: $name, handle: $handle, avatar: $avatar, bio: $bio, school: $school, age: $age, followingIds: $followingIds, followerIds: $followerIds)';
   }
 }
 
@@ -393,8 +487,11 @@ abstract mixin class _$KkUserCopyWith<$Res> implements $KkUserCopyWith<$Res> {
   $Res call(
       {String id,
       String name,
+      String? handle,
       String? avatar,
       String? bio,
+      String? school,
+      int? age,
       List<String> followingIds,
       List<String> followerIds});
 }
@@ -413,8 +510,11 @@ class __$KkUserCopyWithImpl<$Res> implements _$KkUserCopyWith<$Res> {
   $Res call({
     Object? id = null,
     Object? name = null,
+    Object? handle = freezed,
     Object? avatar = freezed,
     Object? bio = freezed,
+    Object? school = freezed,
+    Object? age = freezed,
     Object? followingIds = null,
     Object? followerIds = null,
   }) {
@@ -427,6 +527,10 @@ class __$KkUserCopyWithImpl<$Res> implements _$KkUserCopyWith<$Res> {
           ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
+      handle: freezed == handle
+          ? _self.handle
+          : handle // ignore: cast_nullable_to_non_nullable
+              as String?,
       avatar: freezed == avatar
           ? _self.avatar
           : avatar // ignore: cast_nullable_to_non_nullable
@@ -435,6 +539,14 @@ class __$KkUserCopyWithImpl<$Res> implements _$KkUserCopyWith<$Res> {
           ? _self.bio
           : bio // ignore: cast_nullable_to_non_nullable
               as String?,
+      school: freezed == school
+          ? _self.school
+          : school // ignore: cast_nullable_to_non_nullable
+              as String?,
+      age: freezed == age
+          ? _self.age
+          : age // ignore: cast_nullable_to_non_nullable
+              as int?,
       followingIds: null == followingIds
           ? _self._followingIds
           : followingIds // ignore: cast_nullable_to_non_nullable

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/network/app_exception.dart';
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/tappable.dart';
+import '../feedback/feedback_sheet.dart';
 
 /// 远程加载失败统一组件 — B3。
 ///
@@ -26,11 +29,34 @@ class RemoteError extends StatefulWidget {
   /// 错误文案(默认「加载失败」)。零旁白:陈述事实,不写「哎呀出错了」。
   final String? message;
 
+  /// 真实错误对象(可选,一般传 provider 的 state.error)。传了就在标题下补一行
+  /// **去泛化的真实原因**:分清「网络不可达 / HTTP 状态码 / 业务码 / 其它」,
+  /// 排查不用再猜(踩过的坑:泛化文案「连不上服务器」掩盖了前端 provider 出错)。
+  final Object? error;
+  final String? feedbackPage;
+  final String? feedbackErrorCode;
+
   const RemoteError({
     super.key,
     required this.onRetry,
     this.message,
+    this.error,
+    this.feedbackPage,
+    this.feedbackErrorCode,
   });
+
+  /// 把异常收敛成一行「人能读 + 能定位」的真实原因;null=没有可显示的细节。
+  static String? reasonOf(Object? error) {
+    if (error == null) return null;
+    if (error is AppException) {
+      if (error.code == 'NETWORK_ERROR') return '网络连不上 · NETWORK_ERROR';
+      if (error.statusCode != null)
+        return 'HTTP ${error.statusCode} · ${error.code}';
+      return error.code == 'UNKNOWN' ? '请求失败 · UNKNOWN' : error.message;
+    }
+    final s = error.toString();
+    return s.length > 80 ? '${s.substring(0, 80)}…' : s;
+  }
 
   @override
   State<RemoteError> createState() => _RemoteErrorState();
@@ -38,6 +64,7 @@ class RemoteError extends StatefulWidget {
 
 class _RemoteErrorState extends State<RemoteError> {
   bool _loading = false;
+  bool _feedbacking = false;
 
   Future<void> _handleRetry() async {
     if (_loading) return;
@@ -48,6 +75,46 @@ class _RemoteErrorState extends State<RemoteError> {
       // onRetry 若触发 provider 重建卸载本组件,mounted=false 跳过,不报错。
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _handleFeedback() async {
+    if (_feedbacking) return;
+    setState(() => _feedbacking = true);
+    final code = widget.feedbackErrorCode ?? _codeOf(widget.error);
+    final ok = await showFeedbackSheet(
+      context,
+      sourcePage: widget.feedbackPage ?? _currentLocation(context),
+      errorCode: code,
+    );
+    if (!mounted) return;
+    setState(() => _feedbacking = false);
+    if (ok) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content:
+              Text('\u53cd\u9988\u5df2\u63d0\u4ea4\uff0c\u8c22\u8c22\uff01'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  String? _currentLocation(BuildContext context) {
+    try {
+      return GoRouterState.of(context).uri.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _codeOf(Object? error) {
+    if (error is AppException) {
+      if (error.statusCode != null) {
+        return 'HTTP_${error.statusCode}_${error.code}';
+      }
+      return error.code;
+    }
+    return error?.runtimeType.toString();
   }
 
   @override
@@ -65,6 +132,15 @@ class _RemoteErrorState extends State<RemoteError> {
               style: KkType.body.copyWith(color: KkColors.t3),
               textAlign: TextAlign.center,
             ),
+            // 去泛化:标题下补一行真实原因(网络/HTTP码/业务码),没有 error 则不显示。
+            if (RemoteError.reasonOf(widget.error) != null) ...[
+              const SizedBox(height: KkSpacing.xs),
+              Text(
+                RemoteError.reasonOf(widget.error)!,
+                style: KkType.bodySm.copyWith(color: KkColors.t4),
+                textAlign: TextAlign.center,
+              ),
+            ],
             const SizedBox(height: KkSpacing.lg),
             Tappable(
               // loading 时禁用(防重复点 + 视觉降权)。
@@ -100,6 +176,12 @@ class _RemoteErrorState extends State<RemoteError> {
                         ),
                       ),
               ),
+            ),
+            const SizedBox(height: KkSpacing.sm),
+            TextButton.icon(
+              onPressed: _feedbacking ? null : _handleFeedback,
+              icon: const Icon(Icons.bug_report_outlined, size: 18),
+              label: const Text('\u53cd\u9988 Bug'),
             ),
           ],
         ),

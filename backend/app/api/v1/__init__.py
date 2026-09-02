@@ -7,9 +7,11 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     admin,
+    app_meta,
     auth,
     comments,
     events,
+    feedback,
     me,
     media,
     notifications,
@@ -17,6 +19,7 @@ from app.api.v1 import (
     project_actions,
     projects,
     rankings,
+    topics,
     users,
 )
 
@@ -33,4 +36,7 @@ api_v1_router.include_router(media.router)
 api_v1_router.include_router(events.router)
 api_v1_router.include_router(comments.router)
 api_v1_router.include_router(posts.router)
+api_v1_router.include_router(topics.router)
+api_v1_router.include_router(feedback.router)
 api_v1_router.include_router(admin.router)
+api_v1_router.include_router(app_meta.router)

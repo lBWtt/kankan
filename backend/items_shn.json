@@ -1,0 +1,458 @@
+[
+  {
+    "source_url": "https://vincentwoo.com/3d/grace_cathedral/",
+    "title": "Immersive Gaussian Splat tour of grace cathedral, San Francisco",
+    "text": "Immersive Gaussian Splat tour of grace cathedral, San Francisco",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://vincentwoo.com/3d/grace_cathedral/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 106,
+      "comments": 22
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fvincentwoo.com%2F3d%2Fgrace_cathedral%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "akanet",
+    "original_author_url": "https://news.ycombinator.com/user?id=akanet"
+  },
+  {
+    "source_url": "https://wheesper.com/",
+    "title": "Wheesper – Start an anonymous discussion with a link",
+    "text": "Wheesper – Start an anonymous discussion with a link。Private discussions. Honest replies.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://wheesper.com/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 33,
+      "comments": 22
+    },
+    "media": [
+      {
+        "url": "https://wheesper.com/opengraph-image.png?opengraph-image.1m2qzdzc0oud3.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwheesper.com%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "whatdoyouthink2",
+    "original_author_url": "https://news.ycombinator.com/user?id=whatdoyouthink2"
+  },
+  {
+    "source_url": "https://www.passinote.app/",
+    "title": "A canvas-based note taking and organizer app",
+    "text": "A canvas-based note taking and organizer app",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://www.passinote.app/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 60,
+      "comments": 32
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwww.passinote.app%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "passiflora96",
+    "original_author_url": "https://news.ycombinator.com/user?id=passiflora96"
+  },
+  {
+    "source_url": "https://bribes.fyi/",
+    "title": "Bribes.fyi – Built something to report bribes",
+    "text": "Bribes.fyi – Built something to report bribes。Anonymous bribe reports aggregated into department rankings, city breakdowns, and service-level averages. India's first crowdsourced corruption transparency platform.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://bribes.fyi/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 46,
+      "comments": 45
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fbribes.fyi%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "neverenderr",
+    "original_author_url": "https://news.ycombinator.com/user?id=neverenderr"
+  },
+  {
+    "source_url": "https://imaxxing.io/",
+    "title": "Get alerts for good seats at 70mm IMAX showings of The Odyssey",
+    "text": "Get alerts for good seats at 70mm IMAX showings of The Odyssey。Get frame mogged. IMAXXING watches US 70mm IMAX seat maps and alerts you when good seats for The Odyssey open up.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://imaxxing.io/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 31,
+      "comments": 56
+    },
+    "media": [
+      {
+        "url": "https://imaxxing.io/og.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fimaxxing.io%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "andrewtorkbaker",
+    "original_author_url": "https://news.ycombinator.com/user?id=andrewtorkbaker"
+  },
+  {
+    "source_url": "https://q3edit.com",
+    "title": "Q3Edit – Edit and play Quake 3 maps in the browser",
+    "text": "Q3Edit – Edit and play Quake 3 maps in the browser。Q3Edit is an open-source, browser-based level editor for Quake III Arena — TypeScript + WebGL2, with id Software",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://q3edit.com",
+    "language": "en-US",
+    "engagement": {
+      "likes": 104,
+      "comments": 26
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fq3edit.com?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "drdator",
+    "original_author_url": "https://news.ycombinator.com/user?id=drdator"
+  },
+  {
+    "source_url": "https://ikea.greg.technology/",
+    "title": "IKEA Complexity Index",
+    "text": "IKEA Complexity Index",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://ikea.greg.technology/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 178,
+      "comments": 87
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fikea.greg.technology%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "gregsadetsky",
+    "original_author_url": "https://news.ycombinator.com/user?id=gregsadetsky"
+  },
+  {
+    "source_url": "https://app.everything.diena.co/",
+    "title": "A zoomable timeline of 4M Wikipedia events",
+    "text": "A zoomable timeline of 4M Wikipedia events。Explore the timeline of everything, from the Big Bang to the present day, and beyond. Discover the history of the universe, life on Earth, and human civilization in a new and interactive way.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://app.everything.diena.co/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 116,
+      "comments": 43
+    },
+    "media": [
+      {
+        "url": "/diena-everything-feature-graphic.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fapp.everything.diena.co%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "lortex",
+    "original_author_url": "https://news.ycombinator.com/user?id=lortex"
+  },
+  {
+    "source_url": "https://honeypotlive.cc/",
+    "title": "Watch bots interact with an SSH honeypot in real time",
+    "text": "Watch bots interact with an SSH honeypot in real time",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://honeypotlive.cc/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 181,
+      "comments": 61
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fhoneypotlive.cc%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "tusksm",
+    "original_author_url": "https://news.ycombinator.com/user?id=tusksm"
+  },
+  {
+    "source_url": "https://mojibake.zaerl.com/",
+    "title": "Mojibake – A low-level Unicode library written in C",
+    "text": "Mojibake – A low-level Unicode library written in C。Mojibake is a fast, self-contained Unicode 18 library for C11 and C++17.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://mojibake.zaerl.com/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 77,
+      "comments": 22
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fmojibake.zaerl.com%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "program",
+    "original_author_url": "https://news.ycombinator.com/user?id=program"
+  },
+  {
+    "source_url": "https://bethechatbot.com/",
+    "title": "Be the ChatBOT",
+    "text": "Be the ChatBOT。An experimental role-reversal chatbot: you play the AI and answer users’ prompts.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://bethechatbot.com/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 55,
+      "comments": 26
+    },
+    "media": [
+      {
+        "url": "https://bethechatbot.com/og-image.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fbethechatbot.com%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "keito",
+    "original_author_url": "https://news.ycombinator.com/user?id=keito"
+  },
+  {
+    "source_url": "https://github.com/cmk/connections",
+    "title": "Galois connections for composable numeric casts in Rust",
+    "text": "Galois connections for composable numeric casts in Rust。Contribute to cmk/connections development by creating an account on GitHub.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://github.com/cmk/connections",
+    "language": "en-US",
+    "engagement": {
+      "likes": 31,
+      "comments": 3
+    },
+    "media": [
+      {
+        "url": "https://github.com/cmk/connections/raw/main/img/example.png",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "partialsolve",
+    "original_author_url": "https://news.ycombinator.com/user?id=partialsolve"
+  },
+  {
+    "source_url": "https://github.com/patonw/leaves",
+    "title": "Leaves – A text-UI disk usage treemap visualizer",
+    "text": "Leaves – A text-UI disk usage treemap visualizer。A text-mode disk usage visualization utility. Contribute to patonw/leaves development by creating an account on GitHub.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://github.com/patonw/leaves",
+    "language": "en-US",
+    "engagement": {
+      "likes": 91,
+      "comments": 31
+    },
+    "media": [
+      {
+        "url": "https://raw.githubusercontent.com/patonw/leaves/HEAD/docs/images/leaves-nixpkgs.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/patonw/leaves/HEAD/docs/images/normal-mode.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/patonw/leaves/HEAD/docs/images/deflated.png",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "patonw",
+    "original_author_url": "https://news.ycombinator.com/user?id=patonw"
+  },
+  {
+    "source_url": "https://bamboo.kickstage.com",
+    "title": "BambooGrid – Open-source web UI for power grid modeling and power flow",
+    "text": "BambooGrid – Open-source web UI for power grid modeling and power flow。Build power networks and run pandapower load-flow calculations in your browser. A visual editor for students and beginners learning power systems. Beta.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://bamboo.kickstage.com",
+    "language": "en-US",
+    "engagement": {
+      "likes": 37,
+      "comments": 13
+    },
+    "media": [
+      {
+        "url": "/bamboogrid-social-sharing.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fbamboo.kickstage.com?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "soaringmonchi",
+    "original_author_url": "https://news.ycombinator.com/user?id=soaringmonchi"
+  },
+  {
+    "source_url": "https://gameswithtony.com/gorillas/",
+    "title": "QBasic Gorillas (Repeeled)",
+    "text": "QBasic Gorillas (Repeeled)。A snazzed up tribute to QBasic Gorillas. Hotseat or vs. AI.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://gameswithtony.com/gorillas/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 30,
+      "comments": 30
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fgameswithtony.com%2Fgorillas%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "TonyAlicea10",
+    "original_author_url": "https://news.ycombinator.com/user?id=TonyAlicea10"
+  },
+  {
+    "source_url": "https://hilogame.cc/",
+    "title": "I've built a words game based on binary search",
+    "text": "I've built a words game based on binary search。Hilo - Hi. Lo. Solve. A daily word puzzle.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://hilogame.cc/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 49,
+      "comments": 68
+    },
+    "media": [
+      {
+        "url": "https://hilogame.cc/og-image.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fhilogame.cc%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "ludovicianul",
+    "original_author_url": "https://news.ycombinator.com/user?id=ludovicianul"
+  },
+  {
+    "source_url": "https://playonemoreletter.com/",
+    "title": "One More Letter",
+    "text": "One More Letter。One More Letter is a daily word game where every round adds one letter and rearranges them into a new answer.",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://playonemoreletter.com/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 90,
+      "comments": 59
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fplayonemoreletter.com%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "hmate9",
+    "original_author_url": "https://news.ycombinator.com/user?id=hmate9"
+  },
+  {
+    "source_url": "https://developer.puter.com/labs/firefox-wasm/",
+    "title": "Firefox in WebAssembly",
+    "text": "Firefox in WebAssembly",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://developer.puter.com/labs/firefox-wasm/",
+    "language": "en-US",
+    "engagement": {
+      "likes": 271,
+      "comments": 126
+    },
+    "media": [
+      {
+        "url": "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fdeveloper.puter.com%2Flabs%2Ffirefox-wasm%2F?w=1200",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "coolelectronics",
+    "original_author_url": "https://news.ycombinator.com/user?id=coolelectronics"
+  },
+  {
+    "source_url": "https://github.com/welcome-to-the-sunny-side/misa77",
+    "title": "misa77 - a codec that decodes 2x faster than LZ4 (at better ratios)",
+    "text": "misa77 - a codec that decodes 2x faster than LZ4 (at better ratios)。Ridiculously fast decompression at good ratios. misa77 is 1.5-3x faster than LZ4 for decompression on x86 and ARM (with better ratios!). - welcome-to-the-sunny-side/misa77",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://github.com/welcome-to-the-sunny-side/misa77",
+    "language": "en-US",
+    "engagement": {
+      "likes": 164,
+      "comments": 49
+    },
+    "media": [
+      {
+        "url": "https://raw.githubusercontent.com/welcome-to-the-sunny-side/misa77/HEAD/misc/lzbench-results-archive/0.4.0/speedup_vs_lz4.png",
+        "media_type": "image"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/welcome-to-the-sunny-side/misa77/HEAD/misc/lzbench-results-archive/0.4.0/pareto_silesia.png",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "nonadhocproblem",
+    "original_author_url": "https://news.ycombinator.com/user?id=nonadhocproblem"
+  },
+  {
+    "source_url": "https://github.com/loopgain-ai/loopgain",
+    "title": "LoopGain – Stop agent loops with control theory, not max_iterations",
+    "text": "LoopGain – Stop agent loops with control theory, not max_iterations。An open-source cost controller for AI agent loops — stops a loop when it's actually converged and rolls back before it degrades, instead of running to a fixed max_iterations cap. Real-time loop-gain (Aβ) bands + best-so-far rollback. Adapters for LangGraph, CrewAI, AutoGen, LangChain, OpenAI Agents, and Claude Agent SDK; raw API for custom stacks. - loopgain-ai/loopgain",
+    "source_platform": "hackernews",
+    "content_kind": "project",
+    "try_url": "https://github.com/loopgain-ai/loopgain",
+    "language": "en-US",
+    "engagement": {
+      "likes": 31,
+      "comments": 13
+    },
+    "media": [
+      {
+        "url": "https://loopgain.ai/dashboard-demo.png",
+        "media_type": "image"
+      }
+    ],
+    "original_author_name": "fitz2882",
+    "original_author_url": "https://news.ycombinator.com/user?id=fitz2882"
+  }
+]

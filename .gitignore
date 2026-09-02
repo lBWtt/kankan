@@ -20,3 +20,37 @@ build/
 *.iml
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# 大文件/构建产物/浏览器缓存（别入库）
+*.apk
+*.jks
+*.keystore
+**/key.properties
+**/signing.properties
+.jike_userdata/
+backend/.jike_userdata/
+*_userdata/
+backend/.*_userdata/
+*.dump
+
+# ---- 本地实验产物 / 采集快照 / 打包临时件（只在本机跑，别入库）----
+# 根目录下所有以下划线开头的临时件与目录：_apkcheck/ _douyin_*/ _social_*/ _backend_deploy.tgz 等
+/_*
+# 采集/审核实验的中间 JSON 落盘（backend/items_*.json、jike 原始抓取、快照等）
+backend/items_*.json
+backend/jike_*.json
+backend/*_snapshot.json
+backend/uploads.zip
+kk_login.json
+kk_probe.json
+# 调试/验收截图：根目录所有 png（emulator_*、phone_*、search_*、current_* 等都在根）
+/*.png
+frontend/phone-screen.png
+frontend/apk_extract/
+frontend/apk_extract2/
+# 打包/部署临时归档与 Windows 快捷方式
+*.tgz
+*.tar
+*.lnk
+# 本地数据库/媒体备份归档目录
+/backups/

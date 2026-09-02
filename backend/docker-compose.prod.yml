@@ -8,20 +8,34 @@
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 # 注意：backend 固定单实例（定时任务随服务进程跑，多实例会重复执行榜单刷新/媒体回收）。
 # ============================================================
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   backend:
     build:
       context: .
-      # 国内服务器构建可加：args: { PIP_INDEX_URL: "https://pypi.tuna.tsinghua.edu.cn/simple" }
+      # 国内服务器构建走清华镜像：直连 pypi.org 会超时重试失败（腾讯云上海实测）。
+      args:
+        PIP_INDEX_URL: "https://pypi.tuna.tsinghua.edu.cn/simple"
     container_name: ccpj_backend
     restart: unless-stopped
+    logging: *default-logging
+    # 只绑本机：对外统一走 nginx:80/443，8000 不暴露到公网（服务器本机仍可 curl 调试）
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       DATABASE_URL: postgresql+psycopg2://ccpj:${POSTGRES_PASSWORD:?生产必须设置数据库密码}@postgres:5432/ccpj
       REDIS_URL: redis://redis:6379/0
       APP_ENV: ${APP_ENV:-prod}
       JWT_SECRET: ${JWT_SECRET:?生产必须设置 JWT 密钥}
+      # 反代层数：nginx 一层 → 1，IP 限流才取到真实客户端 IP（默认 0 会用到 nginx 内网 IP）
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # 内部审核台：prod 默认不挂，要用置 1（务必配合 IP 白名单/内网，别裸奔公网）
+      ADMIN_WEB_ENABLED: ${ADMIN_WEB_ENABLED:-0}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
       S3_BUCKET: ${S3_BUCKET:-}
@@ -35,22 +49,58 @@ services:
       ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
       ALIYUN_SMS_TEMPLATE_CODE: ${ALIYUN_SMS_TEMPLATE_CODE:-}
       SHARE_BASE_URL: ${SHARE_BASE_URL:-https://share.example.dev}
+      # web 前端与 API 同源部署（nginx 反代）时可留空；跨域访问时填 web 域名（逗号分隔）
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
       # AI 抓取管线（docker exec ccpj_backend python -m app.pipeline process 时用；可不配）
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-8}
+      # AI 整理 provider：claude / deepseek（你在用 deepseek）
+      AI_PROVIDER: ${AI_PROVIDER:-claude}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MAX_TOKENS: ${DEEPSEEK_MAX_TOKENS:-32768}
+      # 成本护栏：每日 AI 调用上限（0=不限）+ 连续失败熔断阈值
+      AI_DAILY_CALL_CAP: ${AI_DAILY_CALL_CAP:-0}
+      AI_FAILURE_CIRCUIT_BREAKER: ${AI_FAILURE_CIRCUIT_BREAKER:-5}
+      # 定时整理调度：默认关；开启后每 N 分钟自动整理一批采集候选（受成本护栏约束）
+      INGEST_SCHEDULER_ENABLED: ${INGEST_SCHEDULER_ENABLED:-false}
+      INGEST_INTERVAL_MINUTES: ${INGEST_INTERVAL_MINUTES:-30}
+      INGEST_BATCH_LIMIT: ${INGEST_BATCH_LIMIT:-20}
     volumes:
       # storage_backend=local 时媒体的持久化盘（切 s3 后可去掉）
       - uploads:/srv/app/uploads
+      # AI 审核必须读取整份内容宪法；只读挂载根目录 SSOT，避免在镜像里复制出第二份规则。
+      - ../docs/CONTENT_CONSTITUTION.md:/srv/docs/CONTENT_CONSTITUTION.md:ro
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  # nginx：对外唯一入口——托管 Flutter web + 反代 /api、/uploads 到后端（前后端同源）。
+  # web 静态包由本地 `flutter build web` 产出后放到 WEB_ROOT（默认整仓 checkout 时的相对路径）。
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ccpj_nginx
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"   # HTTPS（lovluu.com 已备案，certbot 证书）
+    volumes:
+      - ${WEB_ROOT:-../frontend/build/web}:/usr/share/nginx/html:ro
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/.htpasswd:/etc/nginx/.htpasswd:ro
+      - /etc/letsencrypt:/etc/nginx/certs:ro   # certbot live/archive；nginx 引用 live/lovluu.com/*.pem
+    depends_on:
+      - backend
+
   postgres:
     image: postgres:16
     container_name: ccpj_postgres_prod
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: ccpj
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?生产必须设置数据库密码}
@@ -68,6 +118,7 @@ services:
     image: redis:7
     container_name: ccpj_redis_prod
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - redisdata:/data
     healthcheck:

@@ -22,7 +22,9 @@ String _getOrCreateAnonId(SharedPreferences prefs) {
   var id = prefs.getString(PrefsKeys.anonClientId);
   if (id == null || id.isEmpty) {
     final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final rnd = Random().nextInt(1 << 32).toRadixString(36);
+    // 不用 1<<32：web(dart2js/DDC) 上 1<<32 越界 → Random().nextInt 抛 RangeError，
+    // 会让首次访问（本地还没 anon id）的游客整个 feed 崩到 ErrorWidget。0xFFFFFFFF 安全。
+    final rnd = Random().nextInt(0xFFFFFFFF).toRadixString(36);
     id = 'anon-$ts-$rnd'; // ≤64 字符，满足后端约束
     prefs.setString(PrefsKeys.anonClientId, id);
   }
@@ -96,4 +98,32 @@ class PrefsKeys {
 
   /// 免打扰开关。
   static const kvDndEnabled = 'kv_dnd_enabled';
+
+  /// 「今日话题」横条被手动关掉的日期（yyyy-mm-dd）。当天==此值则隐藏，次日自动再现。
+  static const kvTopicDismissDate = 'kv_topic_dismiss_date';
+
+  /// 上次停留的底部 tab index（重启回到上次那个 tab，不再永远回发现页）。
+  static const kvCurrentTabIndex = 'kv_current_tab_index';
+
+  /// 「我的」页自定义的 banner 背景图地址（移动端是文件路径，重启不丢）。
+  static const kvBannerImageUrl = 'kv_banner_image_url';
+
+  /// Light first-run onboarding for the Kankan value proposition.
+  static const kvKankanOnboardingSeen = 'kv_kankan_onboarding_seen_v1';
+
+  /// 首次启动隐私选择：accepted=同意必要数据+匿名改进数据；
+  /// essential_only=仅允许提供服务所必需的数据处理，不发送匿名产品埋点。
+  static const kvPrivacyChoice = 'kv_privacy_choice_v1';
 }
+
+const String privacyChoiceAccepted = 'accepted';
+const String privacyChoiceEssentialOnly = 'essential_only';
+
+bool hasPrivacyDecision(SharedPreferences prefs) {
+  final choice = prefs.getString(PrefsKeys.kvPrivacyChoice);
+  return choice == privacyChoiceAccepted ||
+      choice == privacyChoiceEssentialOnly;
+}
+
+bool analyticsConsentGranted(SharedPreferences prefs) =>
+    prefs.getString(PrefsKeys.kvPrivacyChoice) == privacyChoiceAccepted;

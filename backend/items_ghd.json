@@ -1,0 +1,1068 @@
+[
+  {
+    "source_url": "http://t.cn/A6n4HUTW",
+    "title": "OmniParser",
+    "text": "一款基于纯视觉的 GUI 智能体，能够准确识别界面上可交互图标以及理解截图中各元素语义，实现自动化界面交互场景，如自动化测试、自动化操作等。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "http://t.cn/A6n4HUTW"
+  },
+  {
+    "source_url": "https://github.com/2noise/ChatTTS",
+    "title": "ChatTTS",
+    "text": "一款专门为对话场景设计的语音生成模型，主要用于 LLM 助手对话任务、对话语音以及视频介绍等，支持中英文混合文本合成语音，音色表现强，能达到真假难辨程度。\n\nA generative speech model for daily dialogue. Contribute to 2noise/ChatTTS development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/2noise/ChatTTS",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/f7e9287d9c06de05a2f72d4b010e94445aff1389ecc09ef754d4d1c2bd5f331c/2noise/ChatTTS",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/intelligent-machine-learning/dlrover",
+    "title": "DLRover",
+    "text": "一套 AI 大模型训练方案，可实现训练\"自动驾驶\"，提高训练效率，降低研发成本，具有容错性、快速恢复和自动扩展等特点。\n\nDLRover: An Automatic Distributed Deep Learning System - intelligent-machine-learning/dlrover",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/intelligent-machine-learning/dlrover",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/c00bad766bbeca0b941a3cf0f5fa196155fe02ecf420f89058195bfe01237d1f/intelligent-machine-learning/dlrover",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/hpcaitech/SwiftInfer",
+    "title": "SwiftInfer",
+    "text": "一款基于 TensorRT 实现的 StreamingLLM 推理加速框架，可提升大模型推理性能 46 %，为多轮对话推理提供高效可靠的落地方案。\n\nEfficient AI Inference & Serving. Contribute to hpcaitech/SwiftInfer development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/hpcaitech/SwiftInfer",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/fe9524cae170c6bbc9f3ef67a5fe9f4b7276475572f759fa9fa50fa78e598e8a/hpcaitech/SwiftInfer",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/facebookresearch/audio2photoreal",
+    "title": "Audio2PhotoReal",
+    "text": "一项由 Meta AI 发布的新技术，能够通过音频驱动生成全身逼真的虚拟人物对话，包括动作、表情和多人对话等，可广泛应用于虚拟现实、影视制作等领域。\n\nCode and dataset for photorealistic Codec Avatars driven from audio - facebookresearch/audio2photoreal",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/facebookresearch/audio2photoreal",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/7661bf60763084a48d53f2c37db4f04b086e239c0f13c152b2b8a81aa10c1a61/facebookresearch/audio2photoreal",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/myshell-ai/OpenVoice",
+    "title": "OpenVoice",
+    "text": "一项由 MyShell 团队开发的多功能即时声音克隆技术，只需提供简短音频样本，即可克隆原发言者的声音，生成多种语言语音，支持高精度音色克隆、灵活的声音风格调控以及无需样本的跨语言声音克隆。\n\nInstant voice cloning by MIT and MyShell. Audio foundation model. - myshell-ai/OpenVoice",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/myshell-ai/OpenVoice",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/2ee30fe7592b34a86d00f46a02a82003b33fc7cea80b1ac08b2dd5decd1815b1/myshell-ai/OpenVoice",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/anti-work/shortest",
+    "title": "Shortest",
+    "text": "一款利用 Claude 模型能力的端到端 AI 测试框架，通过自然语言编写可执行的单元测试，支持 GitHub 与 2FA 集成，提供安全认证方式。\n\nQA via natural language AI tests. Contribute to antiwork/shortest development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/anti-work/shortest",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/0d699d45f47cd3a0d7f3599a8d4cd707ff0f8c0682efba6e4989543487bb3562/antiwork/shortest",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/ZGGSONG/STranslate",
+    "title": "STranslate",
+    "text": "一款开箱即用的翻译和 OCR 工具，支持多种翻译方式、多家翻译服务、离线 OCR、回译、TTS 等功能，提升翻译效率。\n\nA ready-to-go translation ocr tool developed with WPF/WPF 开发的一款即用即走的翻译、OCR工具 - STranslate/STranslate",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/ZGGSONG/STranslate",
+    "media": [
+      {
+        "url": "https://repository-images.githubusercontent.com/579375422/2fe6846e-cff1-4823-8ad7-c1ab245e8abf",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/xiaoxiunique/x-kit",
+    "title": "x-kit",
+    "text": "一款用于抓取和分析 Twitter 推友数据的工具，可自动抓取指定推友的基本信息和推文，支持定时更新时间线数据和本地存储。\n\n一个用于抓取和分析 X (Twitter) 用户数据和推文的工具。. Contribute to xiaoxiunique/x-kit development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/xiaoxiunique/x-kit",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/484f51e1830c7fc5a2841a8d3fe031454e8ad0bcde59b613cb5ed6b94b5212e6/xiaoxiunique/x-kit",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://huggingface.co/spaces/hkchengrex/MMAudio",
+    "title": "MMAudio",
+    "text": "一款视频自动配音工具，可根据视频内容或文本提示生成符合场景的音效，并与视频画面动作保持同步对齐。\n\nThis app lets you add realistic sound to a video or create stand‑alone audio just by describing it with text. Upload a short video (5‑12 seconds) and type a prompt, or simply enter a prompt alone, ...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://huggingface.co/spaces/hkchengrex/MMAudio",
+    "media": [
+      {
+        "url": "https://cdn-thumbnails.huggingface.co/social-thumbnails/spaces/hkchengrex/MMAudio.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/hoarder-app/hoarder",
+    "title": "Hoarder",
+    "text": "一款自托管的书签管理 AI 工具，支持保存链接、笔记、图片和 PDF 文件，利用 AI 自动打标签分类存储，提供全文搜索能力。\n\nA self-hostable bookmark-everything app (links, notes and images) with AI-based automatic tagging and full text search - karakeep-app/karakeep",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/hoarder-app/hoarder",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/dec8a5d3bbb6e2e82b65484af1a90e83836755d20d66c6f4414df601122d7db9/karakeep-app/karakeep",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/web-infra-dev/midscene",
+    "title": "Midscene.js",
+    "text": "一款由 AI 驱动的 UI 自动化 SDK，通过自然语言描述对任意网页进行自动化操作、验证和数据提取，生成可视化测试报告，支持多种主流 AI 模型和自动化库集成。\n\nAI-powered, vision-driven UI automation for every platform. - web-infra-dev/midscene",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/web-infra-dev/midscene",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/54fe5b32d0d7ce15664daf0760c6b13e8b876e384a869251a3f0c729405cdb62/web-infra-dev/midscene",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/browser-use/browser-use",
+    "title": "Browser Use",
+    "text": "一款开源工具，能让 AI 智能体自动化操作浏览器，像真人一样理解网页内容并完成复杂任务，如投递简历、查询航班等，具备视觉识别、HTML 解析、多标签页管理等功能。\n\n🌐 Make websites accessible for AI agents. Automate tasks online with ease. - browser-use/browser-use",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/browser-use/browser-use",
+    "media": [
+      {
+        "url": "https://repository-images.githubusercontent.com/881458615/fddb1de9-5742-4037-8ea9-bf8f1cfd2f58",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/hpcaitech/Open-Sora",
+    "title": "Video Ocean",
+    "text": "一款基于 Colossal - AI 优化的 Sora 视频模型的免费视频生成平台，提供极低成本、快速的视频生成服务，并将优化方案开源。\n\nOpen-Sora: Democratizing Efficient Video Production for All - hpcaitech/Open-Sora",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/hpcaitech/Open-Sora",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/589fbbfa7a663dc91cac37a5c53d000c750917a5563693ea8abc2ee4c60c9a1b/hpcaitech/Open-Sora",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Nutlope/logocreator",
+    "title": "LogoCreator",
+    "text": "一款开源的 AI Logo 生成器，使用 Flux Pro 1 . 1 模型快速生成 Logo 图标，支持编辑样式，代码完全开源并提供免费体验。\n\nA free + OSS logo generator powered by Flux on Together AI - Nutlope/logocreator",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Nutlope/logocreator",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/523d0b488f5338a629e5510490301f4c7f3a720fbe4250440dd35b5d0f594bac/Nutlope/logocreator",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/microsoft/markitdown",
+    "title": "MarkltDown",
+    "text": "一款由微软开源的工具，可将常见文件如 Word、Excel、PPT 等转换为 Markdown 格式，支持 OCR 和 AI 模型处理多媒体文件，提供命令行、Python API 和 Docker 三种使用方式。\n\nPython tool for converting files and office documents to Markdown. - microsoft/markitdown",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/microsoft/markitdown",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/62d7fa30a004ecae4bf55d6d2f9eb0d1345a5e435f3ddd8bd4a9f7fd4b496a71/microsoft/markitdown",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Byaidu/PDFMathTranslate",
+    "title": "PDFMathTranslate",
+    "text": "一款开源的 PDF 文档翻译及双语对照工具，能够很好地保留公式、图表、目录和注释等排版，支持多种语言和翻译服务，可通过命令行、GUI 界面、Docker 等方式使用。\n\n[EMNLP 2025 Demo] PDF scientific paper translation with preserved formats - 基于 AI 完整保留排版的 PDF 文档全文双语翻译，支持 Google/DeepL/Ollama/OpenAI 等服务，提供 CLI/GUI/MCP/Docker/Zotero - PDFMathTranslate/PDFMathTrans...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Byaidu/PDFMathTranslate",
+    "media": [
+      {
+        "url": "https://repository-images.githubusercontent.com/853189791/963df51a-2bb2-4982-9c22-7f26dfc0aae4",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/nishuzumi/gemini-teacher",
+    "title": "Gemini-Teacher",
+    "text": "一款基于 Gemini 2 . 0 开发的英语口语练习 AI 助手，能实时识别发音并提供反馈和纠正建议，适合英语口语学习和教学。\n\nEnglish pronunciation correction teacher built with gemini - nishuzumi/gemini-teacher",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/nishuzumi/gemini-teacher",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/6694571b22761dc0d40aa9d17badeaa48087bc3716d34e8ee1558340ccc699af/nishuzumi/gemini-teacher",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/whotto/Video_note_generator",
+    "title": "XHS Note Generator",
+    "text": "一款小红书笔记 AI 生成器，支持快速批量将视频或直播内容一键转换为符合小红书风格的爆款笔记，自动优化内容和配图。\n\n一键将视频转换为优质小红书笔记，自动优化内容和配图. Contribute to whotto/Video_note_generator development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/whotto/Video_note_generator",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/b4632f20bd0416a17e188b7f49ba6e76e57a757a46e2c155f503604d9478c196/whotto/Video_note_generator",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/mediar-ai/screenpipe",
+    "title": "ScreenPipe",
+    "text": "一款强大的开源 AI 桌面应用，可 24 小时监控电脑，通过屏幕录制、OCR、音频输入和转录收集信息，保存到本地数据库，利用 LLM 对话、总结和回顾你所做的事情。\n\nYC (S26) | Record your screen 24/7 and plug into your agents. Local, private, secure. Connect to OpenClaw, Hermes agent and 100+ apps - screenpipe/screenpipe",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/mediar-ai/screenpipe",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/c37e872a4e8738225f1f6c58d01b1006e04a24db2dc00737a5e08ce81b18e841/screenpipe/screenpipe",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://huggingface.co/briaai/RMBG-2.0",
+    "title": "RMBG-2.0",
+    "text": "一款高效的背景移除工具，支持处理各种图像，一键移除背景，效果出色且处理速度快，适用于电商、广告等场景。\n\nWe’re on a journey to advance and democratize artificial intelligence through open source and open science.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://huggingface.co/briaai/RMBG-2.0",
+    "media": [
+      {
+        "url": "https://cdn-thumbnails.huggingface.co/social-thumbnails/models/briaai/RMBG-2.0.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/TTPlanetPig/Comfyui_Object_Migration",
+    "title": "Comfyui_Object_Migration",
+    "text": "一套基于 ComfyUI 的服装迁移工作流，可将服装照片自然真实地迁移到模特身上，支持虚拟试穿和风格迁移（如动漫转现实风格），还原度较高。\n\nThis is a study aim to transfer the single concept by using DIT model self-attention capablity - TTPlanetPig/Comfyui_Object_Migration",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/TTPlanetPig/Comfyui_Object_Migration",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/be8a3820ee9eafb17a780d6f6c239b252adc3a2a8b404067f73a24fdd355b67e/TTPlanetPig/Comfyui_Object_Migration",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/tmplink/nsfw_detector",
+    "title": "NSFW Detector",
+    "text": "一款开源免费的 NSFW 内容检测器，使用 Google 模型，准确度高，支持检测图片、PDF 文件、视频、压缩包等多种文件类型，支持纯 CPU 推理，提供 API 服务便于集成。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/tmplink/nsfw_detector"
+  },
+  {
+    "source_url": "https://github.com/WEIFENG2333/VideoCaptioner",
+    "title": "VideoCaptioner",
+    "text": "一款功能强大的视频字幕翻译助手，提供可视化操作界面，支持字幕智能断句、校正、优化、翻译，一键生成双字幕视频。\n\n🎬 卡卡字幕助手 | VideoCaptioner - 基于 LLM 的智能字幕助手 - 视频字幕生成、断句、校正、字幕翻译全流程处理！- A powered tool for easy and efficient video subtitling. - WEIFENG2333/VideoCaptioner",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/WEIFENG2333/VideoCaptioner",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/9fb3ccc672536a0e9c96f3fb4cc886630ebdbe960d19d762ef2991b49916dc51/WEIFENG2333/VideoCaptioner",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/magic-quill/magicquill",
+    "title": "MagicQuill",
+    "text": "一款开源的 AI 互动式图像编辑工具，用户只需通过画笔涂抹和简单提示词，即可轻松实现插入元素、擦除物体、调整颜色等各种图像编辑操作。\n\n[CVPR'25] Official Implementations for Paper - MagicQuill: An Intelligent Interactive Image Editing System - ant-research/MagicQuill",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/magic-quill/magicquill",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/c7a0eaa57f3e2449cc1b7f8c2e67f3185334f3512d1eaf3e3e8e877472f62685/ant-research/MagicQuill",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/abus-aikorea/voice-pro",
+    "title": "Voice-Pro",
+    "text": "一款集转录、翻译和文字转语音为一体的开源工具，提供简洁直观的可视化操作界面，支持实时转录和翻译，以及批量处理模式。\n\nGradio WebUI for creators and developers, featuring key TTS (Edge-TTS, kokoro) and zero-shot Voice Cloning (E2 &amp; F5-TTS, CosyVoice), with Whisper audio processing, YouTube download, Demucs voca...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/abus-aikorea/voice-pro",
+    "media": [
+      {
+        "url": "https://repository-images.githubusercontent.com/835174033/a5a09559-8c29-4152-a7ac-f30774226d19",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/jhj0517/AdvancedLivePortrait-WebUI",
+    "title": "AdvancedLivePortrait-WebUI",
+    "text": "一款基于 Gradio 开发的开源工具，能够对图像中的人物进行实时面部表情精确控制，如微笑、眨眼、摇头等，支持多种部署方式使用。\n\ngradio WebUI for AdvancedLivePortrait. Contribute to jhj0517/AdvancedLivePortrait-WebUI development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/jhj0517/AdvancedLivePortrait-WebUI",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/9c89f01ba84a0cf57bf6691c542ce8c1d3104e15ae952b848a8fc96d199e5fc7/jhj0517/AdvancedLivePortrait-WebUI",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/CatchTheTornado/pdf-extract-api",
+    "title": "pdf-extract-api",
+    "text": "一款基于 FastAPI 的 PDF 文档提取和解析工具，利用 OCR 技术和 Ollama 模型将 PDF 或图像转换为 Markdown 文本或 JSON 文档，支持表格、公式等格式解析，使用 Redis 缓存提高效率。\n\nDocument (PDF, Word, PPTX ...) extraction and parse API using state of the art modern OCRs + Ollama supported models. Anonymize documents. Remove PII. Convert any document or picture to structured ...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/CatchTheTornado/pdf-extract-api",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/7bec4aa0eace6b46afc8670deca0b234f7f8a1ef6f7cdbe20d19999abb923b1c/CatchTheTornado/text-extract-api",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/theredsix/cerebellum",
+    "title": "Cerebellum",
+    "text": "一款基于智能体的浏览器自动化工具，通过使用 LLM 构建的智能体实现自动化操作键盘和鼠标，在网页上完成数据抓取、自动化测试等任务。\n\nBrowser automation system that uses AI-driven planning to navigate web pages and perform goals. - theredsix/cerebellum",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/theredsix/cerebellum",
+    "media": [
+      {
+        "url": "https://repository-images.githubusercontent.com/858346281/39ce7683-3e88-4467-983f-6aadbbb94133",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/yeates/PromptFix",
+    "title": "PromptFix",
+    "text": "一款基于提示的 AI 图像修复工具，能够根据输入的提示对图像进行上色、移除物体、去除水印、高清化、调整光线等操作。\n\n[NeurIPS 24] PromptFix: You Prompt and We Fix the Photo - yeates/PromptFix",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/yeates/PromptFix",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/8c56a760137c18a817f7f76f6344523ed774968149a90e7fbc8706e58b83b22a/yeates/PromptFix",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/getmaxun/maxun",
+    "title": "Maxun",
+    "text": "一款开源的自动化网页数据爬取工具，无需编写代码，通过可视化界面构建自定义机器人实现网页数据捕获、提取和处理等功能。\n\n🔥 The open-source no-code platform for web scraping, crawling, search and AI data extraction • Turn websites into structured APIs in minutes 🔥  - getmaxun/maxun",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/getmaxun/maxun",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/a74d559cb6dfb60daaeeeaeaa35ccc7ce5c06ad40f62e07f29866d7c47d90947/getmaxun/maxun",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "http://t.cn/A6nVnoTM",
+    "title": "AI Podcast Generator",
+    "text": "一款开源的自动化 AI 播客生成工具，能够自动抓取网络新闻内容，并生成自然流畅的叙述性音频播客，提供简单易用的界面。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "http://t.cn/A6nVnoTM"
+  },
+  {
+    "source_url": "http://t.cn/A6nfRDtg",
+    "title": "MegaParse",
+    "text": "一款基于大型语言模型构建的功能强大的文档解析开源工具，可以轻松处理 PDF、PPT、Word、Excel 等常见格式，保证解析过程中不丢失任何信息，还能准确识别文档中的表格、目录、页眉页脚和图片等内容，解析速度快，效率高。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "http://t.cn/A6nfRDtg"
+  },
+  {
+    "source_url": "http://t.cn/A6nVFPdz",
+    "title": "SoniTranslate",
+    "text": "一款基于 Gradio 构建的简单易用的视频翻译工具，支持将视频一键翻译成多种语言，并提供视频同声翻译功能。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "http://t.cn/A6nVFPdz"
+  },
+  {
+    "source_url": "https://github.com/16131zzzzzzzz/EveryoneNobel",
+    "title": "EveryoneNobel",
+    "text": "一款开源的 AI 工具，可用于生成个性化诺贝尔奖项图片，利用 ComfyUI 进行图像生成，并结合 HTML 模板展示图片上的文本，只需提供个人肖像图即可生成诺贝尔奖项风格图像。\n\nA flexible framework powered by ComfyUI for generating personalized Nobel Prize images. - 16131zzzzzzzz/EveryoneNobel",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/16131zzzzzzzz/EveryoneNobel",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/0814eee3144e7a0854ed04466994e2ae41f33d3765354a593781e2c4a1ce7262/16131zzzzzzzz/EveryoneNobel",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/YOYZHANG/PodCastLM",
+    "title": "PodCastLM",
+    "text": "一款开源免费的工具，可以将 PDF 内容转化为适合音频播客的自然对话，并输出为 MP3 文件。\n\nPDF 生成中文播客. Contribute to YOYZHANG/PodCastLM development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/YOYZHANG/PodCastLM",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/d9161dfe0e57d308f1f660dec6c670e44bf481ee2cf5f149fe7a600148f1f594/YOYZHANG/PodCastLM",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/corbt/agent.exe",
+    "title": "Agent.exe",
+    "text": "一款开源的 AI 自主操作计脑工具，利用 Claude 3 . 5 Sonnet 直接控制本地电脑，展示了 Claude 的 Computer Use 能力，可用于自动化智能体开发。\n\nContribute to corbt/agent.exe development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/corbt/agent.exe",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/52bddc686dc778e22fc083e4214bd051bc91bdfa3eca7f66f4cc4fcc4bc63484/corbt/agent.exe",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/getomni-ai/zerox",
+    "title": "Zerox",
+    "text": "一款简单易用的 OCR 文档工具，支持 PDF、Docx、图像等文件格式，可将文件转换为图像后利用 gpt - 4o - mini 模型识别图像信息并输出 Markdown 格式文件。\n\nOCR & Document Extraction using vision models. Contribute to getomni-ai/zerox development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/getomni-ai/zerox",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/cbecef0ccc4e255d68f977f0bef79dce7503d37005c40be5cd6987f69a11277f/getomni-ai/zerox",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Eddycrack864/UVR5-UI",
+    "title": "UVR5-UI",
+    "text": "一款功能强大的人声伴奏分离 AI 工具，提供在线简洁易用的操作界面，支持选择不同的 AI 模型以及输出格式和质量，支持批量处理。\n\nUltimate Vocal Remover 5 with Gradio UI. Separate an audio file into various stems, using multiple models - Eddycrack864/UVR5-UI",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Eddycrack864/UVR5-UI",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/348027c98bb73670b1ddf1474e3e159ac4c9b541fbce5d8bceaab58d48ccd0ef/Eddycrack864/UVR5-UI",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/adarshb3/Virtual-Try-On-Application-using-Flask-Twilio-and-Gradio",
+    "title": "Virtual Try-On Application",
+    "text": "一款基于 WhatsApp API 和 IDM - VTON 虚拟试穿模型的 AI 应用，用户只需在 WhatsApp 上传个人照片和服装照片，即可生成虚拟试穿效果图，提供便捷的虚拟试衣体验。\n\nThis repository contains the code for a virtual try-on application built using Flask, Twilio&#39;s WhatsApp API, and Gradio&#39;s virtual try-on model. Users can send images via WhatsApp to try on ...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/adarshb3/Virtual-Try-On-Application-using-Flask-Twilio-and-Gradio",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/2dfe193fd561e656db4e60d87715a016f99d2dc40ab7563b185cb5a1157fa289/adarshb3/Virtual-Try-On-Application-using-Flask-Twilio-and-Gradio",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/anthropics/anthropic-quickstarts/tree/main/financial-data-analyst",
+    "title": "Claude Financial Data Analyst",
+    "text": "一款由 Anthropic 开源的基于 Next . js 和 Claude AI 构建的金融数据分析助手，支持多种格式文件上传，通过聊天界面进行财务数据分析并生成可视化图表。\n\nA collection of projects designed to help developers quickly get started with building deployable applications using the Claude API - anthropics/claude-quickstarts",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/anthropics/anthropic-quickstarts/tree/main/financial-data-analyst",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/d22bd551ecd991e4706016509b3fc4648a9be56ace2af60dc71b7353a0c260f2/anthropics/claude-quickstarts",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/VikParuchuri/tabled",
+    "title": "Tabled",
+    "text": "一款基于 Surya 开发的 OCR 小工具，能够识别 PDF、图像、Word 和 PPT 等文件中的表格，并将表格内容提取转换为 Markdown、CSV 或 HTML 格式。\n\nDetect and extract tables to markdown and csv. Contribute to VikParuchuri/tabled development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/VikParuchuri/tabled",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/189e9f4ed3919bb05ce470ac6ec436305e7bfaf68a8aa39fc4ce47da132cd26f/VikParuchuri/tabled",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/VikParuchuri/surya",
+    "title": "Surya",
+    "text": "一款开源且强大的文档 OCR 工具，专注于文档图像的处理和分析，能够准确进行逐行文本检测和识别，支持 90 多种语言。\n\nOCR, layout analysis, reading order, table recognition in 90+ languages - datalab-to/surya",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/VikParuchuri/surya",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/a06130edf82bbb7c35b88c46a3b6d31840b0fecf905895b88f270fd91a07e0eb/datalab-to/surya",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://lucaria-academy.github.io/Animate-X/",
+    "title": "Animate-X",
+    "text": "一款基于 AI 的动画生成工具，可以通过输入角色图片和参考动作视频，自动生成角色按照指定动作移动的动画效果，支持真人、游戏、卡通等多种类型的角色，保持角色一致性并允许大幅度动作。\n\nAnimate-X: Universal Character Image Animation with Enhanced Motion Representation",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://lucaria-academy.github.io/Animate-X/",
+    "media": [
+      {
+        "url": "static/image/video_t1.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/WEIFENG2333/AsrTools",
+    "title": "AsrTools",
+    "text": "一款开源的智能语音转字幕文本工具，集成了多家公司的语音识别接口，支持多种音频格式，提供批量处理和生成字幕文件功能，界面简单易用。\n\n✨ AsrTools: Smart Voice-to-Text Tool | Efficient Batch Processing | User-Friendly Interface | No GPU Required | Supports SRT/TXT Output | Turn your audio into accurate text in an instant! - WEIFENG...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/WEIFENG2333/AsrTools",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/aca265215f16997e1cd1a3db87a7d2fb33e1fb51e0a4f4c3117d7d3614198358/WEIFENG2333/AsrTools",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://huggingface.co/spaces/thatupiso/Podcastfy.ai_demo",
+    "title": "Podcastfy",
+    "text": "一款开源工具，可将视频、PDF、论文、网站和文章等内容转换为对话式的播客音频。\n\nUpload or paste text, add website or YouTube URLs, and optionally provide PDFs or images as source material. Choose voice, conversation style, length, and other settings, then the app crafts a scri...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://huggingface.co/spaces/thatupiso/Podcastfy.ai_demo",
+    "media": [
+      {
+        "url": "https://cdn-thumbnails.huggingface.co/social-thumbnails/spaces/thatupiso/Podcastfy.ai_demo.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/ErikBjare/gptme",
+    "title": "gptme",
+    "text": "一款功能强大的开源终端 AI 助手，支持在终端执行本地代码、读写文件、搜索浏览网页和进行视觉识别等操作，可连接 OpenAI、Anthropic、OpenRouter 等主流 LLM 提供商，也可使用 llama . cpp 在本地提供服务。\n\nYour agent in your terminal, equipped with local tools: writes code, uses the terminal, browses the web. Make your own persistent autonomous agent on top! - gptme/gptme",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/ErikBjare/gptme",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/690a8b2b555ab12d8771d5b50a0011a68e4b63044ee189db645bb320a081293f/gptme/gptme",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/AI4Finance-Foundation/FinRL",
+    "title": "FinRL",
+    "text": "一个开源的量化金融自动交易框架，包含市场环境、智能体和应用三层架构，提供先进算法核心支持连续交易决策。支持投资组合分配、加密货币交易、高频交易等金融任务和实时交易功能。\n\nFinRL®:  Financial Reinforcement Learning. 🔥. Contribute to AI4Finance-Foundation/FinRL development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/AI4Finance-Foundation/FinRL",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/d494d8b34537f5ac4e74edd534ab07f1f7adbe97925d5c7e0a125b57f7c866e5/AI4Finance-Foundation/FinRL",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://yt-whisper.danilotpnta.com/",
+    "title": "Youtube-Whisper",
+    "text": "一款利用 OpenAI Whisper 模型实现音频转文本的轻量级开源免费工具，可输入 YouTube 视频链接提取音频并转换为文本，支持多种语言。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://yt-whisper.danilotpnta.com/"
+  },
+  {
+    "source_url": "https://github.com/DrewThomasson/ebook2audiobookXTTS",
+    "title": "ebook2audiobookXTTS",
+    "text": "一款开源的 AI 工具，利用 Calibre 和 Coqui TTS 将电子书转换为高质量的有声读物，支持多种语言和语音克隆功能。\n\nGenerate audiobooks from e-books, voice cloning & 1158+ languages! - DrewThomasson/ebook2audiobook",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/DrewThomasson/ebook2audiobookXTTS",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/657b508f5e2adb571737e3aeece384e56e02cf50c285eb205bec41483e7cedb9/DrewThomasson/ebook2audiobook",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/RexanWONG/text-behind-image",
+    "title": "Text Behind Image",
+    "text": "一款简单有趣的开源免费工具，可以轻松将文本添加到图像中指定对象的背后，如动物、人物或物品等，并支持保存到本地。\n\nhttps://textbehindimage.rexanwong.xyz - create text behind image designs easily - RexanWONG/text-behind-image",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/RexanWONG/text-behind-image",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/0a379e39b29aa92142f2d7b575822d0f7ff329fad9aac62d6269607fcdf48a09/RexanWONG/text-behind-image",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://godbolt.org",
+    "title": "Compiler Explorer",
+    "text": "一款在线交互式编程语言编译器探索工具，支持超过 30 种语言如 C、C ++、Rust、Go 等，可在浏览器中实时编辑代码并查看编译后的汇编代码输出，提供多种编辑器、工具和可视化选项。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://godbolt.org",
+    "media": [
+      {
+        "url": "https://github.com/compiler-explorer/infra/blob/main/logo/favicon.png?raw=true",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/QiuYannnn/Local-File-Organizer",
+    "title": "Local File Organizer",
+    "text": "一款基于 AI 的本地文件整理器，可以自动扫描指定目录中的文件，理解文件内容并生成相关描述、文件夹名称和文件名，将文件整理到新的目录结构中。\n\nAn AI-powered file management tool that ensures privacy by organizing local texts, images. Using Llama3.2 3B and Llava v1.6 models with the Nexa SDK, it intuitively scans, restructures, and organiz...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/QiuYannnn/Local-File-Organizer",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/6f1a73028e45fba59ded8d08b73c2149c3049590f60f426a231a348790d6d3eb/QiuYannnn/Local-File-Organizer",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/pencilresearch/OpenScanner",
+    "title": "OpenScanner",
+    "text": "一款快速、易用且开源免费的文档扫描工具，具有自动文本识别、文档命名、地理位置标记、签名添加、Vision Pro 支持等功能，可保存、编辑、注释和分享扫描文档。\n\nFast, reliable, and free document scanner app for iPhone - pencilresearch/OpenScanner",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/pencilresearch/OpenScanner",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/631de6ec23fbea56445dc168c8710b39b14f57f07f6d24e1f90ca8a147e22b89/pencilresearch/OpenScanner",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://huggingface.co/spaces/huggingface/diffusers-image-outpaint",
+    "title": "Diffusers Image Outpaint",
+    "text": "一款在线 AI 扩图工具，可以免费使用，只需上传图片并选择扩展比例，即可一键完成图像扩展。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://huggingface.co/spaces/huggingface/diffusers-image-outpaint"
+  },
+  {
+    "source_url": "https://huggingface.co/ucaslcl/GOT-OCR2_0",
+    "title": "GOT-OCR2.0",
+    "text": "一款端到端的开源 OCR 模型，被称为 OCR 2 . 0，支持识别场景文本、文档、乐谱、图表、数学公式等多种内容，在 BLEU 评测中取得 0 . 972 的高分，模型体积仅 1 . 43GB。\n\nWe’re on a journey to advance and democratize artificial intelligence through open source and open science.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://huggingface.co/ucaslcl/GOT-OCR2_0",
+    "media": [
+      {
+        "url": "https://cdn-thumbnails.huggingface.co/social-thumbnails/models/stepfun-ai/GOT-OCR2_0.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://网页链接",
+    "title": "Python Tutor",
+    "text": "除了 Python 外，还支持 Java、C、C ++和 JavaScript 等编程语言。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://网页链接"
+  },
+  {
+    "source_url": "https://huggingface.co/spaces/fishaudio/fish-speech-1",
+    "title": "Fish Speech",
+    "text": "一款开源的多语言 TTS 模型，使用 70 万小时数据训练，支持英语、中文、韩语、日语、法语、德语、阿拉伯语和西班牙语 8 种语言。具有快速语音合成、低延迟、声音丰富、混合语言和语音克隆等特点。\n\nTransform your written text into lifelike spoken audio. Simply type or paste text in the input box, adjust settings like speed and tone if desired, then click Generate. The app will produce high-qu...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://huggingface.co/spaces/fishaudio/fish-speech-1",
+    "media": [
+      {
+        "url": "https://cdn-thumbnails.huggingface.co/social-thumbnails/spaces/fishaudio/s1-mini.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/wechatferry/wechatferry",
+    "title": "wcf.js",
+    "text": "一款强大、快速、开源的微信机器人底层框架，提供消息监听、发送和群聊操作的一站式解决方案，内置强大易用的 Agent 库和开发者工具包，具有高效稳定的处理能力和自由控制发消息频率的功能。\n\n-. Contribute to wechatferry/wechatferry development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/wechatferry/wechatferry",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/0d3c812212d411f395877ac443a5ca186bd51c748c2b88d1b322be7db8741fd7/wechatferry/wechatferry",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/markmap/markmap",
+    "title": "markmap",
+    "text": "一款开源免费的工具，可以将 Markdown 文档内容转换为直观可视化的思维导图，支持图像、链接、代码块、内联样式和数学公式等格式内容。\n\nBuild mindmaps with plain text. Contribute to markmap/markmap development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/markmap/markmap",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/194c8c1a8e118389086511e47c1916563ec0358e22f635eee030efca79f59ff8/markmap/markmap",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/k4yt3x/video2x/",
+    "title": "Video2x",
+    "text": "一款开源免费的无损放大视频和图像工具，使用多种先进的超分辨率算法如 waifu2x、Anime4K、SRMD 和 RealSR 等实现视频/ GIF /图像的无损放大和提高帧速率。\n\nA machine learning-based video super resolution and frame interpolation framework. Est. Hack the Valley II, 2018. - k4yt3x/video2x",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/k4yt3x/video2x/",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/1a8e98b9b770ca662e41b33ad590964054cc6bb9741d7caff52b27b75eafd4c4/k4yt3x/video2x",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/gitbrent/PptxGenJS",
+    "title": "PptxGenJS",
+    "text": "一款基于 JavaScript 的开源库，可用于生成 PPT 演示文稿，支持添加图表、表格、图像、视频等多种元素，生成的文件与 PowerPoint 等应用兼容，并提供 HTML 转 PPT 功能。\n\nBuild PowerPoint presentations with JavaScript. Works with Node, React, web browsers, and more. - gitbrent/PptxGenJS",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/gitbrent/PptxGenJS",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/4ebbf52b6ea8118c0d3a9086355d02037c0c61fbceb465b837ced6fa5b0c0fdd/gitbrent/PptxGenJS",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/dataease/dataease",
+    "title": "DataEase",
+    "text": "一款功能强大的开源数据可视化分析工具，可作为 Tableau 的替代品，提供丰富美观的图表展示、制作和数据引擎等功能，支持多种数据链接、拖拽式图表制作和与他人分享，并具备 AI 辅助分析和模板市场等创新功能。\n\n🔥 人人可用的开源 BI 工具，数据可视化神器。An open-source BI tool alternative to Tableau. - dataease/dataease",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/dataease/dataease",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/709a7f0956509c07c83c69122b86f14bd4df3e5a7043095fb5474fb4e329077a/dataease/dataease",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/ddean2009/MoneyPrinterPlus",
+    "title": "MoneyPrinterPlus",
+    "text": "一款开源免费的全自动化 AI 视频剪辑工具，借助 AI 技术一键生成和批量混剪各类短视频，支持自动发布到视频平台，助力变现。\n\nAI一键批量生成各类短视频,自动批量混剪短视频,自动把视频发布到抖音,快手,小红书,视频号上,赚钱从来没有这么容易过! 支持本地语音模型chatTTS,fasterwhisper,GPTSoVITS,支持云语音：Azure,阿里云,腾讯云。支持Stable diffusion,comfyUI直接AI生图。Generate short videos with one click using A...",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/ddean2009/MoneyPrinterPlus",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/9c9bf1c2134e9ccb7ccc213fc27e457e58c1a86c7911eb20ce81b8ae254fb5ec/ddean2009/MoneyPrinterPlus",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/meltylabs/melty",
+    "title": "Melty",
+    "text": "一款专为 10x 工程师打造的开源 AI 代码编辑器，能够与开发者的整个开发流程集成，理解从终端到 GitHub 的操作，协助高效编写和重构代码，支持多文件大规模更改。\n\nChat first code editor. To download the packaged app: - meltylabs/melty",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/meltylabs/melty",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/54de26aa9ef97150b3f948413a04344f92c5841a83a0644d79b3f32d06cb0142/meltylabs/melty",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Spr-Aachen/Easy-Voice-Toolkit",
+    "title": "Easy Voice Toolkit",
+    "text": "一套功能丰富的开源 AI 语音工具箱，包括音频处理、语音识别、语音转录、数据集制作和语音合成等，形成完整语音模型训练工作流。\n\nA user-friendly toolkit for voice recgonition/transcription/conversion etc. | 简单易用的语音工具箱 - Spr-Aachen/Easy-Voice-Toolkit",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Spr-Aachen/Easy-Voice-Toolkit",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/55e7e3abaad75977be4559479dd89822a3f12066e070d9a9813bad6067c00258/Spr-Aachen/Easy-Voice-Toolkit",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/chartdb/chartdb",
+    "title": "ChartDB",
+    "text": "一款基于 Web 的功能强大的数据库图表编辑器，支持多种数据库如 PostgreSQL、MySQL、SQL Server 等，提供基于 AI 的导出功能生成 DDL 脚本方便数据库迁移，可在线使用或本地部署。\n\nDatabase diagrams editor that allows you to visualize and design your DB with a single query. - chartdb/chartdb",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/chartdb/chartdb",
+    "media": [
+      {
+        "url": "https://repository-images.githubusercontent.com/838212912/3063460a-4c7c-4b4d-aea5-1e9760aa7a37",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/mendableai/firecrawl",
+    "title": "FireCrawl",
+    "text": "一款开源且强大的 Web 爬虫工具，可爬取任何网站内容并转换为 Markdown 或结构化数据，为大语言模型训练、检索增强生成（RAG）提供数据。\n\nThe API to search, scrape, and interact with the web at scale. 🔥 - firecrawl/firecrawl",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/mendableai/firecrawl",
+    "media": [
+      {
+        "url": "https://repository-images.githubusercontent.com/787076358/f9616c09-3701-41ef-b5a6-fdf912ffb15b",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/1Panel-dev/MaxKB",
+    "title": "MaxKB",
+    "text": "支持多种大语言模型对接，内置工作流引擎编排 AI 过程，可无缝嵌入第三方系统，在短时间内获得 9000 +星。\n\n🔥 MaxKB is an open-source platform for building enterprise-grade agents.  强大易用的开源企业级智能体平台。 - 1Panel-dev/MaxKB",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/1Panel-dev/MaxKB",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/a7a670412e020b5280223da3b8a51169b92ac5adfef132f40f25401ad639f2b8/1Panel-dev/MaxKB",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Zeyi-Lin/HivisionIDPhotos",
+    "title": "HivisionIDPhoto",
+    "text": "一款轻量级的 AI 证件照制作工具，可识别多种用户拍照场景，实现抠图和生成标准尺寸的证件照。\n\n⚡️HivisionIDPhotos: a lightweight and efficient AI ID photos tools. 一个轻量级的AI证件照制作算法。 - Zeyi-Lin/HivisionIDPhotos",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Zeyi-Lin/HivisionIDPhotos",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/e9f6d3c25a59c879f64a0846fec3c7711bd00f95201216cc5cea91dd949cf82d/Zeyi-Lin/HivisionIDPhotos",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Huanshere/VideoLingo",
+    "title": "VideoLingo",
+    "text": "一款全自动视频翻译的 AI 工具，能够一键对视频进行字幕切割、翻译、精准对齐和个性化配音，生成高质量的字幕和配音。\n\nNetflix-level subtitle cutting, translation, alignment, and even dubbing - one-click fully automated AI video subtitle team | Netflix级字幕切割、翻译、对齐、甚至加上配音，一键全自动视频搬运AI字幕组 - Huanshere/VideoLingo",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Huanshere/VideoLingo",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/b66d4fecf0b2b3c91dbf7857c4797e28be259536809b696cde1fd722985e4aa4/Huanshere/VideoLingo",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://cursor.directory/",
+    "title": "Cursor",
+    "text": "一款智能代码编辑神器，提供代码补全、错误修复等功能，支持多种编程语言。该项目收集了各语言的最佳配置提示词和使用教程。",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://cursor.directory/"
+  },
+  {
+    "source_url": "https://github.com/linyqh/NarratoAI",
+    "title": "NarratoAI",
+    "text": "一款一站式自动化影视解说的 AI 视频剪辑工具，基于 LLM 实现文案撰写、自动化视频剪辑、配音和字幕生成，是影视解说剪辑神器，可高效创作内容。\n\n利用AI大模型，一键解说并剪辑视频； Using AI models to automatically provide commentary and edit videos with a single click. - linyqh/NarratoAI",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/linyqh/NarratoAI",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/6566fc005c73aec7c5ec1328482342f17249b14b1a5c6a19dd530bdd956834da/linyqh/NarratoAI",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/lhl/voicechat2",
+    "title": "voicechat2",
+    "text": "一款响应快速且完全本地化的 AI 语音聊天工具，使用 WebSockets 实现低延迟语音交互并允许远程访问，可本地运行语音识别、文本转语音和大语言模型，在 4090 显卡上延迟低至 300 毫秒。\n\nLocal SRT/LLM/TTS Voicechat. Contribute to lhl/voicechat2 development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/lhl/voicechat2",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/54678cd475f78edd3b604fc49ecc8c0b947d7dfb08631567403e05a88f8c312c/lhl/voicechat2",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/itsOwen/CyberScraper-2077",
+    "title": "CyberScraper 2077",
+    "text": "一款基于 OpenAI 大语言模型的强大网络爬虫工具，能够智能理解和解析网页内容，提供简单易用的可视化界面，无需编程知识即可操作使用。\n\nA Powerful web scraper powered by LLM | OpenAI, Gemini & Ollama - itsOwen/CyberScraper-2077",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/itsOwen/CyberScraper-2077",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/0c1e5057ef8164291f92d786d6bb550b518313929e11c767e2f3cee1e3ae9358/itsOwen/CyberScraper-2077",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/wan-h/awesome-digital-human-live2d",
+    "title": "awesome-digital-human-live2d",
+    "text": "一个开源项目，旨在打造一个有温度的数字人，支持 Docker 快速部署、Dify 服务接入、ASR、LLM、TTS、Agent 模块化扩展、Live2d 人物模型扩展和控制、PC 端和移动端 Web 访问。\n\nAwesome Digital Human. Contribute to wan-h/awesome-digital-human-live2d development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/wan-h/awesome-digital-human-live2d",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/f2652bc8035d349ad40aef641bf698aca15a97803ffe1669b597ba8cc1f1c481/wan-h/awesome-digital-human-live2d",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Dicklesworthstone/llm_aided_ocr",
+    "title": "LLM-Aided OCR",
+    "text": "一款基于大语言模型（LLM）的开源 OCR 扫描 PDF 工具，可将原始 OCR 扫描 PDF 文本转换成高准确度、格式正确且易于阅读的 Markdown 文档。\n\nEnhances Tesseract OCR output using LLMs (local or API) for error correction, smart chunking, and markdown formatting of scanned PDFs - Dicklesworthstone/llm_aided_ocr",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Dicklesworthstone/llm_aided_ocr",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/810898ee577482f189338df529056896d75d0f29d78581758f7cc8d23dd0b868/Dicklesworthstone/llm_aided_ocr",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/ViggoZ/producthunt-daily-hot",
+    "title": "Product Hunt Daily Hot",
+    "text": "一款基于 GitHub Action 的自动化工具，每天定时爬取并生成 Product Hunt 热门产品榜单的 Markdown 文件，使用 GPT - 4 模型翻译产品描述，帮助快速查看每日热门榜单。\n\n自动生成每日Product Hunt热门产品中文榜单，基于GitHub Actions自动提交Markdown文件 - ViggoZ/producthunt-daily-hot",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/ViggoZ/producthunt-daily-hot",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/38b7fd7dc5b8da3d8feb00d36c6726bb85f57d085c70709844fbea04fdf0aac3/ViggoZ/producthunt-daily-hot",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/BMPixel/moffee",
+    "title": "moffee",
+    "text": "一款开源免费的 PPT 制作工具，能够将 Markdown 文档一键转换为干净、专业的幻灯片，提供 web 界面实时预览效果。\n\nmoffee: Make Markdown Ready to Present. Contribute to wbopan/moffee development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/BMPixel/moffee",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/dca60ad0f440c3341f2ae026be8c44b6f96489fc8ad61d87ea3c391fe7d21cf5/wbopan/moffee",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://github.com/Kedreamix/Linly-Dubbing",
+    "title": "Linly-Dubbing",
+    "text": "一款开源且强大的视频多语言 AI 配音/翻译工具，能自动下载视频、翻译字幕、人声分离、克隆音色配音并合成视频。\n\n智能视频多语言AI配音/翻译工具 - Linly-Dubbing — “AI赋能，语言无界”. Contribute to Kedreamix/Linly-Dubbing development by creating an account on GitHub.",
+    "source_platform": "githubdaily",
+    "content_kind": "project",
+    "try_url": "https://github.com/Kedreamix/Linly-Dubbing",
+    "media": [
+      {
+        "url": "https://opengraph.githubassets.com/4eeb25e36465bae0dfa1af6bf3fd5e2a09975f2cadafe60e3dd1ec885b9a379b/Kedreamix/Linly-Dubbing",
+        "media_type": "image"
+      }
+    ]
+  }
+]

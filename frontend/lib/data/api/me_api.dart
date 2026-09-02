@@ -18,7 +18,11 @@ class MeApi {
   /// 需登录。返回后端最新资料 JSON（调用方按需取用）。
   Future<Map<String, dynamic>> updateProfile({
     String? nickname,
+    String? handle,
+    String? avatarUrl,
     String? bio,
+    String? school,
+    int? age,
     List<String>? interestContentTypes,
   }) async {
     try {
@@ -26,15 +30,22 @@ class MeApi {
         '/me',
         data: {
           if (nickname != null) 'nickname': nickname,
+          // @handle：稳定用户名，后端校验格式 + 唯一（撞了 409 HANDLE_TAKEN）。
+          if (handle != null) 'handle': handle,
+          if (avatarUrl != null) 'avatar_url': avatarUrl,
           // bio 传空串 = 清空（后端对 bio 允许 null/空语义）。
           if (bio != null) 'bio': bio,
+          if (school != null) 'school': school,
+          if (age != null) 'age': age,
           // 关注领域（内容类型）：与后端 content_type 轴 1:1，直接落库。
           if (interestContentTypes != null)
             'interest_content_types': interestContentTypes,
         },
       );
       final data = resp.data;
-      return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      return data is Map
+          ? Map<String, dynamic>.from(data)
+          : <String, dynamic>{};
     } on DioException catch (e) {
       throw AppException.fromDio(e);
     }

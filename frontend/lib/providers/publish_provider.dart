@@ -35,8 +35,17 @@ class PublishDraft {
   /// 动作区(用户加的 take/go/how,任意组合)
   final List<ActionItem> actions;
 
-  /// 正文(无 media 时,纯文字心得)
+  /// 正文(无 media 时,纯文字)
   final String? text;
+
+  /// 体验链接(作品的可去用地址,http/https),发布时传后端 try_url。
+  final String tryUrl;
+
+  /// 是否原创：true=我做的原创作品；false=转载分享别人的（后端要求此时必填来源 sourceUrl）。
+  final bool isOriginal;
+
+  /// 转载来源链接（is_original=false 时必填，后端 source_url，注明出处）。
+  final String sourceUrl;
 
   const PublishDraft({
     this.title = '',
@@ -47,6 +56,9 @@ class PublishDraft {
     this.media = const [],
     this.actions = const [],
     this.text,
+    this.tryUrl = '',
+    this.isOriginal = true,
+    this.sourceUrl = '',
   });
 
   PublishDraft copyWith({
@@ -58,6 +70,9 @@ class PublishDraft {
     List<MediaItem>? media,
     List<ActionItem>? actions,
     String? text,
+    String? tryUrl,
+    bool? isOriginal,
+    String? sourceUrl,
   }) =>
       PublishDraft(
         title: title ?? this.title,
@@ -68,6 +83,9 @@ class PublishDraft {
         media: media ?? this.media,
         actions: actions ?? this.actions,
         text: text ?? this.text,
+        tryUrl: tryUrl ?? this.tryUrl,
+        isOriginal: isOriginal ?? this.isOriginal,
+        sourceUrl: sourceUrl ?? this.sourceUrl,
       );
 
   /// 构建为 Project(发布时调用)。
@@ -118,9 +136,41 @@ class PublishDraft {
       'title': title.trim(),
       if (summary.trim().length >= 5) 'tagline': summary.trim(),
       if (intro.isNotEmpty) 'intro': intro,
-      'source_kind': 'user_original',
-      'is_original': true,
+      // 原创 → user_original + is_original:true；转载 → user_discovery + is_original:false + source_url（后端必填）。
+      'source_kind': isOriginal ? 'user_original' : 'user_discovery',
+      'is_original': isOriginal,
+      if (!isOriginal && sourceUrl.trim().isNotEmpty) 'source_url': sourceUrl.trim(),
       'tags': tags,
+      // 附件必须随发布请求落到后端；此前 UI 能添加，但 payload 漏传导致详情页丢失。
+      if (actions.isNotEmpty)
+        'actions': actions.map((action) {
+          if (action is TakeAction) {
+            return {
+              'type': 'take',
+              'sub': action.takeKind == 'download' ? 'file' : 'text',
+              'label': action.label ??
+                  (action.takeKind == 'download' ? '下载文件' : '复制内容'),
+              if (action.takeKind == 'download') 'url': action.source,
+              if (action.takeKind != 'download') 'content': action.source,
+            };
+          }
+          if (action is GoAction) {
+            return {
+              'type': 'go',
+              'sub': 'url',
+              'label': action.label ?? '打开链接',
+              'url': action.url,
+            };
+          }
+          final how = action as HowAction;
+          return {
+            'type': 'how',
+            'sub': 'workflow',
+            'label': how.label ?? '工作流',
+            'url': how.ref,
+          };
+        }).toList(),
+      if (tryUrl.trim().isNotEmpty) 'try_url': tryUrl.trim(),
       if (mediaIds.isNotEmpty) 'media_ids': mediaIds,
     };
   }
@@ -139,11 +189,14 @@ class PublishDraft {
     if (actions.any((a) => a is GoAction)) {
       final go = actions.whereType<GoAction>().first;
       if (go.url.contains('github.com')) return 'opensource';
-      if (go.url.contains('apps.apple.com') || go.url.contains('play.google.com')) return 'app';
+      if (go.url.contains('apps.apple.com') ||
+          go.url.contains('play.google.com')) return 'app';
       return 'web';
     }
-    if (actions.any((a) => a is TakeAction && a.takeKind == 'copy')) return 'prompt';
-    if (actions.any((a) => a is TakeAction && a.takeKind == 'download')) return 'tool';
+    if (actions.any((a) => a is TakeAction && a.takeKind == 'copy'))
+      return 'prompt';
+    if (actions.any((a) => a is TakeAction && a.takeKind == 'download'))
+      return 'tool';
     return 'prompt'; // 兜底
   }
 }
@@ -162,6 +215,9 @@ class PublishDraftNotifier extends Notifier<PublishDraft> {
 
   void setTitle(String t) => state = state.copyWith(title: t);
   void setSummary(String s) => state = state.copyWith(summary: s);
+  void setTryUrl(String u) => state = state.copyWith(tryUrl: u);
+  void setIsOriginal(bool v) => state = state.copyWith(isOriginal: v);
+  void setSourceUrl(String u) => state = state.copyWith(sourceUrl: u);
   void setDomain(String d) => state = state.copyWith(domain: d);
   void setAuthorNote(String n) => state = state.copyWith(authorNote: n);
   void setText(String t) => state = state.copyWith(text: t);
@@ -171,6 +227,7 @@ class PublishDraftNotifier extends Notifier<PublishDraft> {
       state = state.copyWith(tags: [...state.tags, tag]);
     }
   }
+
   void removeTag(String tag) =>
       state = state.copyWith(tags: state.tags.where((t) => t != tag).toList());
 
@@ -191,7 +248,8 @@ class PublishDraftNotifier extends Notifier<PublishDraft> {
   }
 
   /// 加动作(HANDOFF §4:"+"底部 sheet 三选一 → take/go/how)
-  void addAction(ActionItem a) => state = state.copyWith(actions: [...state.actions, a]);
+  void addAction(ActionItem a) =>
+      state = state.copyWith(actions: [...state.actions, a]);
   void removeActionAt(int i) {
     final list = [...state.actions];
     if (i >= 0 && i < list.length) list.removeAt(i);

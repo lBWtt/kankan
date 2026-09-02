@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/kk_colors.dart';
 import '../../core/theme/tokens.dart';
@@ -18,7 +20,6 @@ import '../../data/seed/mock_seed.dart';
 import '../../providers/analytics_provider.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/clue_provider.dart';
 import '../../providers/project_provider.dart';
 import '../../router/routes.dart';
 import 'widgets/action_row.dart';
@@ -71,7 +72,9 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   void initState() {
     super.initState();
     // 埋点:详情打开(漏斗 detail_view + hot_score 详情权重)。真后端项目(UUID)才发。
-    ref.read(analyticsProvider).track('detail_view', projectId: widget.projectId);
+    ref
+        .read(analyticsProvider)
+        .track('detail_view', projectId: widget.projectId);
   }
 
   void _scrollToComments() {
@@ -109,7 +112,12 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             ),
             data: (project) {
               if (project == null) {
-                return const Center(child: Text('项目不存在'));
+                return Center(
+                  child: Text(
+                    '内容不可访问',
+                    style: KkType.body.copyWith(color: KkColors.t3),
+                  ),
+                );
               }
               return _body(context, project);
             },
@@ -140,8 +148,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             // 成果区(可组合渲染核心)
             SliverToBoxAdapter(child: _results(project)),
             // 作者的话(空 → 整块隐藏)
-            if (project.authorNote != null &&
-                project.authorNote!.isNotEmpty)
+            if (project.authorNote != null && project.authorNote!.isNotEmpty)
               SliverToBoxAdapter(child: AuthorNote(note: project.authorNote!)),
             // 动作区(空 → 整块不显示)
             if (project.actions.isNotEmpty)
@@ -151,9 +158,11 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   child: _actions(project),
                 ),
               ),
-            // 实现线索入口(ZAI_PLAYBOOK P0:主信号「想看怎么做」→ 跳 clue 屏)
-            // 不进 ActionRow(sealed,本任务不动),独立成块。永远显示。
-            SliverToBoxAdapter(child: _clueEntry(project)),
+            // 体验入口(产品定位:让人「去体验/去用」,不是引向制作教程)。
+            // 有 tryUrl → 显「去体验」主行动(打开作品真实地址);无 → 整块不显示。
+            // (原「想看怎么做」跳教程屏已下线——见记忆 product-positioning / 项目内容质量线)
+            if (project.tryUrl != null && project.tryUrl!.isNotEmpty)
+              SliverToBoxAdapter(child: _tryEntry(project)),
             // 心得讨论(Phase 4:CommentThread 统一组件接入 + 长按 hook)
             SliverToBoxAdapter(
               child: Container(
@@ -332,7 +341,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           Text(project.title, style: KkType.h1),
           const SizedBox(height: KkSpacing.sm),
           // 一句话价值
-          Text(project.summary, style: KkType.body.copyWith(color: KkColors.t2)),
+          Text(project.summary,
+              style: KkType.body.copyWith(color: KkColors.t2)),
           const SizedBox(height: KkSpacing.lg),
           // 作者 + 关注
           Row(
@@ -357,7 +367,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
               ),
               // 关注按钮(任务 C:接全局 appStateProvider.followedUserIds,
               // 与 post_card / post_detail / profile 同源,A 屏点 B 屏同步)。
-              if (project.authorId != 'me') _FollowButton(userId: project.authorId),
+              if (project.authorId != 'me')
+                _FollowButton(userId: project.authorId),
             ],
           ),
           const SizedBox(height: KkSpacing.lg),
@@ -385,17 +396,20 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     }
     // repo(仓库卡)
     if (rd.repo != null) {
-      if (children.isNotEmpty) children.add(const SizedBox(height: KkSpacing.md));
+      if (children.isNotEmpty)
+        children.add(const SizedBox(height: KkSpacing.md));
       children.add(RepoCard(repo: rd.repo!));
     }
     // io(输入→输出效果)
     if (rd.io != null) {
-      if (children.isNotEmpty) children.add(const SizedBox(height: KkSpacing.md));
+      if (children.isNotEmpty)
+        children.add(const SizedBox(height: KkSpacing.md));
       children.add(IoBlockView(io: rd.io!));
     }
     // text(纯正文,无 media/repo/io 时)
     if (rd.text != null && rd.text!.isNotEmpty) {
-      if (children.isNotEmpty) children.add(const SizedBox(height: KkSpacing.md));
+      if (children.isNotEmpty)
+        children.add(const SizedBox(height: KkSpacing.md));
       children.add(
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: KkSpacing.lg),
@@ -434,20 +448,22 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     );
   }
 
-  // ── 实现线索入口(ZAI_PLAYBOOK P0 主信号)──
+  // ── 体验入口(去体验/去用)──
   //
-  // 详情页「想看怎么做」→ push 到 /clue/{id}。独立成块,不动 ActionRow
-  // (sealed,本任务约束)。墨绿浅底 + lightbulb 图标 + 实时「N 人想知道」计数
-  // (来自 clueInteractionProvider,与 clue 屏主信号区同源)。无珊瑚橙(无 take)。
-  Widget _clueEntry(Project project) {
-    final count = ref.watch(clueInteractionProvider).howToCount(project.id);
+  // 产品定位:kankan 让人「看到别人做的好东西 → 直接去体验/去用」,
+  // 不是引向"怎么做"的制作教程(旧「想看怎么做」→ /clue 教程屏已下线)。
+  // tryUrl = 作品可去用的真实地址(官网 / App Store / GitHub),审核准入已强制要求。
+  // 主行动样式:墨绿实底 + 「去体验」+ 行尾 ↗(与 GoAction 打开外链的确认流一致)。
+  // 珊瑚橙仍只留给 take(HANDOFF §5),故这里用墨绿。
+  Widget _tryEntry(Project project) {
+    final url = project.tryUrl!;
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: KkSpacing.lg,
         vertical: KkSpacing.sm,
       ),
       child: Tappable(
-        onTap: () => context.push(KkRoutes.clue(project.id)),
+        onTap: () => _openTryUrl(context, url),
         borderRadius: BorderRadius.circular(KkRadius.md),
         child: Container(
           padding: const EdgeInsets.symmetric(
@@ -455,37 +471,58 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             horizontal: KkSpacing.lg,
           ),
           decoration: BoxDecoration(
-            color: KkColors.mint,
+            color: KkColors.teal,
             borderRadius: BorderRadius.circular(KkRadius.md),
-            border: Border.all(color: KkColors.teal.withAlpha(77)),
           ),
-          child: Row(
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.lightbulb_outline,
-                  size: 18, color: KkColors.teal),
-              const SizedBox(width: KkSpacing.sm),
-              Expanded(
-                child: Text(
-                  '想看怎么做',
-                  style: const TextStyle(
-                    color: KkColors.teal,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    fontFamily: 'NotoSerifSC',
-                  ),
+              Icon(Icons.explore_outlined, size: 18, color: Colors.white),
+              SizedBox(width: KkSpacing.sm),
+              Text(
+                '去体验',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  fontFamily: 'NotoSerifSC',
                 ),
               ),
-              Text(
-                '$count 人想知道',
-                style: KkType.mono.copyWith(fontSize: 12, color: KkColors.teal),
-              ),
-              const SizedBox(width: KkSpacing.xs),
-              const Icon(Icons.chevron_right, size: 16, color: KkColors.teal),
+              SizedBox(width: KkSpacing.xs),
+              Icon(Icons.arrow_outward, size: 16, color: Colors.white),
             ],
           ),
         ),
       ),
     );
+  }
+
+  // 打开体验链接:二次确认(显示落地域名)→ 外部浏览器打开。与 ActionRow._GoButton 同流。
+  Future<void> _openTryUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    // 埋点:体验点击(与动作点击同信号,便于看"去用"转化)。
+    ref.read(analyticsProvider).track('try_click', projectId: widget.projectId);
+    final host = uri.host.isNotEmpty ? uri.host : url;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('打开外部链接？'),
+        content: Text(host),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('打开'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   // ── 滚动跟随底栏 ──
@@ -513,35 +550,15 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           ),
           child: Row(
             children: [
-              // 评论入口:F-5 点击滚动到内联 CommentThread(与其他屏评论入口一致:有反应)
-              Expanded(
-                child: Tappable(
-                  onTap: _scrollToComments,
-                  borderRadius: BorderRadius.circular(KkRadius.pill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: KkSpacing.md,
-                      horizontal: KkSpacing.lg,
-                    ),
-                    decoration: BoxDecoration(
-                      color: KkColors.bgSubtle,
-                      borderRadius: BorderRadius.circular(KkRadius.pill),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.chat_bubble_outline,
-                            size: 16, color: KkColors.t3),
-                        const SizedBox(width: KkSpacing.sm),
-                        Text(
-                          '心得 ${comments.length}',
-                          style: KkType.bodySm,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              // 评论:紧凑图标统计（与点赞/拿走一致），点了滚到内联评论区。
+              // 不再做成撑满整行的大药丸——否则和内联「写心得」输入框叠着，像两个评论栏。
+              _IconStat(
+                icon: Icons.chat_bubble_outline,
+                value: _fmtCount(comments.length),
+                color: KkColors.t2,
+                onTap: _scrollToComments,
               ),
-              const SizedBox(width: KkSpacing.sm),
+              const Spacer(),
               // 点赞:F-6 接 toggleLike(参照 post_detail_screen._IconStat 写法)。
               // 任务 C:用 KkReactionButton——点亮时 scale 弹 + haptic(取消不弹)。
               KkReactionButton(
@@ -549,9 +566,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                 value: _fmtCount(likeCount),
                 color: isLiked ? KkColors.like : KkColors.t2,
                 isLit: isLiked,
-                onTap: () => ref
-                    .read(appStateProvider.notifier)
-                    .toggleLike(project.id),
+                onTap: () =>
+                    ref.read(appStateProvider.notifier).toggleLike(project.id),
               ),
               const SizedBox(width: KkSpacing.sm),
               // 拿走计数(若有 take 动作):F-6 点击滚动到动作区(拿走按钮所在)
@@ -605,9 +621,7 @@ class _DetailCover extends StatelessWidget {
     final isImage = hasMedia && first!.type == 'image';
     final isVideo = hasMedia && first!.type == 'video';
     // 封面 URL:与 ProjectCard._Cover 同源(image→url, video→poster, 无→null)
-    final coverUrl = isImage
-        ? first.url
-        : (isVideo ? first.poster : null);
+    final coverUrl = isImage ? first.url : (isVideo ? first.poster : null);
     final pattern = _domainPattern(project.domain);
 
     return SizedBox(
@@ -619,8 +633,8 @@ class _DetailCover extends StatelessWidget {
           // 封面:有 URL → Image.network(loadingBuilder/errorBuilder 回退 CoverArt);
           // 无 URL → CoverArt 占位(与 ProjectCard._Cover 同源,Hero 无缝衔接)
           if (coverUrl != null && coverUrl.isNotEmpty)
-            Image.network(
-              coverUrl,
+            Image(
+              image: CachedNetworkImageProvider(coverUrl), // 磁盘缓存,回访秒出
               fit: BoxFit.cover,
               width: double.infinity,
               height: 220,
@@ -749,8 +763,7 @@ class _FollowButton extends ConsumerWidget {
     final following =
         ref.watch(appStateProvider).followedUserIds.contains(userId);
     return Tappable(
-      onTap: () =>
-          ref.read(appStateProvider.notifier).toggleFollow(userId),
+      onTap: () => ref.read(appStateProvider.notifier).toggleFollow(userId),
       borderRadius: BorderRadius.circular(KkRadius.pill),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -760,9 +773,7 @@ class _FollowButton extends ConsumerWidget {
         decoration: BoxDecoration(
           color: following ? KkColors.bgSubtle : KkColors.teal,
           borderRadius: BorderRadius.circular(KkRadius.pill),
-          border: following
-              ? Border.all(color: KkColors.bd)
-              : null,
+          border: following ? Border.all(color: KkColors.bd) : null,
         ),
         child: Text(
           following ? '已关注' : '关注',
@@ -785,7 +796,8 @@ class _IconStat extends StatelessWidget {
   // F-6:点赞 / 拿走计数的点击回调(参照 post_detail_screen._IconStat 已接线写法)。
   final VoidCallback? onTap;
 
-  const _IconStat({required this.icon, required this.value, this.color, this.onTap});
+  const _IconStat(
+      {required this.icon, required this.value, this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {

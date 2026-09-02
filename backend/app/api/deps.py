@@ -43,10 +43,16 @@ def auth_optional(
     db: Session = Depends(get_db),
     credentials: Optional[HTTPAuthorizationCredentials] = Security(_bearer),
 ) -> Optional[User]:
-    """游客可用的接口挂这个：没带 token = 游客（返回 None）；带了坏 token 仍然 401（明确报错，不静默降级）。"""
+    """游客可用的接口挂这个：没带 token = 游客（返回 None）；**带了坏/过期 token 也当游客**（返回 None），
+    绝不 401——否则客户端本地存了旧/坏 token，会把公开 feed（看看/发现/榜单）打成'登录态无效'，
+    连游客都看不了内容（前端还常把它误显示成'连不上服务器'）。真正需要登录的动作走 auth_required，
+    那里才 401 弹登录。这是可选鉴权的正确语义：token 只用于'增强'（个性化），无效就退化成游客。"""
     if credentials is None:
         return None
-    return _load_user(db, credentials.credentials)
+    try:
+        return _load_user(db, credentials.credentials)
+    except AppError:
+        return None  # 坏/过期 token 静默降级为游客，公开内容照常返回
 
 
 def admin_required(user: User = Depends(auth_required)) -> User:

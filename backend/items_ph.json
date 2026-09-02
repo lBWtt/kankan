@@ -1,0 +1,386 @@
+[
+  {
+    "source_url": "https://www.producthunt.com/products/openmarkdown",
+    "title": "OpenMarkdown",
+    "text": "A markdown editor you and your agent co-edit。A feather-light, local-first Markdown editor built for you and your agent.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://openmarkdown.dev/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-14T21:32:04-07:00",
+    "media": [
+      {
+        "url": "https://openmarkdown.dev/assets/og-image.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/acebuilder",
+    "title": "Acebuilder",
+    "text": "Build landing pages with Aceternity UI。Acebuilder is an AI-powered landing page builder built on Aceternity UI. Describe your page, generate it with production-grade React and Tailwind components, and download the full source code. No lock-in.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.acebuilder.ai/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-14T04:05:00-07:00",
+    "media": [
+      {
+        "url": "https://acebuilder.ai/banner.jpg",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/docusmart-ai",
+    "title": "DocuSmart AI",
+    "text": "Turning fragmented knowledge into one simple system。AI-powered document search built for nonprofits. Get instant, citation-backed answers from your own documents across Google Drive, OneDrive, and Dropbox. No migration required.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.docusmart.eu/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-03-12T10:37:12-07:00",
+    "media": [
+      {
+        "url": "https://www.docusmart.eu/img.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/clark-agent",
+    "title": "Clark",
+    "text": "An AI coworker with its own cloud computer。Two ways to put Clark to work: Clark Agent in the cloud and Clark Code on your machine — from the first AI lab run by autonomous AI.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.clarkchat.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-05-27T02:38:52-07:00",
+    "media": [
+      {
+        "url": "https://www.clarkchat.com/og/clark-og-20260504.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/wx",
+    "title": "WX",
+    "text": "An experimental synth for playable generative sound",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://scrapbrainaudio.com/wx?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-14T07:38:29-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/aye-browser",
+    "title": "Aye",
+    "text": "Your teachable AI intern for everyday browser work",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://okaapps.com/product/6760281977?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T22:07:19-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/scribble-party",
+    "title": "Scribble Party",
+    "text": "A local-first whiteboard studio for teachers and creators",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://scribbling.party/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-16T19:55:51-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/pebbles-ai",
+    "title": "Pebbles Ai",
+    "text": "AI sales platform for modern B2B teams",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.trypebbles.ai/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-13T21:03:42-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/basedash",
+    "title": "Basedash Suggestions",
+    "text": "Your AI data analyst, now with ideas of its own.。Basedash now generates personalized suggestions across chats, dashboards, and automations — questions worth asking, dashboards worth building, reports worth…",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.basedash.com/blog/introducing-basedash-suggestions?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-16T07:57:03-07:00",
+    "media": [
+      {
+        "url": "https://www.basedash.com/og/blog/introducing-basedash-suggestions.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/unabyss",
+    "title": "Unabyss for Claude",
+    "text": "Shared memory across all apps and LLMs. In Claude。You run ChatGPT, Claude, Cursor and more - but each starts blank. Unabyss connects your Slack, Gmail, Notion and the rest so every AI pulls what",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://unabyss.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-10T12:19:45-07:00",
+    "media": [
+      {
+        "url": "https://unabyss.com/og-image.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/kimi-ai-assistant",
+    "title": "Kimi K3",
+    "text": "The world's first open 3T-class model",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.kimi.com/blog/kimi-k3?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-16T19:39:47-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/pixycad-3d-solid-modelling",
+    "title": "PixyCAD",
+    "text": "Fast & precise 3D CAD built natively for iPad and Mac。Powerful 3D CAD, Beautifully Simple",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://pixycad.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-16T00:15:45-07:00",
+    "media": [
+      {
+        "url": "https://pixycad.com/assets/appscreenshot.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/graft-ai",
+    "title": "Graft AI",
+    "text": "Turn company operations into a living map for agents。Graft AI connects AI agents to the software your business already runs through stable, governed tools.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://graft.axcelner.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T10:24:23-07:00",
+    "media": [
+      {
+        "url": "https://graft.axcelner.com/assets/og-cover.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/amami",
+    "title": "Amami",
+    "text": "Analytics that lives inside your AI assistant",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://analytics.amami.dev/login?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-14T21:17:53-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/kit-for-ai",
+    "title": "Kit For AI",
+    "text": "The memory layer for AI agents。Persistent memory and grounded knowledge for AI agents — native MCP tools your agent calls directly. Memory plus document ingestion and retrieval in one API. No RAG stack to babysit. Works with any model.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://kitforai.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T03:39:04-07:00",
+    "media": [
+      {
+        "url": "https://kitforai.com/opengraph-image.png?opengraph-image.d09baca4.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/chikitai",
+    "title": "ChikitAI",
+    "text": "Agentic AI for Healthcare Triage and Care Automation",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.chikit.ai/",
+    "language": "en-US",
+    "published_at": "2026-07-14T13:54:35-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/verse-6",
+    "title": "Verse",
+    "text": "Build and hire autonomous AI employees from a single prompt。Build autonomous AI employees from a single prompt — they use your tools, hold context, and run work around the clock without code.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.useverse.ai/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T06:30:43-07:00",
+    "media": [
+      {
+        "url": "https://www.useverse.ai/og-image.png?v=2",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/albato",
+    "title": "Albato AI",
+    "text": "Build AI-driven workflows across 1,000+ apps",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://albato.com/automate?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2025-11-10T09:10:46-08:00",
+    "media": [
+      {
+        "url": "https://albato.com/images/previews/en/home.webp",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/in-parallel",
+    "title": "In Parallel MCP",
+    "text": "Your context, available to every agent.。In Parallel is the AI context layer for teams: shared organizational memory captured from every meeting and exposed to Claude, Copilot, and ChatGPT via MCP, so every agent works from the same live business context.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.in-parallel.com/mcp/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-14T05:55:10-07:00",
+    "media": [
+      {
+        "url": "https://www.in-parallel.com/images/og/mcp.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/bricksolvr",
+    "title": "BrickSolvr",
+    "text": "Turn any 3D model into a buildable brick design。Convert any 3D model into a stud-brick build in your browser, and get the parts list to buy.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://bricksolvr.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T01:30:49-07:00",
+    "media": [
+      {
+        "url": "https://bricksolvr.com/og-image.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/resonantgenesis",
+    "title": "DevSwat AST- visualizer with analyzer",
+    "text": "Turn codebases into interactive maps, graphs, and governance。Build, run, and schedule autonomous AI agents. AI-powered IDE, personalized chat with smart routing, AST/SAST code analysis, and RARA governance. Connect any LLM provider. Your agents, your data, your infrastructure.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://dev-swat.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T10:33:34-07:00",
+    "media": [
+      {
+        "url": "https://dev-swat.com/devswat/DevSwat.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/cito",
+    "title": "Cito",
+    "text": "Hybrid academic search over 236M papers, built for agents。Semantic search over ~148M academic papers. Find work by meaning, not just keywords.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://cito.fim.ai/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-13T13:26:53-07:00",
+    "media": [
+      {
+        "url": "https://cito.fim.ai/og.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/dot-7",
+    "title": "dot.",
+    "text": "The feedback layer for anything you build with AI.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.leaveadot.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-06T11:22:12-07:00"
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/nitrosend",
+    "title": "Nitrosend",
+    "text": "Email for AI agents. They sign up, send and reply.。Agents sign up, onboard, send marketing and transactional email, run their own inboxes and reply to customers on Nitrosend. Point your agent at nitrosend.com/SKILL.md.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://nitrosend.com/email-for-agents?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-14T18:41:49-07:00",
+    "media": [
+      {
+        "url": "https://nitrosend.com/assets/nitrosend-og.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/river-9",
+    "title": "River",
+    "text": "AI account executives that demo and close B2B deals。Hire a digital account executive that instantly demos to every prospect and closes your SMB deals.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://www.rivergtm.com/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T17:40:17-07:00",
+    "media": [
+      {
+        "url": "https://www.rivergtm.com/og-image.jpg",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/manta-ai",
+    "title": "Manta AI",
+    "text": "Your AI agent for autonomous web app testing。An AI software testing agent that understands your product. Explore your web app automatically and detect breaking behavior.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://mantaai.co/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-13T05:00:36-07:00",
+    "media": [
+      {
+        "url": "https://mantaai.co/og-image.png",
+        "media_type": "image"
+      }
+    ]
+  },
+  {
+    "source_url": "https://www.producthunt.com/products/zro",
+    "title": "Zro",
+    "text": "Private inference for coding agents。Fast open-model inference on EU infrastructure with zero request retention.",
+    "source_platform": "producthunt",
+    "content_kind": "project",
+    "try_url": "https://zro.moonmath.ai/?ref=producthunt",
+    "language": "en-US",
+    "published_at": "2026-07-15T08:45:09-07:00",
+    "media": [
+      {
+        "url": "https://zro.moonmath.ai/zro-social-preview.png",
+        "media_type": "image"
+      }
+    ]
+  }
+]

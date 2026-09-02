@@ -65,6 +65,21 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
+    # V4 上下文窗口是 1M；max_tokens 是输出预算（官方上限 384K），不是上下文长度。
+    # 候选整理默认给 32K，足够推理 + 结构化 JSON，同时避免无意义地预留 384K 输出。
+    deepseek_max_tokens: int = 32768
+    # 成本护栏：每天最多调用 AI 整理多少次（跨进程 Redis 计数）。0 = 不限（默认，保持旧行为）。
+    #   上线前设一个上限（如 500），DeepSeek 便宜但也别让抓取洪峰把账单打爆。超额→该批停整理、下轮再跑。
+    ai_daily_call_cap: int = 0
+    # 连续失败熔断：一批里连续失败到这个数就中止（多半是 key 失效/额度耗尽/网络断，别继续烧钱重试）。
+    ai_failure_circuit_breaker: int = 5
+
+    # ---- 定时整理调度：每隔一段时间把 ai_collected 的候选自动送去 AI 整理。----
+    #   默认关（保持旧行为=手动跑 pipeline.py）；上线后开启，配合上面的成本护栏一起用。
+    #   单进程部署直接用；多 worker 部署要么只在一个 worker 开，要么挪去独立任务进程（见 maintenance.py 注释）。
+    ingest_scheduler_enabled: bool = False
+    ingest_interval_minutes: int = 30            # 每隔多少分钟跑一批
+    ingest_batch_limit: int = 20                 # 每批最多整理多少条（也受当日额度上限约束）
 
     # 分享卡回流的 Web 分享页域名（Web 分享页未建，先占位，上线前改环境变量）
     share_base_url: str = "https://share.example.dev"

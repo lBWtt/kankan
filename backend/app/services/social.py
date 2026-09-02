@@ -14,6 +14,7 @@ from app.core.errors import AppError
 from app.core.pagination import encode_cursor
 from app.core.utils import parse_datetime_cursor
 from app.models import User, UserFollow
+from app.services.notify import push_interaction
 
 
 def _require_user(db: Session, user_id: uuid.UUID) -> User:
@@ -29,6 +30,9 @@ def follow(db: Session, follower: User, followee_id: uuid.UUID) -> None:
         raise AppError(409, "CANNOT_FOLLOW_SELF", "不能关注自己")
     _require_user(db, followee_id)
     db.add(UserFollow(follower_user_id=follower.id, followee_user_id=followee_id))
+    # 关注通知：与 UserFollow 同事务——重复关注撞唯一约束回滚时，通知一并作废（不重复提醒）。
+    push_interaction(db, recipient_id=followee_id, actor=follower,
+                     title=f"{follower.nickname} 关注了你")
     try:
         db.commit()
     except IntegrityError:

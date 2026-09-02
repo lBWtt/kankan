@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,9 @@ class CandidateContent(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(candidate_status_enum, nullable=False, server_default="ai_collected")
     # 候选来源（迁移 0002 补充）：ai_crawled 或 manual_import，approve 时原样带进项目
     source_type: Mapped[str] = mapped_column(content_source_type_enum, nullable=False, server_default="ai_crawled")
+    # 落地路径（迁移 0016）：project=复制成正式项目（默认）；post=改写成马甲发的动态。
+    # 决定 process 用哪套富化 prompt、approve 建 Project 还是 Post。
+    content_kind: Mapped[str] = mapped_column(String(20), nullable=False, server_default="project")
 
     # ---- AI 生成的内容字段（刚抓回来时可能还没生成，所以大多可空）----
     title: Mapped[Optional[str]] = mapped_column(String(80))
@@ -40,6 +43,37 @@ class CandidateContent(TimestampMixin, Base):
     ai_implementation_hint: Mapped[Optional[str]] = mapped_column(Text)
     target_users: Mapped[Optional[list]] = mapped_column(ARRAY(Text))
     use_cases: Mapped[Optional[list]] = mapped_column(ARRAY(Text))
+
+    # 体验入口（迁移 0019）：DeepSeek 从原文提取的可去试链接/小程序名/公众号；approve 带进 Project.try_url。
+    # 小红书/抖音的 Vibe Coding 成果尤其需要它——"能去试"是这类内容的核心价值。
+    try_url: Mapped[Optional[str]] = mapped_column(Text)
+
+    # ---- 内容宪法 v1.1：作品判定、体验形态与吸引力评分 ----
+    is_work: Mapped[Optional[bool]] = mapped_column(Boolean)
+    work_rejection_reason: Mapped[Optional[str]] = mapped_column(Text)
+    work_form: Mapped[Optional[str]] = mapped_column(String(30))
+    creator_type: Mapped[Optional[str]] = mapped_column(String(20))
+    access_friction: Mapped[Optional[str]] = mapped_column(String(20))
+    experience_type: Mapped[Optional[str]] = mapped_column(String(30))
+    experience_url: Mapped[Optional[str]] = mapped_column(Text)
+    experience_content: Mapped[Optional[str]] = mapped_column(Text)
+    hook_clarity: Mapped[Optional[int]] = mapped_column(Integer)
+    visual_impact: Mapped[Optional[int]] = mapped_column(Integer)
+    surprise: Mapped[Optional[int]] = mapped_column(Integer)
+    tryability: Mapped[Optional[int]] = mapped_column(Integer)
+    shareability: Mapped[Optional[int]] = mapped_column(Integer)
+    attraction_score: Mapped[Optional[int]] = mapped_column(Integer)
+    value_score: Mapped[Optional[int]] = mapped_column(Integer)
+    is_strong_visual: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    is_direct_tryable: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    selected_proof_media: Mapped[Optional[dict]] = mapped_column(JSONB)
+    title_candidates: Mapped[Optional[list]] = mapped_column(JSONB)
+    policy_version: Mapped[str] = mapped_column(String(20), nullable=False, server_default="1.1")
+    score_version: Mapped[Optional[str]] = mapped_column(String(60))
+    # AI 原始判断永不覆盖；current columns 是当前生效值，人工修改另记 override 与理由。
+    ai_analysis_json: Mapped[Optional[dict]] = mapped_column(JSONB)
+    human_override_json: Mapped[Optional[dict]] = mapped_column(JSONB)
+    override_reason: Mapped[Optional[str]] = mapped_column(Text)
 
     # ---- 来源信息（外部内容必须保留，否则审核标风险）----
     source_url: Mapped[Optional[str]] = mapped_column(Text)

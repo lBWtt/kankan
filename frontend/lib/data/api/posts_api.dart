@@ -7,27 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/config/app_config.dart';
 import '../../core/network/app_exception.dart';
 import '../../core/network/dio_provider.dart';
+import '../../core/utils/parse_ms.dart';
 import '../../domain/models/models.dart';
 import '../remote_user_cache.dart';
-
-/// 后端相对媒体 URL（/uploads/xxx）拼后端 origin；绝对 URL 原样（同 project_card_dto）。
-String _resolveUrl(String url) {
-  if (url.isEmpty || url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  var origin = AppConfig.apiBaseUrl;
-  final i = origin.indexOf('/api/');
-  if (i > 0) origin = origin.substring(0, i);
-  return url.startsWith('/') ? '$origin$url' : '$origin/$url';
-}
-
-int _parseMs(dynamic iso) {
-  if (iso is String && iso.isNotEmpty) {
-    final dt = DateTime.tryParse(iso);
-    if (dt != null) return dt.millisecondsSinceEpoch;
-  }
-  return DateTime.now().millisecondsSinceEpoch;
-}
 
 /// 后端 PostOut → 前端 Post。is_liked 收集进 [likedIds]；likes 存「不含我」基数
 /// （前端 post_card/detail 显示 likes + isLiked，后端 like_count 含我，减掉我这一票）。
@@ -40,9 +22,11 @@ Post _postFromJson(Map<String, dynamic> j, Set<String> likedIds) {
     authorId = author['id']?.toString() ?? '';
     if (authorId.isNotEmpty) {
       final nick = author['nickname']?.toString();
+      final handle = author['handle']?.toString();
       cacheRemoteUser(KkUser(
         id: authorId,
         name: (nick != null && nick.isNotEmpty) ? nick : authorId,
+        handle: (handle != null && handle.isNotEmpty) ? handle : null,
         avatar: author['avatar_url']?.toString(),
       ));
     }
@@ -55,8 +39,8 @@ Post _postFromJson(Map<String, dynamic> j, Set<String> likedIds) {
       if (url != null && url.isNotEmpty) {
         media.add(MediaItem(
           type: m['type']?.toString() == 'video' ? 'video' : 'image',
-          url: _resolveUrl(url),
-          poster: m['poster'] != null ? _resolveUrl(m['poster'].toString()) : null,
+          url: AppConfig.resolveMedia(url),
+          poster: m['poster'] != null ? AppConfig.resolveMedia(m['poster'].toString()) : null,
         ));
       }
     }
@@ -77,9 +61,13 @@ Post _postFromJson(Map<String, dynamic> j, Set<String> likedIds) {
     quoteProjectId: j['quote_project_id']?.toString(),
     likes: baseLikes,
     commentCount: cc is int ? cc : int.tryParse('$cc') ?? 0,
-    createdAtMs: _parseMs(j['created_at']),
+    createdAtMs: parseMs(j['created_at']),
   );
 }
+
+/// 公开封装：供 topics_api 等复用同一套 PostOut→Post 映射（is_liked 收进 likedIds）。
+Post postFromJson(Map<String, dynamic> j, Set<String> likedIds) =>
+    _postFromJson(j, likedIds);
 
 /// 一次动态列表拉取：动态列表 + 我已赞的动态 id 集合。
 class PostList {
