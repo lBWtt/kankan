@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/app_version_gate.dart';
 import 'core/config/app_config.dart';
 import 'core/prefs.dart';
 import 'core/theme/app_theme.dart';
@@ -196,13 +197,16 @@ class _AppBootstrapState extends ConsumerState<_AppBootstrap> {
   Future<void> _afterFirstFrame() async {
     if (!mounted) return;
     ref.read(analyticsProvider).track('app_open');
-    final prefs = ref.read(prefsProvider);
-    if (prefs.getBool(PrefsKeys.kvKankanOnboardingSeen) == true) return;
     final overlayContext = rootNavigatorKey.currentState?.overlay?.context;
     if (overlayContext == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
       return;
     }
+    // 版本闸 / kill-switch：强制更新时拦住，后续引导都不再走（返回用户也要检查）。
+    final blocked = await runAppVersionGate(overlayContext);
+    if (blocked || !mounted) return;
+    final prefs = ref.read(prefsProvider);
+    if (prefs.getBool(PrefsKeys.kvKankanOnboardingSeen) == true) return;
     await showKankanOnboardingSheet(overlayContext);
     if (mounted) {
       await prefs.setBool(PrefsKeys.kvKankanOnboardingSeen, true);

@@ -3,7 +3,7 @@
 name: kankan_flutter
 description: 看看 — 看 AI 做出的有意思的东西 + 心得。Flutter 原生版。
 publish_to: 'none'
-version: 0.2.4+5
+version: 0.2.5+6
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

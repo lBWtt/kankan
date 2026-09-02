@@ -1,0 +1,8 @@
+{
+  "latest_build": 6,
+  "min_supported_build": 1,
+  "blocked_builds": [],
+  "apk_url": "https://lovluu.com/downloads/kankan-android.apk",
+  "message": "有新版本，建议更新到最新版。",
+  "force_message": "当前版本已停用，请更新到最新版后继续使用。"
+}
