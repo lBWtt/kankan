@@ -203,4 +203,27 @@ def home_slate(db: Session, *, seed: str | None = None, pool_limit: int = 200) -
         .order_by(Project.attraction_score.desc(), Project.value_score.desc(), Project.published_at.desc())
         .limit(pool_limit)
     ).all()
-    return compose_slate(rows, seed=seed or date.today().isoformat())
+    result = compose_slate(rows, seed=seed or date.today().isoformat())
+
+    # 兜底补位：审核发布过的项目都该能被用户看到。slate 只负责首屏「精选排序」（前面几条），
+    # 但历史上 79 个老项目没打吸引力分、进不了 slate；若 slate 太短，接口只返回几条，
+    # 客户端(slate<10 就停)会把上百个已发布项目全藏起来（用户反馈「只剩几个」）。
+    # 这里在精选之后追加最近发布的已发布项目（去重）补到 ≥ SLATE_SIZE，让接口返回够条数，
+    # 新旧客户端都会继续下拉出全部。「不补位」只是不硬凑首屏精选，不是藏掉审核过的内容。
+    if len(result.projects) < SLATE_SIZE:
+        chosen_ids = {p.id for p in result.projects}
+        fillers = db.scalars(
+            select(Project)
+            .where(Project.status == "published", Project.deleted_at.is_(None))
+            .order_by(Project.published_at.desc(), Project.id.desc())
+            .limit(SLATE_SIZE * 3)
+        ).all()
+        for p in fillers:
+            if p.id in chosen_ids:
+                continue
+            result.projects.append(p)
+            chosen_ids.add(p.id)
+            if len(result.projects) >= SLATE_SIZE:
+                break
+
+    return result
