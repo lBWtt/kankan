@@ -33,12 +33,23 @@ class PaginatedProjectsNotifier extends PaginatedNotifier<Project> {
     }
     if (cursor == null) {
       final slate = await ref.read(projectsApiProvider).homeSlate();
-      final isCompleteSlate = slate.length >= 10;
+      if (slate.length >= 10) {
+        // 首屏满十条：宪法 slate 编排首屏，下滑再接普通时间流。
+        return Page<Project>(
+          items: slate,
+          nextCursor: _afterSlateCursor,
+          hasMore: true,
+        );
+      }
+      // 首屏不足十条：不硬凑首屏(保持 slate 纯度)，但把普通时间流直接接在后面一起返回。
+      // 「不补位」只是不硬凑首屏——不是把已审核发布的项目藏起来。审核通过=人工已把关，
+      // 就该给用户看；吸引力分只管首屏排序，不该拿它挡掉大量未打分的老项目(attraction=NULL)。
+      final flow = await ref.read(projectsApiProvider).listPaged(limit: 50);
+      final seen = {for (final p in slate) p.id};
       return Page<Project>(
-        items: slate,
-        // 宪法要求库存不足时宁可少于十条，不能拿普通时间流悄悄补位。
-        nextCursor: isCompleteSlate ? _afterSlateCursor : null,
-        hasMore: isCompleteSlate,
+        items: [...slate, ...flow.items.where((p) => !seen.contains(p.id))],
+        nextCursor: flow.nextCursor,
+        hasMore: flow.hasMore,
       );
     }
     if (cursor == _afterSlateCursor) {
