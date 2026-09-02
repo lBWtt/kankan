@@ -229,49 +229,49 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
   }
 
   Widget _searchField() {
+    // 修 bug（第二次）：之前用 prefixIcon + isDense + 定高 42，在 AppBar 语境下
+    // InputDecoration 的内在高度把文字基线挤出可见区 → 搜索词「有（×在）却不显示」。
+    // 改稳妥写法：图标改成 Row 里的兄弟节点（不占输入框内在高度）；输入框 isCollapsed
+    // + contentPadding 归零，让它贴着父容器高度、不再自撑高，文字就能正常显示。
     return Container(
       height: 42,
       margin: const EdgeInsets.only(right: KkSpacing.lg),
+      padding: const EdgeInsets.symmetric(horizontal: KkSpacing.md),
       decoration: BoxDecoration(
         color: KkColors.bgSubtle,
         borderRadius: BorderRadius.circular(KkRadius.pill),
       ),
-      child: TextField(
-        controller: _ctrl,
-        autofocus: false,
-        textInputAction: TextInputAction.search,
-        textAlignVertical: TextAlignVertical.center,
-        style: KkType.body.copyWith(color: KkColors.t1),
-        decoration: InputDecoration(
-          hintText: '搜索',
-          hintStyle: KkType.body.copyWith(color: KkColors.t4),
-          isDense: true,
-          // 修 bug：原来只有横向 padding + prefixIcon minHeight:42（顶满容器高），
-          // 让 isDense 输入框的文字基线被挤出可见区 → 搜索词「明明有（× 清除键在）却不显示」。
-          // 对齐输入页 search_screen 那套已验证正常的配置：加纵向 padding + 图标 minHeight:36。
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: KkSpacing.md,
-            vertical: KkSpacing.sm,
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 18, color: KkColors.t3),
+          const SizedBox(width: KkSpacing.sm),
+          Expanded(
+            child: TextField(
+              controller: _ctrl,
+              autofocus: false,
+              textInputAction: TextInputAction.search,
+              textAlignVertical: TextAlignVertical.center,
+              style: KkType.body.copyWith(color: KkColors.t1),
+              decoration: InputDecoration(
+                hintText: '搜索',
+                hintStyle: KkType.body.copyWith(color: KkColors.t4),
+                isCollapsed: true,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+              ),
+              onSubmitted: _search,
+            ),
           ),
-          prefixIcon: const Icon(Icons.search, size: 18, color: KkColors.t3),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 36,
-            minHeight: 36,
-          ),
-          suffixIcon: _ctrl.text.isNotEmpty
-              ? Tappable(
-                  onTap: _ctrl.clear,
-                  borderRadius: BorderRadius.circular(KkRadius.pill),
-                  child: const Icon(Icons.close, size: 16, color: KkColors.t3),
-                )
-              : null,
-          suffixIconConstraints: const BoxConstraints(
-            minWidth: 36,
-            minHeight: 36,
-          ),
-          border: InputBorder.none,
-        ),
-        onSubmitted: _search,
+          if (_ctrl.text.isNotEmpty)
+            Tappable(
+              onTap: _ctrl.clear,
+              borderRadius: BorderRadius.circular(KkRadius.pill),
+              child: const Padding(
+                padding: EdgeInsets.only(left: KkSpacing.xs),
+                child: Icon(Icons.close, size: 16, color: KkColors.t3),
+              ),
+            ),
+        ],
       ),
     );
   }
